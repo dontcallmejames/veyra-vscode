@@ -5,6 +5,7 @@ import { CodexAgent } from '../../src/agents/codex.js';
 
 vi.mock('node:child_process', () => ({
   spawn: vi.fn(),
+  execSync: vi.fn().mockReturnValue('/fake/npm/root\n'),
 }));
 
 import { spawn } from 'node:child_process';

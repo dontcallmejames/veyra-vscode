@@ -1,12 +1,27 @@
-import { spawn } from 'node:child_process';
+import { spawn, execSync } from 'node:child_process';
+import { join } from 'node:path';
 import type { ChildProcess } from 'node:child_process';
 import type { Agent, SendOptions } from './types.js';
 import type { AgentChunk, AgentStatus } from '../types.js';
 
 // Spike A3: invoke `codex exec --json '<prompt>'` for non-interactive JSONL.
-// On Windows, `codex` is an npm shim (codex.cmd) - plain spawn('codex') fails
-// with ENOENT. Use the .cmd extension explicitly so Windows resolves it.
-const CODEX_BIN = process.platform === 'win32' ? 'codex.cmd' : 'codex';
+//
+// Windows: `codex` is an npm shim (codex.cmd). Plain spawn('codex') fails
+// with ENOENT, and spawn('codex.cmd') fails with EINVAL on Node 20+ due
+// to DEP0190 (refusal to spawn .cmd files without shell:true, and
+// shell:true introduces unsafe arg concatenation). Reliable fix: resolve
+// the bundle's JS entrypoint via `npm root -g` and invoke node directly.
+const CODEX_CMD = resolveCodexCommand();
+
+function resolveCodexCommand(): { command: string; args: string[] } {
+  if (process.platform !== 'win32') {
+    return { command: 'codex', args: [] };
+  }
+  const npmRoot = execSync('npm root -g', { encoding: 'utf8' }).trim();
+  const bundle = join(npmRoot, '@openai', 'codex', 'bin', 'codex.js');
+  return { command: process.execPath, args: [bundle] };
+}
+
 const CODEX_ARGS = (prompt: string): string[] => ['exec', '--json', prompt];
 
 export class CodexAgent implements Agent {
@@ -18,10 +33,11 @@ export class CodexAgent implements Agent {
   }
 
   async *send(prompt: string, opts: SendOptions = {}): AsyncIterable<AgentChunk> {
-    const child = spawn(CODEX_BIN, CODEX_ARGS(prompt), {
-      cwd: opts.cwd,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    const child = spawn(
+      CODEX_CMD.command,
+      [...CODEX_CMD.args, ...CODEX_ARGS(prompt)],
+      { cwd: opts.cwd, stdio: ['ignore', 'pipe', 'pipe'] }
+    );
     this.active = child;
 
     if (opts.signal) {

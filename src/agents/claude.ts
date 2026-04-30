@@ -127,11 +127,13 @@ function* mapSdkEvent(event: unknown): Generator<AgentChunk> {
       if (typeof e.name === 'string') yield { type: 'tool-result', name: e.name, output: e.output };
       return;
 
-    case 'error':
-      if (typeof (e as { message?: string }).message === 'string') {
-        yield { type: 'error', message: (e as { message: string }).message };
+    case 'error': {
+      const msg = (event as { message?: unknown }).message;
+      if (typeof msg === 'string') {
+        yield { type: 'error', message: msg };
       }
       return;
+    }
 
     case 'done':
       yield { type: 'done' };
