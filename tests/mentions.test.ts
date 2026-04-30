@@ -71,4 +71,18 @@ describe('parseMentions', () => {
       remainingText: 'review',
     });
   });
+
+  it('handles empty string', () => {
+    expect(parseMentions('')).toEqual({
+      targets: [],
+      remainingText: '',
+    });
+  });
+
+  it('handles whitespace-only input', () => {
+    expect(parseMentions('   \n  ')).toEqual({
+      targets: [],
+      remainingText: '',
+    });
+  });
 });
