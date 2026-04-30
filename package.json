@@ -24,9 +24,9 @@
     "build": "node esbuild.config.mjs",
     "watch": "node esbuild.config.mjs --watch",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
-    "test:integration": "vitest run --dir tests/integration"
+    "test:integration": "vitest run --dir tests/integration --passWithNoTests"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
