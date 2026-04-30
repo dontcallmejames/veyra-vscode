@@ -1174,12 +1174,15 @@ function fakeProcess(stdoutChunks: string[], exitCode = 0) {
 }
 
 describe('CodexAgent', () => {
-  it('parses JSONL streaming output into AgentChunks', async () => {
-    // Replace this fixture with the real shape captured in A3 if different.
+  it('parses Codex JSONL events into AgentChunks', async () => {
+    // Real Codex event shape from spike A3: thread.started → turn.started →
+    // item.completed (with item.type === 'agent_message') → turn.completed.
     mockedSpawn.mockReturnValueOnce(
       fakeProcess([
-        '{"type":"text","text":"ok"}\n',
-        '{"type":"done"}\n',
+        '{"type":"thread.started","thread_id":"abc"}\n',
+        '{"type":"turn.started"}\n',
+        '{"type":"item.completed","item":{"type":"agent_message","text":"ok"}}\n',
+        '{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1}}\n',
       ])
     );
 
@@ -1227,9 +1230,11 @@ import type { ChildProcess } from 'node:child_process';
 import type { Agent, SendOptions } from './types.js';
 import type { AgentChunk, AgentStatus } from '../types.js';
 
-// Replace these with the working invocation from spike A3.
-const CODEX_BIN = 'codex';
-const CODEX_ARGS = (prompt: string): string[] => ['exec', '--prompt', prompt];
+// Spike A3: invoke `codex exec --json '<prompt>'` for non-interactive JSONL.
+// On Windows, `codex` is an npm shim (codex.cmd) — plain spawn('codex') fails
+// with ENOENT. Use the .cmd extension explicitly so Windows resolves it.
+const CODEX_BIN = process.platform === 'win32' ? 'codex.cmd' : 'codex';
+const CODEX_ARGS = (prompt: string): string[] => ['exec', '--json', prompt];
 
 export class CodexAgent implements Agent {
   readonly id = 'codex' as const;
@@ -1257,19 +1262,25 @@ export class CodexAgent implements Agent {
     });
 
     let buffer = '';
+    let sawDone = false;
     try {
       for await (const data of child.stdout!) {
         buffer += String(data);
         const lines = buffer.split('\n');
         buffer = lines.pop() ?? '';
         for (const line of lines) {
-          const chunk = parseLine(line);
-          if (chunk) yield chunk;
+          const chunk = parseCodexEvent(line);
+          if (!chunk) continue;
+          if (chunk.type === 'done') sawDone = true;
+          yield chunk;
         }
       }
       if (buffer.trim()) {
-        const chunk = parseLine(buffer);
-        if (chunk) yield chunk;
+        const chunk = parseCodexEvent(buffer);
+        if (chunk) {
+          if (chunk.type === 'done') sawDone = true;
+          yield chunk;
+        }
       }
     } catch (err) {
       yield { type: 'error', message: errorMessage(err) };
@@ -1279,7 +1290,7 @@ export class CodexAgent implements Agent {
     if (code !== 0) {
       yield { type: 'error', message: `Codex exited with code ${code}${stderr ? `: ${stderr.trim()}` : ''}` };
     }
-    yield { type: 'done' };
+    if (!sawDone) yield { type: 'done' };
     this.active = null;
   }
 
@@ -1288,20 +1299,31 @@ export class CodexAgent implements Agent {
   }
 }
 
-function parseLine(line: string): AgentChunk | null {
+// Codex JSONL event shapes from spike A3:
+//   { type: 'thread.started', thread_id }   → ignore
+//   { type: 'turn.started' }                → ignore
+//   { type: 'item.completed', item: { type: 'agent_message', text: '...' } } → text chunk
+//   { type: 'turn.completed', usage: {...} } → done
+function parseCodexEvent(line: string): AgentChunk | null {
   const trimmed = line.trim();
   if (!trimmed) return null;
+  let event: { type?: string; item?: { type?: string; text?: string } };
   try {
-    const parsed = JSON.parse(trimmed) as Partial<AgentChunk>;
-    if (typeof parsed === 'object' && parsed && 'type' in parsed) {
-      return parsed as AgentChunk;
-    }
+    event = JSON.parse(trimmed);
   } catch {
-    // Spike A3 may show this CLI emits plain text rather than JSONL —
-    // in that case, treat each non-empty line as a text chunk:
-    return { type: 'text', text: trimmed + '\n' };
+    return null; // ignore non-JSON lines (stray banners, ANSI noise)
   }
-  return null;
+  switch (event.type) {
+    case 'item.completed':
+      if (event.item?.type === 'agent_message' && typeof event.item.text === 'string') {
+        return { type: 'text', text: event.item.text };
+      }
+      return null;
+    case 'turn.completed':
+      return { type: 'done' };
+    default:
+      return null;
+  }
 }
 
 function errorMessage(err: unknown): string {
@@ -1310,7 +1332,7 @@ function errorMessage(err: unknown): string {
 }
 ```
 
-If the spike found Codex emits plain text rather than JSONL, the `parseLine` fallback already handles that.
+If `spawn('codex.cmd', ...)` still fails with ENOENT on Windows (some Node 20+ versions are stricter about `.cmd` files without `shell: true`), the fallback is to invoke node directly against the JS entrypoint at `%APPDATA%\\npm\\node_modules\\@openai\\codex\\bin\\codex.js`. Try the simple form first; only complicate if needed.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 

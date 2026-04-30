@@ -169,9 +169,11 @@ The CLIs maintain their own conversation memory in `~/.claude/`, `~/.codex/`, `~
 - Cancellation: pass `options.abortController` to `query()`; the returned `Query` object also exposes `interrupt()` for graceful stop
 
 ### 5.2 ChatGPT — Codex CLI
-- Spawn `codex exec` (the non-interactive single-turn mode) as a child process
-- Pipe prompt into stdin, parse streaming stdout (likely JSONL — verify during spike)
-- Auth in `~/.codex/auth.json` from `codex login`
+- Spawn `codex exec --json '<prompt>'` (the non-interactive JSONL mode); the prompt is positional, not behind a `--prompt` flag
+- Parse stdout JSONL: events `thread.started` / `turn.started` (ignore), `item.completed` with `item.type === 'agent_message'` (text chunk), `turn.completed` (done)
+- No token streaming — full reply arrives in a single `item.completed` event
+- Auth in `~/.codex/auth.json` from `codex login` (`auth_mode: chatgpt` for Plus/Pro subscriptions)
+- **Windows quirk:** `codex` is an npm shim — invoke as `codex.cmd` on win32, plain `codex` elsewhere. No PTY needed.
 
 ### 5.3 Gemini — Gemini CLI
 - Spawn `gemini` as a child process; same pattern as Codex
