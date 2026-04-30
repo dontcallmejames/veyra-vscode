@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type { ChildProcess } from 'node:child_process';
 import type { Agent, SendOptions } from './types.js';
 import type { AgentChunk, AgentStatus } from '../types.js';
+import { checkGemini } from '../statusChecks.js';
 
 // Spike A4: invoke `gemini -p '<prompt>' -o stream-json` for non-interactive JSONL.
 //
@@ -30,7 +31,7 @@ export class GeminiAgent implements Agent {
   private active: ChildProcess | null = null;
 
   async status(): Promise<AgentStatus> {
-    return 'ready';
+    return checkGemini();
   }
 
   async *send(prompt: string, opts: SendOptions = {}): AsyncIterable<AgentChunk> {

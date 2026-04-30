@@ -1,14 +1,14 @@
 import type { Agent, SendOptions } from './types.js';
 import type { AgentChunk, AgentStatus } from '../types.js';
 import { query } from '@anthropic-ai/claude-agent-sdk';
+import { checkClaude } from '../statusChecks.js';
 
 export class ClaudeAgent implements Agent {
   readonly id = 'claude' as const;
   private activeAbortController: AbortController | null = null;
 
   async status(): Promise<AgentStatus> {
-    // Plan 2 will check ~/.claude/ for an auth token; for now report ready.
-    return 'ready';
+    return checkClaude();
   }
 
   async *send(prompt: string, opts: SendOptions = {}): AsyncIterable<AgentChunk> {

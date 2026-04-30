@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type { ChildProcess } from 'node:child_process';
 import type { Agent, SendOptions } from './types.js';
 import type { AgentChunk, AgentStatus } from '../types.js';
+import { checkCodex } from '../statusChecks.js';
 
 // Spike A3: invoke `codex exec --json '<prompt>'` for non-interactive JSONL.
 //
@@ -29,7 +30,7 @@ export class CodexAgent implements Agent {
   private active: ChildProcess | null = null;
 
   async status(): Promise<AgentStatus> {
-    return 'ready';
+    return checkCodex();
   }
 
   async *send(prompt: string, opts: SendOptions = {}): AsyncIterable<AgentChunk> {
