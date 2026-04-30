@@ -100,4 +100,16 @@ describe('SessionStore', () => {
     const parsed = JSON.parse(fsState.get(FILE)!) as Session;
     expect(parsed.messages).toHaveLength(3);
   });
+
+  it('creates the target directory during load() so debounced writes succeed in fresh workspaces', async () => {
+    // Track mkdir calls explicitly via the mocked module
+    const fsModule = await import('node:fs');
+    const mockedMkdir = fsModule.promises.mkdir as unknown as ReturnType<typeof vi.fn>;
+    mockedMkdir.mockClear();
+
+    const store = new SessionStore(FOLDER);
+    await store.load();
+
+    expect(mockedMkdir).toHaveBeenCalledWith('/fake/workspace/.vscode/agent-chat', { recursive: true });
+  });
 });

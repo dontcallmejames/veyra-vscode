@@ -19,6 +19,8 @@ export class SessionStore {
   }
 
   async load(): Promise<Session> {
+    // Ensure the target directory exists so debounced writes don't ENOENT.
+    await fsp.mkdir(dirname(this.filePath), { recursive: true });
     if (!existsSync(this.filePath)) {
       this.session = { version: 1, messages: [] };
       return this.session;
