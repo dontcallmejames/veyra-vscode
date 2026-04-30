@@ -33,8 +33,17 @@ export class MessageRouter {
       try {
         yield { kind: 'dispatch-start', agentId: targetId };
         const agent = this.agents[targetId];
-        for await (const chunk of agent.send(remainingText)) {
-          yield { kind: 'chunk', agentId: targetId, chunk };
+        try {
+          for await (const chunk of agent.send(remainingText)) {
+            yield { kind: 'chunk', agentId: targetId, chunk };
+          }
+        } catch (err) {
+          // Adapters MUST yield error+done chunks instead of throwing, but
+          // defend against contract violations so the consumer sees a
+          // single, consistent error path.
+          const message = err instanceof Error ? err.message : String(err);
+          yield { kind: 'chunk', agentId: targetId, chunk: { type: 'error', message } };
+          yield { kind: 'chunk', agentId: targetId, chunk: { type: 'done' } };
         }
         yield { kind: 'dispatch-end', agentId: targetId };
       } finally {

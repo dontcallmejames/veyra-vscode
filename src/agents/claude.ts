@@ -4,6 +4,7 @@ import { query } from '@anthropic-ai/claude-agent-sdk';
 
 export class ClaudeAgent implements Agent {
   readonly id = 'claude' as const;
+  private activeAbortController: AbortController | null = null;
 
   async status(): Promise<AgentStatus> {
     // Plan 2 will check ~/.claude/ for an auth token; for now report ready.
@@ -12,6 +13,7 @@ export class ClaudeAgent implements Agent {
 
   async *send(prompt: string, opts: SendOptions = {}): AsyncIterable<AgentChunk> {
     const abortController = new AbortController();
+    this.activeAbortController = abortController;
     const onAbort = () => abortController.abort();
     if (opts.signal) {
       if (opts.signal.aborted) abortController.abort();
@@ -25,6 +27,7 @@ export class ClaudeAgent implements Agent {
       yield { type: 'error', message: errorMessage(err) };
       yield { type: 'done' };
       opts.signal?.removeEventListener('abort', onAbort);
+      this.activeAbortController = null;
       return;
     }
 
@@ -42,12 +45,12 @@ export class ClaudeAgent implements Agent {
       yield { type: 'done' };
     } finally {
       opts.signal?.removeEventListener('abort', onAbort);
+      this.activeAbortController = null;
     }
   }
 
   async cancel(): Promise<void> {
-    // Per-call cancellation is owned by the AbortController inside send().
-    // No agent-wide state to clean up.
+    this.activeAbortController?.abort();
   }
 }
 

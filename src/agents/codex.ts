@@ -40,8 +40,10 @@ export class CodexAgent implements Agent {
     );
     this.active = child;
 
+    const onAbort = () => child.kill('SIGTERM');
     if (opts.signal) {
-      opts.signal.addEventListener('abort', () => child.kill('SIGTERM'), { once: true });
+      if (opts.signal.aborted) child.kill('SIGTERM');
+      else opts.signal.addEventListener('abort', onAbort, { once: true });
     }
 
     const exitPromise = new Promise<{ code: number | null; stderr: string }>((resolve) => {
@@ -73,6 +75,8 @@ export class CodexAgent implements Agent {
       }
     } catch (err) {
       yield { type: 'error', message: errorMessage(err) };
+    } finally {
+      opts.signal?.removeEventListener('abort', onAbort);
     }
 
     const { code, stderr } = await exitPromise;
