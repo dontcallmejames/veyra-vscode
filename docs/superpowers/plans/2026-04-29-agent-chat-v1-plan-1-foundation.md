@@ -1288,7 +1288,7 @@ export class CodexAgent implements Agent {
 
     const { code, stderr } = await exitPromise;
     if (code !== 0) {
-      yield { type: 'error', message: `Codex exited with code ${code}${stderr ? `: ${stderr.trim()}` : ''}` };
+      yield { type: 'error', message: `Codex exited with exit code ${code}${stderr ? `: ${stderr.trim()}` : ''}` };
     }
     if (!sawDone) yield { type: 'done' };
     this.active = null;
@@ -1515,7 +1515,7 @@ export class GeminiAgent implements Agent {
 
     const { code, stderr } = await exitPromise;
     if (code !== 0) {
-      yield { type: 'error', message: `Gemini exited with code ${code}${stderr ? `: ${stderr.trim()}` : ''}` };
+      yield { type: 'error', message: `Gemini exited with exit code ${code}${stderr ? `: ${stderr.trim()}` : ''}` };
     }
     if (!sawDone) yield { type: 'done' };
     this.active = null;
