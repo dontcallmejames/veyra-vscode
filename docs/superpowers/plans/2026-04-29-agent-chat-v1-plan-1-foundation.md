@@ -11,7 +11,7 @@
 - Node 20+
 - esbuild (bundle the extension; library code stays as ESM in `src/`)
 - vitest (unit tests, fast HMR)
-- `@anthropic-ai/claude-code` (Claude SDK; verify package name in spike A2)
+- `@anthropic-ai/claude-agent-sdk` (the Claude Agent SDK — formerly "Claude Code SDK"; resolved in spike A2)
 - Codex CLI binary (external; subprocess; subscription auth)
 - Gemini CLI binary (external; subprocess; subscription auth)
 - `node-pty` — added only if a spike (A3 or A4) shows a CLI lacks usable non-interactive output
@@ -128,7 +128,7 @@
 }
 ```
 
-The `@anthropic-ai/claude-code` dependency is intentionally omitted — Task A2 confirms the package name and pins it then.
+The `@anthropic-ai/claude-agent-sdk` dependency is intentionally omitted from the initial `package.json` — Task A2 installs it after confirming the resolved version.
 
 - [ ] **Step 2: Write `tsconfig.json`**
 
@@ -269,25 +269,22 @@ git commit -m "chore: scaffold TypeScript VSCode extension project"
 **Files:**
 - Create: `scripts/spike-claude.mjs` (throwaway; deleted after findings are documented)
 
-- [ ] **Step 1: Identify and install the Claude SDK package**
+- [ ] **Step 1: Install the Claude Agent SDK**
 
-Run: `npm view @anthropic-ai/claude-code versions --json | tail -10`
-Expected: a list of versions. If the package exists, install the latest:
+The SDK was renamed from "Claude Code SDK" to "Claude Agent SDK". Use the new name:
 
-Run: `npm install @anthropic-ai/claude-code@latest`
+Run: `npm install @anthropic-ai/claude-agent-sdk@latest`
 
-If the package is not under that exact name, search:
+The older package `@anthropic-ai/claude-code` exists but is only a CLI binary wrapper — do **not** install it.
 
-Run: `npm search claude-code --json | head -50`
-
-Pick the official Anthropic-published package and install it. Record the resolved name in your notes for the findings doc (Task A5).
+Record the resolved version in your notes for the findings doc (Task A5).
 
 - [ ] **Step 2: Write `scripts/spike-claude.mjs`**
 
 ```javascript
 // One-shot exploratory script. Sends a short prompt and dumps every event
 // the SDK emits so we can see its shape before designing the adapter.
-import { query } from '@anthropic-ai/claude-code'; // adjust import to actual SDK shape
+import { query } from '@anthropic-ai/claude-agent-sdk';
 
 const prompt = 'Reply with exactly the word "ok".';
 
@@ -512,11 +509,15 @@ cp /tmp/gemini-sample.txt tests/agents/fixtures/gemini-sample.txt
 
 These will be used by the adapter unit tests in B5/B6.
 
-- [ ] **Step 3: Move the Claude SDK dependency into `package.json` (if not already)**
+- [ ] **Step 3: Verify Claude Agent SDK is in `package.json`; remove unused packages**
 
-If A2 didn't `npm install` the SDK, do it now using the resolved name from your findings.
+If A2 didn't `npm install` the SDK, do it now:
 
-Run: `npm install <resolved-claude-sdk-name>@<version>`
+Run: `npm install @anthropic-ai/claude-agent-sdk@latest`
+
+If A2's exploration left the unused `@anthropic-ai/claude-code` package installed (it's the CLI binary, not the SDK we want), remove it:
+
+Run: `npm uninstall @anthropic-ai/claude-code`
 
 - [ ] **Step 4: If a spike found PTY is needed, install `node-pty`**
 
@@ -927,13 +928,16 @@ The exact SDK call shape comes from the spike findings (Task A5). The tests mock
 import { describe, it, expect, vi } from 'vitest';
 import { ClaudeAgent } from '../../src/agents/claude.js';
 
-// Mock the SDK module. Adjust the module path to match the actual package
-// resolved in the spike findings.
-vi.mock('@anthropic-ai/claude-code', () => ({
+vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
   query: vi.fn(),
 }));
 
-import { query } from '@anthropic-ai/claude-code';
+import { query } from '@anthropic-ai/claude-agent-sdk';
+
+// NOTE: the canned events below are AgentChunk-shaped for simplicity. The
+// real SDK emits `assistant` / `result` / `system` events with nested
+// `message.content[]` arrays — see the A5 findings doc for the real shape.
+// Replace these mock events with realistic SDK events when implementing.
 
 const mockedQuery = query as unknown as ReturnType<typeof vi.fn>;
 
@@ -1013,8 +1017,7 @@ Expected: FAIL — module not found.
 // src/agents/claude.ts
 import type { Agent, SendOptions } from './types.js';
 import type { AgentChunk, AgentStatus } from '../types.js';
-// Adjust this import to whatever the spike resolved.
-import { query } from '@anthropic-ai/claude-code';
+import { query } from '@anthropic-ai/claude-agent-sdk';
 
 export class ClaudeAgent implements Agent {
   readonly id = 'claude' as const;
@@ -1025,47 +1028,92 @@ export class ClaudeAgent implements Agent {
   }
 
   async *send(prompt: string, opts: SendOptions = {}): AsyncIterable<AgentChunk> {
+    const abortController = new AbortController();
+    const onAbort = () => abortController.abort();
+    if (opts.signal) {
+      if (opts.signal.aborted) abortController.abort();
+      else opts.signal.addEventListener('abort', onAbort, { once: true });
+    }
+
     let stream: AsyncIterable<unknown>;
     try {
-      stream = query({ prompt, signal: opts.signal, cwd: opts.cwd });
+      stream = query({ prompt, options: { abortController, cwd: opts.cwd } });
     } catch (err) {
       yield { type: 'error', message: errorMessage(err) };
       yield { type: 'done' };
+      opts.signal?.removeEventListener('abort', onAbort);
       return;
     }
 
+    let sawTerminal = false;
     try {
       for await (const event of stream) {
-        const mapped = mapSdkEvent(event);
-        if (mapped) yield mapped;
+        for (const chunk of mapSdkEvent(event)) {
+          if (chunk.type === 'done') sawTerminal = true;
+          yield chunk;
+        }
       }
+      if (!sawTerminal) yield { type: 'done' };
     } catch (err) {
       yield { type: 'error', message: errorMessage(err) };
       yield { type: 'done' };
+    } finally {
+      opts.signal?.removeEventListener('abort', onAbort);
     }
   }
 
   async cancel(): Promise<void> {
-    // The SDK's AbortSignal handles cancellation; nothing extra to do here
-    // because each send() owns its own signal via SendOptions.
+    // Per-call cancellation is owned by the AbortController inside send().
+    // No agent-wide state to clean up.
   }
 }
 
-function mapSdkEvent(event: unknown): AgentChunk | null {
-  // Spike A2 will reveal the real shape of events; this mapping assumes the
-  // SDK already emits objects shaped like AgentChunk. If A5 found a different
-  // shape, expand this switch to translate.
-  if (typeof event !== 'object' || event === null) return null;
-  const t = (event as { type?: string }).type;
-  switch (t) {
-    case 'text':
-    case 'tool-call':
-    case 'tool-result':
-    case 'error':
-    case 'done':
-      return event as AgentChunk;
-    default:
-      return null;
+// Real Claude Agent SDK event shape (from spike A2 findings):
+//   - { type: 'system', subtype: 'init' | 'hook_started' | 'hook_response' }   → ignore
+//   - { type: 'rate_limit_event', ... }                                          → ignore
+//   - { type: 'assistant', message: { content: [...] } }
+//       content[i].type === 'text'      → { type: 'text', text: content[i].text }
+//       content[i].type === 'tool_use'  → { type: 'tool-call', name, input }
+//   - { type: 'user', message: { content: [...] } }
+//       content[i].type === 'tool_result' → { type: 'tool-result', name, output }
+//   - { type: 'result', subtype: 'success' }                                     → { type: 'done' }
+//   - { type: 'result', subtype: 'error', error: '...' }                         → { type: 'error', ... } then 'done'
+function* mapSdkEvent(event: unknown): Generator<AgentChunk> {
+  if (typeof event !== 'object' || event === null) return;
+  const e = event as { type: string; subtype?: string; message?: { content?: Array<Record<string, unknown>> }; error?: string };
+
+  switch (e.type) {
+    case 'system':
+    case 'rate_limit_event':
+      return;
+
+    case 'assistant':
+      for (const item of e.message?.content ?? []) {
+        if (item.type === 'text' && typeof item.text === 'string') {
+          yield { type: 'text', text: item.text };
+        } else if (item.type === 'tool_use' && typeof item.name === 'string') {
+          yield { type: 'tool-call', name: item.name, input: item.input };
+        }
+      }
+      return;
+
+    case 'user':
+      for (const item of e.message?.content ?? []) {
+        if (item.type === 'tool_result') {
+          const name = typeof item.tool_use_id === 'string' ? item.tool_use_id : 'unknown';
+          yield { type: 'tool-result', name, output: item.content };
+        }
+      }
+      return;
+
+    case 'result':
+      if (e.subtype === 'success') {
+        yield { type: 'done' };
+      } else if (e.subtype === 'error') {
+        yield { type: 'error', message: e.error ?? 'Unknown error' };
+        yield { type: 'done' };
+      }
+      return;
   }
 }
 
@@ -1075,13 +1123,7 @@ function errorMessage(err: unknown): string {
 }
 ```
 
-If the spike found a fundamentally different SDK event shape, expand `mapSdkEvent` to translate — for example:
-
-```typescript
-// Example: SDK emits { kind: 'delta', content: '...' }
-case 'delta':
-  return { type: 'text', text: (event as { content: string }).content };
-```
+The test fixtures in Step 1 use simplified AgentChunk-shaped mock events for clarity. When implementing, you'll likely also want one test that feeds a realistic `assistant` event (with a `message.content[]` array) into `mapSdkEvent` and asserts it produces the expected text/tool-call chunks — that's the test that validates the actual mapping logic, separate from the streaming/error tests above.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 

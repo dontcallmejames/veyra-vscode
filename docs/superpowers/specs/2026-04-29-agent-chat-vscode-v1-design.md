@@ -160,11 +160,13 @@ The CLIs maintain their own conversation memory in `~/.claude/`, `~/.codex/`, `~
 
 ## 5. Per-CLI integration plan
 
-### 5.1 Claude — Claude Code SDK
-- Import `@anthropic-ai/claude-code` (verify package name during implementation)
-- Use the SDK's streaming `query()` (or equivalent) and map its events to `AgentChunk`
-- Auth lives in `~/.claude/`; token from a Pro/Max account uses subscription billing automatically
+### 5.1 Claude — Claude Agent SDK
+- Import from `@anthropic-ai/claude-agent-sdk` (Anthropic renamed Claude Code SDK → Claude Agent SDK; the older `@anthropic-ai/claude-code` package is just a CLI binary wrapper, not what we want)
+- Use `query({ prompt })` which returns an `AsyncIterable` of events
+- Event types observed: `system/init`, `system/hook_*` (ignore), `assistant` (the model reply — text and tool calls live in `message.content[]`), `rate_limit_event` (ignore), `result/success` (terminal — maps to `done`), `result/error` (maps to `error`)
+- Auth lives in `~/.claude/`; token from a Pro/Max account uses subscription billing automatically (`apiKeySource: "none"` confirms no API key in use)
 - In-process — no subprocess, no PTY concerns
+- Cancellation: pass `options.abortController` to `query()`; the returned `Query` object also exposes `interrupt()` for graceful stop
 
 ### 5.2 ChatGPT — Codex CLI
 - Spawn `codex exec` (the non-interactive single-turn mode) as a child process
