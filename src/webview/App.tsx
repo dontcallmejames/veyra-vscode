@@ -1,5 +1,30 @@
-import { h } from 'preact';
+﻿import { h } from 'preact';
+import { useEffect, useReducer } from 'preact/hooks';
+import { initialState, reduce } from './state.js';
+import { MessageList } from './components/MessageList.js';
+import type { FromExtension, FromWebview } from '../shared/protocol.js';
+
+declare const acquireVsCodeApi: () => { postMessage(msg: unknown): void };
+const vscode = acquireVsCodeApi();
+
+export function send(msg: FromWebview): void {
+  vscode.postMessage(msg);
+}
 
 export function App() {
-  return <div class="app">Agent Chat (loading...)</div>;
+  const [state, dispatch] = useReducer(reduce, initialState());
+
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      dispatch(e.data as FromExtension);
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
+  return (
+    <div class="app">
+      <MessageList session={state.session} inProgress={state.inProgress} settings={state.settings} />
+    </div>
+  );
 }
