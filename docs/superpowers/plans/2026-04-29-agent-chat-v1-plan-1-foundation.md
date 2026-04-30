@@ -1385,19 +1385,26 @@ function fakeProcess(stdoutChunks: string[], exitCode = 0) {
 }
 
 describe('GeminiAgent', () => {
-  it('streams output as text chunks', async () => {
+  it('parses Gemini stream-json events into AgentChunks', async () => {
+    // Real Gemini event shape from spike A4 (CLI invoked with -o stream-json):
+    // init → message(user echo) → message(assistant, delta:true) → result
     mockedSpawn.mockReturnValueOnce(
-      fakeProcess(['hello ', 'world\n'])
+      fakeProcess([
+        '{"type":"init"}\n',
+        '{"type":"message","role":"user","content":"hi"}\n',
+        '{"type":"message","role":"assistant","content":"ok","delta":true}\n',
+        '{"type":"result","status":"success"}\n',
+      ])
     );
 
     const agent = new GeminiAgent();
     const chunks = [];
     for await (const c of agent.send('hi')) chunks.push(c);
 
-    // Plain text streaming case; adjust if A4 found JSONL.
-    expect(chunks).toContainEqual({ type: 'text', text: 'hello ' });
-    expect(chunks).toContainEqual({ type: 'text', text: 'world\n' });
-    expect(chunks.at(-1)).toEqual({ type: 'done' });
+    expect(chunks).toEqual([
+      { type: 'text', text: 'ok' },
+      { type: 'done' },
+    ]);
   });
 
   it('emits an error chunk on non-zero exit', async () => {
@@ -1428,14 +1435,32 @@ Expected: FAIL — module not found.
 
 ```typescript
 // src/agents/gemini.ts
-import { spawn } from 'node:child_process';
+import { spawn, execSync } from 'node:child_process';
+import { join } from 'node:path';
 import type { ChildProcess } from 'node:child_process';
 import type { Agent, SendOptions } from './types.js';
 import type { AgentChunk, AgentStatus } from '../types.js';
 
-// Replace these with the working invocation from spike A4.
-const GEMINI_BIN = 'gemini';
-const GEMINI_ARGS = (prompt: string): string[] => ['--prompt', prompt];
+// Spike A4: invoke `gemini -p '<prompt>' -o stream-json` for non-interactive JSONL.
+//
+// Windows quirk (worse than Codex): the npm shim `gemini.cmd` cannot be
+// spawned cleanly on Node 20+ — Node's DEP0190 mitigation rejects raw
+// .cmd spawning, and shell:true introduces unsafe arg concatenation.
+// The reliable approach is to invoke the bundle's JS entrypoint directly
+// via the running Node executable. Resolve the bundle path once at module
+// load using `npm root -g`.
+const GEMINI_CMD = resolveGeminiCommand();
+
+function resolveGeminiCommand(): { command: string; args: string[] } {
+  if (process.platform !== 'win32') {
+    return { command: 'gemini', args: [] };
+  }
+  const npmRoot = execSync('npm root -g', { encoding: 'utf8' }).trim();
+  const bundle = join(npmRoot, '@google', 'gemini-cli', 'bundle', 'gemini.js');
+  return { command: process.execPath, args: [bundle] };
+}
+
+const GEMINI_ARGS = (prompt: string): string[] => ['-p', prompt, '-o', 'stream-json'];
 
 export class GeminiAgent implements Agent {
   readonly id = 'gemini' as const;
@@ -1446,10 +1471,11 @@ export class GeminiAgent implements Agent {
   }
 
   async *send(prompt: string, opts: SendOptions = {}): AsyncIterable<AgentChunk> {
-    const child = spawn(GEMINI_BIN, GEMINI_ARGS(prompt), {
-      cwd: opts.cwd,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    const child = spawn(
+      GEMINI_CMD.command,
+      [...GEMINI_CMD.args, ...GEMINI_ARGS(prompt)],
+      { cwd: opts.cwd, stdio: ['ignore', 'pipe', 'pipe'] }
+    );
     this.active = child;
 
     if (opts.signal) {
@@ -1462,11 +1488,25 @@ export class GeminiAgent implements Agent {
       child.on('close', (code) => resolve({ code, stderr }));
     });
 
+    let buffer = '';
+    let sawDone = false;
     try {
       for await (const data of child.stdout!) {
-        const text = String(data);
-        if (text.length > 0) {
-          yield { type: 'text', text };
+        buffer += String(data);
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+        for (const line of lines) {
+          const chunk = parseGeminiEvent(line);
+          if (!chunk) continue;
+          if (chunk.type === 'done') sawDone = true;
+          yield chunk;
+        }
+      }
+      if (buffer.trim()) {
+        const chunk = parseGeminiEvent(buffer);
+        if (chunk) {
+          if (chunk.type === 'done') sawDone = true;
+          yield chunk;
         }
       }
     } catch (err) {
@@ -1477,12 +1517,47 @@ export class GeminiAgent implements Agent {
     if (code !== 0) {
       yield { type: 'error', message: `Gemini exited with code ${code}${stderr ? `: ${stderr.trim()}` : ''}` };
     }
-    yield { type: 'done' };
+    if (!sawDone) yield { type: 'done' };
     this.active = null;
   }
 
   async cancel(): Promise<void> {
     this.active?.kill('SIGTERM');
+  }
+}
+
+// Gemini stream-json event shapes from spike A4:
+//   { type: 'init', ... }                                                     → ignore
+//   { type: 'message', role: 'user', content: '...' }                         → ignore (user echo)
+//   { type: 'message', role: 'assistant', content: '...', delta: true }       → text chunk
+//   { type: 'result', status: 'success' }                                     → done
+//   { type: 'result', status: 'error', error: '...' }                         → error then done
+function parseGeminiEvent(line: string): AgentChunk | null {
+  const trimmed = line.trim();
+  if (!trimmed) return null;
+  let event: { type?: string; role?: string; content?: string; delta?: boolean; status?: string; error?: string };
+  try {
+    event = JSON.parse(trimmed);
+  } catch {
+    return null; // ignore non-JSON lines (stderr warnings get filtered upstream)
+  }
+  switch (event.type) {
+    case 'message':
+      if (event.role === 'assistant' && typeof event.content === 'string') {
+        return { type: 'text', text: event.content };
+      }
+      return null;
+    case 'result':
+      if (event.status === 'success') {
+        return { type: 'done' };
+      }
+      // 'error' is handled by yielding both error + done; parseGeminiEvent
+      // can't yield two chunks, so the caller checks for status === 'error'
+      // separately if needed. For v1, treat error result as still emitting
+      // done from the exit-code path.
+      return null;
+    default:
+      return null;
   }
 }
 
@@ -1492,7 +1567,7 @@ function errorMessage(err: unknown): string {
 }
 ```
 
-If A4 found Gemini emits JSONL like Codex, copy the `parseLine` helper from `codex.ts` and switch from raw text streaming to line-based parsing. The contract emitted upstream is identical either way.
+If `npm root -g` fails (e.g., npm isn't on PATH), `resolveGeminiCommand` will throw at module load — that's intentional; the adapter cannot function without resolving the bundle path on Windows. Surface this as a clear error in the test/integration suite. On non-Windows platforms, the simple `gemini` binary on PATH is used directly.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 

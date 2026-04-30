@@ -176,8 +176,10 @@ The CLIs maintain their own conversation memory in `~/.claude/`, `~/.codex/`, `~
 - **Windows quirk:** `codex` is an npm shim — invoke as `codex.cmd` on win32, plain `codex` elsewhere. No PTY needed.
 
 ### 5.3 Gemini — Gemini CLI
-- Spawn `gemini` as a child process; same pattern as Codex
-- Auth in `~/.gemini/`
+- Spawn `gemini -p '<prompt>' -o stream-json` for non-interactive JSONL output
+- Parse stdout: events `init` / `message{role:'user'}` (ignore), `message{role:'assistant',delta:true,content}` (text chunk), `result{status:'success'}` (done)
+- Auth in `~/.gemini/` (Google account OAuth)
+- **Windows quirk:** Gemini's npm shim is hostile to direct spawn on Node 20+ (`gemini.cmd` triggers DEP0190; `shell:true` introduces unsafe arg concatenation). The adapter resolves `npm root -g` at module load and invokes `process.execPath` (node) against `<npmRoot>/@google/gemini-cli/bundle/gemini.js` directly. No PTY needed.
 
 ### 5.4 Implementation risk: PTY emulation
 
