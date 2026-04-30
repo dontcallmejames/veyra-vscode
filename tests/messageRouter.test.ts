@@ -85,4 +85,56 @@ describe('MessageRouter', () => {
 
     expect(sendSpy).toHaveBeenCalledWith('review this');
   });
+
+  it('onFloorChange fires for single-agent dispatch', async () => {
+    const claude = fakeAgent('claude', [
+      { type: 'text', text: 'hi' },
+      { type: 'done' },
+    ]);
+    const codex = fakeAgent('codex', []);
+    const gemini = fakeAgent('gemini', []);
+    const router = new MessageRouter({ claude, codex, gemini });
+
+    const events: (AgentId | null)[] = [];
+    router.onFloorChange((h) => events.push(h));
+
+    for await (const _ of router.handle('@claude hi')) { /* drain */ }
+
+    expect(events).toEqual(['claude', null]);
+  });
+
+  it('onFloorChange fires once per agent during @all dispatch', async () => {
+    const claude = fakeAgent('claude', [{ type: 'done' }]);
+    const codex = fakeAgent('codex', [{ type: 'done' }]);
+    const gemini = fakeAgent('gemini', [{ type: 'done' }]);
+    const router = new MessageRouter({ claude, codex, gemini });
+
+    const events: (AgentId | null)[] = [];
+    router.onFloorChange((h) => events.push(h));
+
+    for await (const _ of router.handle('@all hi')) { /* drain */ }
+
+    expect(events).toEqual([
+      'claude', null,
+      'codex', null,
+      'gemini', null,
+    ]);
+  });
+
+  it('onStatusChange fires when an agents status check returns a new value', async () => {
+    const claude = fakeAgent('claude', []);
+    const codex = fakeAgent('codex', []);
+    const gemini = fakeAgent('gemini', []);
+    const router = new MessageRouter({ claude, codex, gemini });
+
+    const events: { agentId: AgentId; status: string }[] = [];
+    router.onStatusChange((agentId, status) => events.push({ agentId, status }));
+
+    router.notifyStatusChange('codex', 'unauthenticated');
+    router.notifyStatusChange('codex', 'unauthenticated'); // duplicate, should not fire
+
+    expect(events).toEqual([
+      { agentId: 'codex', status: 'unauthenticated' },
+    ]);
+  });
 });
