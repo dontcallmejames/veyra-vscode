@@ -2,6 +2,7 @@
 import { useEffect, useRef } from 'preact/hooks';
 import { UserBubble } from './UserBubble.js';
 import { AgentBubble } from './AgentBubble.js';
+import { SystemNotice } from './SystemNotice.js';
 import type { Session, InProgressMessage, Settings, SessionMessage } from '../../shared/protocol.js';
 
 interface Props {
@@ -36,8 +37,7 @@ export function MessageList({ session, inProgress, settings }: Props) {
         const m = item.message;
         if (m.role === 'user') return <UserBubble key={m.id} message={m} />;
         if (m.role === 'agent') return <AgentBubble key={m.id} message={m} streaming={false} settings={settings} />;
-        // system messages - Task F3 component will replace this; for F1, render a simple div.
-        return <div key={m.id} class={`system-notice ${m.kind === 'error' ? 'error' : ''}`}>{m.text}</div>;
+        if (m.role === 'system') return <SystemNotice key={m.id} message={m} />;
       })}
     </div>
   );
