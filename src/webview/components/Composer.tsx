@@ -1,8 +1,9 @@
 import { h } from 'preact';
-import { useState, useRef } from 'preact/hooks';
+import { useState, useRef, useEffect } from 'preact/hooks';
 import type { AgentId, AgentStatus } from '../../types.js';
 import type { FromWebview } from '../../shared/protocol.js';
 import { HealthStrip } from './HealthStrip.js';
+import { MentionAutocomplete, MENTION_ITEMS } from './MentionAutocomplete.js';
 
 interface Props {
   send: (msg: FromWebview) => void;
@@ -12,7 +13,20 @@ interface Props {
 
 export function Composer({ send, floorHolder, status }: Props) {
   const [text, setText] = useState('');
+  const [autocomplete, setAutocomplete] = useState<{ open: boolean; filter: string; activeIndex: number }>({
+    open: false, filter: '', activeIndex: 0,
+  });
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Open autocomplete when last token starts with `@`
+  useEffect(() => {
+    const lastToken = text.split(/\s+/).at(-1) ?? '';
+    if (lastToken.startsWith('@') && lastToken.length >= 1) {
+      setAutocomplete((a) => ({ ...a, open: true, filter: lastToken, activeIndex: 0 }));
+    } else if (autocomplete.open) {
+      setAutocomplete((a) => ({ ...a, open: false }));
+    }
+  }, [text]);
 
   const handleSend = () => {
     if (!text.trim()) return;
@@ -20,7 +34,42 @@ export function Composer({ send, floorHolder, status }: Props) {
     setText('');
   };
 
+  const pickMention = (token: string) => {
+    const tokens = text.split(/\s+/);
+    tokens.pop();
+    tokens.push(token + ' ');
+    setText(tokens.join(' '));
+    setAutocomplete((a) => ({ ...a, open: false }));
+    textareaRef.current?.focus();
+  };
+
+  const filtered = MENTION_ITEMS.filter((i) =>
+    i.token.toLowerCase().includes(autocomplete.filter.toLowerCase())
+  );
+
   const handleKeyDown = (e: KeyboardEvent) => {
+    if (autocomplete.open && filtered.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setAutocomplete((a) => ({ ...a, activeIndex: (a.activeIndex + 1) % filtered.length }));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setAutocomplete((a) => ({ ...a, activeIndex: (a.activeIndex - 1 + filtered.length) % filtered.length }));
+        return;
+      }
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        pickMention(filtered[autocomplete.activeIndex].token);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setAutocomplete((a) => ({ ...a, open: false }));
+        return;
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -31,10 +80,13 @@ export function Composer({ send, floorHolder, status }: Props) {
 
   return (
     <div class="composer">
+      {autocomplete.open && (
+        <MentionAutocomplete filter={autocomplete.filter} activeIndex={autocomplete.activeIndex} onPick={pickMention} />
+      )}
       <textarea
         ref={textareaRef}
         value={text}
-        placeholder="Type @ to mention an agent..."
+        placeholder="Type @ to mention an agent…"
         onInput={(e) => setText((e.target as HTMLTextAreaElement).value)}
         onKeyDown={handleKeyDown}
       />
