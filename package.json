@@ -1,0 +1,39 @@
+{
+  "name": "agent-chat",
+  "displayName": "Agent Chat",
+  "description": "Chat with Claude, ChatGPT, and Gemini in a shared VSCode panel",
+  "version": "0.0.1",
+  "private": true,
+  "publisher": "dontcallmejames",
+  "engines": {
+    "vscode": "^1.95.0",
+    "node": ">=20"
+  },
+  "main": "./dist/extension.js",
+  "categories": ["Other"],
+  "activationEvents": ["onCommand:agentChat.openPanel"],
+  "contributes": {
+    "commands": [
+      {
+        "command": "agentChat.openPanel",
+        "title": "Agent Chat: Open Panel"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "watch": "node esbuild.config.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:integration": "vitest run --dir tests/integration"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.95.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.0"
+  },
+  "dependencies": {}
+}
