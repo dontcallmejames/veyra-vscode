@@ -1,0 +1,182 @@
+:root {
+  --bubble-bg: var(--vscode-editorWidget-background, rgba(255,255,255,0.05));
+  --border: var(--vscode-widget-border, rgba(255,255,255,0.15));
+  --user-bg: var(--vscode-list-activeSelectionBackground, rgba(74,158,255,0.2));
+  --error-bg: rgba(255, 80, 80, 0.1);
+  --error-border: rgba(255, 80, 80, 0.4);
+  --ok-color: #6dd47e;
+  --error-color: #ff7070;
+}
+
+body {
+  font-size: var(--vscode-font-size, 13px);
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.floor-bar {
+  padding: 6px 12px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255,255,255,0.02);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.message-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bubble {
+  max-width: 75%;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--bubble-bg);
+  border: 1px solid var(--border);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+.bubble.user {
+  align-self: flex-end;
+  background: var(--user-bg);
+}
+.bubble.agent { align-self: flex-start; }
+.bubble.streaming::after {
+  content: '\2588';
+  display: inline-block;
+  margin-left: 2px;
+  animation: blink 1s steps(2) infinite;
+}
+@keyframes blink {
+  to { opacity: 0; }
+}
+
+.system-notice {
+  align-self: center;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.04);
+  border: 1px dashed var(--border);
+  font-size: 12px;
+  font-style: italic;
+}
+.system-notice.error {
+  background: var(--error-bg);
+  border-color: var(--error-border);
+  color: var(--error-color);
+}
+
+.tool-card {
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: rgba(0,0,0,0.2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 11px;
+}
+.tool-card-head {
+  display: flex;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+}
+.tool-card.verbose .tool-card-body,
+.tool-card.expanded .tool-card-body {
+  margin-top: 4px;
+  white-space: pre-wrap;
+  opacity: 0.85;
+}
+.tool-card.compact:not(.expanded) .tool-card-body { display: none; }
+.tool-card.hidden { display: none; }
+
+.composer {
+  border-top: 1px solid var(--border);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+}
+.composer textarea {
+  flex: 1;
+  resize: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--vscode-input-background, rgba(0,0,0,0.3));
+  color: var(--vscode-input-foreground);
+  padding: 8px;
+  font: inherit;
+  min-height: 36px;
+  max-height: 200px;
+}
+.composer-row {
+  display: flex;
+  gap: 6px;
+}
+.composer button {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border: 1px solid var(--vscode-button-border, transparent);
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.composer button.cancel {
+  background: var(--vscode-errorForeground, #ff7070);
+  color: white;
+}
+
+.health-strip {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  opacity: 0.85;
+}
+.health-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 99px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border);
+  cursor: default;
+}
+.health-pill.ok { color: var(--ok-color); border-color: rgba(109,212,126,0.4); }
+.health-pill.error { color: var(--error-color); border-color: rgba(255,112,112,0.4); cursor: pointer; }
+
+.mention-popover {
+  position: absolute;
+  bottom: 100%;
+  left: 8px;
+  background: var(--vscode-editorWidget-background, #2a2a2a);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  min-width: 200px;
+  margin-bottom: 4px;
+  z-index: 10;
+}
+.mention-item { padding: 6px 10px; cursor: pointer; }
+.mention-item.active { background: var(--vscode-list-activeSelectionBackground); }
+
+.pulse-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--ok-color);
+  animation: pulse 1.6s infinite;
+}
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(109,212,126,0.6); }
+  100% { box-shadow: 0 0 0 8px rgba(109,212,126,0); }
+}

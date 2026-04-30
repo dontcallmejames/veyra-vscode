@@ -2,7 +2,7 @@ import * as esbuild from 'esbuild';
 
 const watch = process.argv.includes('--watch');
 
-const config = {
+const extensionConfig = {
   entryPoints: ['src/extension.ts'],
   bundle: true,
   outfile: 'dist/extension.js',
@@ -14,9 +14,27 @@ const config = {
   logLevel: 'info',
 };
 
+const webviewConfig = {
+  entryPoints: ['src/webview/main.tsx'],
+  bundle: true,
+  outfile: 'dist/webview.js',
+  format: 'iife',
+  platform: 'browser',
+  target: 'es2022',
+  sourcemap: true,
+  jsx: 'automatic',
+  jsxImportSource: 'preact',
+  loader: { '.css': 'text' },
+  logLevel: 'info',
+};
+
 if (watch) {
-  const ctx = await esbuild.context(config);
-  await ctx.watch();
+  const ctx1 = await esbuild.context(extensionConfig);
+  const ctx2 = await esbuild.context(webviewConfig);
+  await Promise.all([ctx1.watch(), ctx2.watch()]);
 } else {
-  await esbuild.build(config);
+  await Promise.all([
+    esbuild.build(extensionConfig),
+    esbuild.build(webviewConfig),
+  ]);
 }

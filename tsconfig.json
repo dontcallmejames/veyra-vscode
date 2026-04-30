@@ -11,8 +11,10 @@
     "isolatedModules": true,
     "outDir": "./dist",
     "rootDir": ".",
-    "lib": ["ES2022"],
-    "types": ["node", "vscode"]
+    "lib": ["ES2022", "DOM"],
+    "types": ["node", "vscode"],
+    "jsx": "preserve",
+    "jsxImportSource": "preact"
   },
   "include": ["src/**/*", "tests/**/*"],
   "exclude": ["node_modules", "dist"]
