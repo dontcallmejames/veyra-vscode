@@ -53,7 +53,7 @@ export function HealthStrip({ status, send }: Props) {
             >
               {labels[id]} {ok ? '✓' : '✗'}
             </span>
-            {popoverFor === id && !ok && s !== 'busy' && (
+            {popoverFor === id && !ok && (
               <div style="position:absolute;bottom:100%;left:0;background:var(--vscode-editorWidget-background);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:11px;width:240px;margin-bottom:4px;z-index:10">
                 {FIX_INSTRUCTIONS[id][s as 'unauthenticated' | 'not-installed']}
                 <div style="text-align:right;margin-top:6px">
