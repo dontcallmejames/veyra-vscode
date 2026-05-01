@@ -51,6 +51,18 @@ body {
   background: var(--user-bg);
 }
 .bubble.agent { align-self: flex-start; }
+.bubble.agent-claude {
+  background: rgba(217, 119, 87, 0.10);
+  border-color: rgba(217, 119, 87, 0.40);
+}
+.bubble.agent-codex {
+  background: rgba(16, 163, 127, 0.10);
+  border-color: rgba(16, 163, 127, 0.40);
+}
+.bubble.agent-gemini {
+  background: rgba(74, 141, 240, 0.10);
+  border-color: rgba(74, 141, 240, 0.40);
+}
 .bubble.streaming::after {
   content: '\2588';
   display: inline-block;
