@@ -110,6 +110,22 @@ export class ChatPanel {
         }
       }),
     );
+
+    const recheckIntervalMs = 60_000;
+    const recheckInterval = setInterval(async () => {
+      clearStatusCache();
+      const fresh: Record<AgentId, AgentStatus> = {
+        claude: await checkClaude(),
+        codex: await checkCodex(),
+        gemini: await checkGemini(),
+      };
+      for (const id of ['claude', 'codex', 'gemini'] as AgentId[]) {
+        // notifyStatusChange dedupes; status-changed only fires when value differs.
+        // ChatPanel already subscribes to onStatusChange and forwards to webview.
+        this.router.notifyStatusChange(id, fresh[id]);
+      }
+    }, recheckIntervalMs);
+    this.disposables.push({ dispose: () => clearInterval(recheckInterval) });
   }
 
   private send(msg: FromExtension): void {
