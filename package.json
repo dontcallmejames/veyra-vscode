@@ -31,6 +31,13 @@
           "enum": ["verbose", "compact", "hidden"],
           "default": "compact",
           "description": "How tool calls (file reads, edits, terminal commands) are displayed in the chat."
+        },
+        "agentChat.hangDetectionSeconds": {
+          "type": "number",
+          "default": 60,
+          "minimum": 0,
+          "maximum": 600,
+          "description": "Seconds with no output from an agent before showing a 'still waiting?' notice. Set to 0 to disable."
         }
       }
     }

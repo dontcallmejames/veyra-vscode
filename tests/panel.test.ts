@@ -86,4 +86,14 @@ describe('ChatPanel', () => {
     const statusChanged = after.filter((m: any) => m.kind === 'status-changed');
     expect(statusChanged.length).toBeGreaterThan(0);
   });
+
+  it('reads agentChat.hangDetectionSeconds setting on init', async () => {
+    const getMock = vi.fn((key: string, dflt: any) => key === 'hangDetectionSeconds' ? 30 : dflt);
+    (vscode as any).workspace.getConfiguration = vi.fn(() => ({ get: getMock }));
+
+    (ChatPanel as any).current = undefined;
+    await ChatPanel.show(ctx);
+
+    expect(getMock).toHaveBeenCalledWith('hangDetectionSeconds', expect.anything());
+  });
 });

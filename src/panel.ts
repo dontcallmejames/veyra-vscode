@@ -23,6 +23,7 @@ export class ChatPanel {
   private store: SessionStore;
   private extensionUri: vscode.Uri;
   private currentDispatchInProgress: Map<AgentId, { cancelled?: boolean }> | null = null;
+  private hangSec: number = 60;
 
   static async show(context: vscode.ExtensionContext): Promise<void> {
     if (ChatPanel.current) {
@@ -69,6 +70,7 @@ export class ChatPanel {
   }
 
   private async initialize(): Promise<void> {
+    this.hangSec = this.readHangSeconds();
     const session = await this.store.load();
     const status: Record<AgentId, AgentStatus> = {
       claude: await checkClaude(),
@@ -98,6 +100,7 @@ export class ChatPanel {
       },
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration('agentChat')) {
+          this.hangSec = this.readHangSeconds();
           this.send({ kind: 'settings-changed', settings: this.readSettings() });
         }
       }),
@@ -113,6 +116,10 @@ export class ChatPanel {
     return {
       toolCallRenderStyle: config.get<Settings['toolCallRenderStyle']>('toolCallRenderStyle', 'compact'),
     };
+  }
+
+  private readHangSeconds(): number {
+    return vscode.workspace.getConfiguration('agentChat').get<number>('hangDetectionSeconds', 60);
   }
 
   private async handleFromWebview(msg: FromWebview): Promise<void> {
@@ -163,6 +170,25 @@ export class ChatPanel {
     const inProgressByAgent = new Map<AgentId, { id: string; text: string; toolEvents: any[]; agentId: AgentId; timestamp: number; error?: string; cancelled?: boolean }>();
     this.currentDispatchInProgress = inProgressByAgent;
 
+    const hangSec = this.hangSec;
+    let lastChunkAt = Date.now();
+    let activeAgentForHang: AgentId | null = null;
+    const hangCheckTimer = hangSec > 0 ? setInterval(() => {
+      if (activeAgentForHang === null) return;
+      if (Date.now() - lastChunkAt >= hangSec * 1000) {
+        const sys: SystemMessage = {
+          id: ulid(),
+          role: 'system',
+          kind: 'error',
+          text: `${activeAgentForHang} hasn't responded for ${hangSec}s — keep waiting or cancel?`,
+          timestamp: Date.now(),
+        };
+        this.store.appendSystem(sys);
+        this.send({ kind: 'system-message', message: sys });
+        lastChunkAt = Date.now(); // reset so we don't spam every interval tick
+      }
+    }, 1000) : null;
+
     for await (const event of this.router.handle(text, { cwd: this.workspacePath })) {
       if (event.kind === 'facilitator-decision') {
         const sys: SystemMessage = {
@@ -195,6 +221,8 @@ export class ChatPanel {
         const ts = Date.now();
         inProgressByAgent.set(event.agentId, { id, text: '', toolEvents: [], agentId: event.agentId, timestamp: ts });
         this.send({ kind: 'message-started', id, agentId: event.agentId, timestamp: ts });
+        activeAgentForHang = event.agentId;
+        lastChunkAt = Date.now();
         continue;
       }
       if (event.kind === 'chunk') {
@@ -205,6 +233,7 @@ export class ChatPanel {
         else if (event.chunk.type === 'tool-call') ip.toolEvents.push({ kind: 'call', name: event.chunk.name, input: event.chunk.input, timestamp: Date.now() });
         else if (event.chunk.type === 'tool-result') ip.toolEvents.push({ kind: 'result', name: event.chunk.name, output: event.chunk.output, timestamp: Date.now() });
         else if (event.chunk.type === 'error') ip.error = event.chunk.message;
+        lastChunkAt = Date.now();
         // Forward to webview
         this.send({ kind: 'message-chunk', id: ip.id, chunk: event.chunk });
         continue;
@@ -227,8 +256,10 @@ export class ChatPanel {
         this.store.appendAgent(finalized);
         this.send({ kind: 'message-finalized', message: finalized });
         inProgressByAgent.delete(event.agentId);
+        activeAgentForHang = null;
       }
     }
+    if (hangCheckTimer) clearInterval(hangCheckTimer);
     this.currentDispatchInProgress = null;
   }
 
