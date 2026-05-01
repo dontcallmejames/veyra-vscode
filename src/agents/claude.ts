@@ -43,10 +43,11 @@ export class ClaudeAgent implements Agent {
       return;
     }
 
+    const idToName = new Map<string, string>();
     let sawTerminal = false;
     try {
       for await (const event of stream) {
-        for (const chunk of mapSdkEvent(event)) {
+        for (const chunk of mapSdkEvent(event, idToName)) {
           if (chunk.type === 'done') sawTerminal = true;
           yield chunk;
         }
@@ -81,7 +82,7 @@ export class ClaudeAgent implements Agent {
 // Option A: also pass through events whose `type` is already a valid AgentChunk
 // discriminator (text / tool-call / tool-result / error / done). This keeps the
 // four canned tests passing while the fifth test exercises the real switch.
-function* mapSdkEvent(event: unknown): Generator<AgentChunk> {
+function* mapSdkEvent(event: unknown, idToName: Map<string, string>): Generator<AgentChunk> {
   if (typeof event !== 'object' || event === null) return;
   const e = event as {
     type: string;
@@ -91,7 +92,6 @@ function* mapSdkEvent(event: unknown): Generator<AgentChunk> {
     text?: string;
     name?: string;
     input?: unknown;
-    message_text?: string;
     output?: unknown;
   };
 
@@ -105,6 +105,9 @@ function* mapSdkEvent(event: unknown): Generator<AgentChunk> {
         if (item.type === 'text' && typeof item.text === 'string') {
           yield { type: 'text', text: item.text };
         } else if (item.type === 'tool_use' && typeof item.name === 'string') {
+          if (typeof item.id === 'string') {
+            idToName.set(item.id, item.name);
+          }
           yield { type: 'tool-call', name: item.name, input: item.input };
         }
       }
@@ -113,7 +116,8 @@ function* mapSdkEvent(event: unknown): Generator<AgentChunk> {
     case 'user':
       for (const item of e.message?.content ?? []) {
         if (item.type === 'tool_result') {
-          const name = typeof item.tool_use_id === 'string' ? item.tool_use_id : 'unknown';
+          const id = typeof item.tool_use_id === 'string' ? item.tool_use_id : '';
+          const name = idToName.get(id) ?? id ?? 'unknown';
           yield { type: 'tool-result', name, output: item.content };
         }
       }

@@ -76,7 +76,7 @@ describe('ClaudeAgent', () => {
     expect(new ClaudeAgent().id).toBe('claude');
   });
 
-  it('maps a realistic assistant event with text + tool_use into chunks', async () => {
+  it('maps a realistic assistant + user(tool_result) pair into chunks with friendly names', async () => {
     mockedQuery.mockReturnValueOnce(
       fromArray([
         { type: 'system', subtype: 'init' }, // ignored
@@ -85,7 +85,15 @@ describe('ClaudeAgent', () => {
           message: {
             content: [
               { type: 'text', text: 'Looking at the file...' },
-              { type: 'tool_use', name: 'read_file', input: { path: 'a.ts' } },
+              { type: 'tool_use', id: 'tu_123', name: 'read_file', input: { path: 'a.ts' } },
+            ],
+          },
+        },
+        {
+          type: 'user',
+          message: {
+            content: [
+              { type: 'tool_result', tool_use_id: 'tu_123', content: 'file contents...' },
             ],
           },
         },
@@ -100,6 +108,7 @@ describe('ClaudeAgent', () => {
     expect(chunks).toEqual([
       { type: 'text', text: 'Looking at the file...' },
       { type: 'tool-call', name: 'read_file', input: { path: 'a.ts' } },
+      { type: 'tool-result', name: 'read_file', output: 'file contents...' },
       { type: 'done' },
     ]);
   });
