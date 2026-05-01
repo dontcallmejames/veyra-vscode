@@ -137,4 +137,54 @@ describe('MessageRouter', () => {
       { agentId: 'codex', status: 'unauthenticated' },
     ]);
   });
+
+  it('cancelAll drains queue so queued agents emit dispatch-end without dispatch-start', async () => {
+    let claudeStarted = false;
+    let geminiStarted = false;
+    const claude: Agent = {
+      id: 'claude',
+      status: vi.fn().mockResolvedValue('ready'),
+      cancel: vi.fn().mockResolvedValue(undefined),
+      send: (() => {
+        claudeStarted = true;
+        // Block forever — simulates an agent we'll cancel mid-dispatch.
+        return (async function* () {
+          await new Promise(() => { /* never resolves */ });
+        })();
+      }) as Agent['send'],
+    };
+    const codex = fakeAgent('codex', [{ type: 'done' }]);
+    const gemini: Agent = {
+      id: 'gemini',
+      status: vi.fn().mockResolvedValue('ready'),
+      cancel: vi.fn().mockResolvedValue(undefined),
+      send: (() => {
+        geminiStarted = true;
+        return (async function* () {
+          yield { type: 'done' } as AgentChunk;
+        })();
+      }) as Agent['send'],
+    };
+
+    const router = new MessageRouter({ claude, codex, gemini });
+
+    // Run handle in the background; we'll cancel it mid-dispatch.
+    const events: any[] = [];
+    const drainTask = (async () => {
+      for await (const ev of router.handle('@all hello')) events.push(ev);
+    })();
+
+    // Wait a tick for the dispatch to start on Claude.
+    await new Promise((r) => setTimeout(r, 10));
+    expect(claudeStarted).toBe(true);
+
+    // Cancel: drain queue + abort active.
+    await router.cancelAll();
+
+    await drainTask;
+
+    // Codex and Gemini should NOT have started.
+    // (Because they were queued behind Claude when cancelAll fired.)
+    expect(geminiStarted).toBe(false);
+  });
 });

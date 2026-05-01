@@ -2,6 +2,8 @@ import type { AgentId } from './types.js';
 
 export interface FloorHandle {
   release(): void;
+  /** True when the handle was issued by drainQueue — callers should skip dispatch. */
+  readonly noop?: boolean;
 }
 
 type Waiter = {
@@ -37,6 +39,21 @@ export class FloorManager {
         this.waiters.push({ agent, resolve });
       }
     });
+  }
+
+  /**
+   * Drop all queued waiters. Each pending acquire() resolves with a no-op
+   * handle (release does not grant the floor to anyone) so callers don't
+   * hang. Returns the list of agents that were waiting.
+   */
+  drainQueue(): AgentId[] {
+    const drained = this.waiters.map((w) => w.agent);
+    for (const w of this.waiters) {
+      const noopHandle: FloorHandle = { noop: true, release: () => { /* no-op */ } };
+      w.resolve(noopHandle);
+    }
+    this.waiters.length = 0;
+    return drained;
   }
 
   private grant(agent: AgentId, resolve: (handle: FloorHandle) => void): void {

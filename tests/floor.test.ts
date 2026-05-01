@@ -54,4 +54,37 @@ describe('FloorManager', () => {
     expect(fm.queueLength()).toBe(2);
     first.release();
   });
+
+  it('drainQueue resolves all waiters with no-op handles', async () => {
+    const fm = new FloorManager();
+    const first = await fm.acquire('claude');
+
+    const queued1 = fm.acquire('codex');
+    const queued2 = fm.acquire('gemini');
+    expect(fm.queueLength()).toBe(2);
+
+    fm.drainQueue();
+    expect(fm.queueLength()).toBe(0);
+
+    // Queued promises still resolve so callers don't hang.
+    const handle1 = await queued1;
+    const handle2 = await queued2;
+    // Releasing a drained handle is a no-op (doesn't grant the floor to anyone).
+    handle1.release();
+    handle2.release();
+    expect(fm.holder()).toBe('claude'); // first still holds
+
+    first.release();
+    expect(fm.holder()).toBeNull();
+  });
+
+  it('drainQueue exposes the agents that were queued', async () => {
+    const fm = new FloorManager();
+    const first = await fm.acquire('claude');
+    void fm.acquire('codex');
+    void fm.acquire('gemini');
+    const drained = fm.drainQueue();
+    expect(drained).toEqual(['codex', 'gemini']);
+    first.release();
+  });
 });

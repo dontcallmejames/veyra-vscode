@@ -18,11 +18,38 @@ export type RouterEvent =
 type FloorListener = (holder: AgentId | null) => void;
 type StatusListener = (agentId: AgentId, status: AgentStatus) => void;
 
+/**
+ * Wraps an async iterable so it terminates when the AbortSignal fires.
+ * The in-flight next() promise is abandoned (not cancelled) — acceptable for
+ * generators that block indefinitely, as in tests.
+ */
+async function* withAbort<T>(source: AsyncIterable<T>, signal: AbortSignal): AsyncGenerator<T> {
+  const iter = source[Symbol.asyncIterator]();
+  const abortPromise = new Promise<IteratorReturnResult<undefined>>((resolve) => {
+    if (signal.aborted) {
+      resolve({ done: true, value: undefined });
+    } else {
+      signal.addEventListener('abort', () => resolve({ done: true, value: undefined }), { once: true });
+    }
+  });
+
+  while (true) {
+    const result = await Promise.race([iter.next(), abortPromise]);
+    if (result.done) {
+      // Fire-and-forget: iter.return() on a blocked async generator hangs if awaited.
+      void iter.return?.();
+      return;
+    }
+    yield result.value;
+  }
+}
+
 export class MessageRouter {
   private floor = new FloorManager();
   private floorListeners = new Set<FloorListener>();
   private statusListeners = new Set<StatusListener>();
   private lastStatus: Partial<Record<AgentId, AgentStatus>> = {};
+  private activeAbortController: AbortController | null = null;
 
   constructor(private agents: AgentRegistry) {
     this.floor.onChange((holder) => {
@@ -41,6 +68,8 @@ export class MessageRouter {
   }
 
   async cancelAll(): Promise<void> {
+    this.floor.drainQueue();
+    this.activeAbortController?.abort();
     await Promise.all([
       this.agents.claude.cancel(),
       this.agents.codex.cancel(),
@@ -63,13 +92,28 @@ export class MessageRouter {
       return;
     }
 
-    for (const targetId of targets) {
-      const handle = await this.floor.acquire(targetId);
+    // Create an AbortController for this dispatch so cancelAll() can abort it.
+    const ac = new AbortController();
+    this.activeAbortController = ac;
+
+    // Pre-acquire floor handles for all targets so they queue in the FloorManager.
+    // drainQueue() can then cancel queued (not-yet-dispatched) agents.
+    const handlePromises = targets.map((id) => this.floor.acquire(id));
+
+    for (let i = 0; i < targets.length; i++) {
+      const handle = await handlePromises[i];
+
+      // A noop handle means this agent was drained by cancelAll(); skip it.
+      if (handle.noop) {
+        continue;
+      }
+
+      const targetId = targets[i];
       try {
         yield { kind: 'dispatch-start', agentId: targetId };
         const agent = this.agents[targetId];
         try {
-          for await (const chunk of agent.send(remainingText, opts)) {
+          for await (const chunk of withAbort(agent.send(remainingText, opts), ac.signal)) {
             yield { kind: 'chunk', agentId: targetId, chunk };
           }
         } catch (err) {
@@ -85,5 +129,7 @@ export class MessageRouter {
         handle.release();
       }
     }
+
+    this.activeAbortController = null;
   }
 }
