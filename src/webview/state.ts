@@ -88,6 +88,15 @@ export function reduce(state: WebviewState, event: FromExtension): WebviewState 
 
     case 'settings-changed':
       return { ...state, settings: event.settings };
+
+    case 'user-message-appended':
+      return {
+        ...state,
+        session: {
+          ...state.session,
+          messages: [...state.session.messages, event.message],
+        },
+      };
   }
 }
 

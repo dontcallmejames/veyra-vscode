@@ -112,4 +112,12 @@ describe('webview state reducer', () => {
     });
     expect(state.settings.toolCallRenderStyle).toBe('hidden');
   });
+
+  it('user-message-appended adds to session.messages', () => {
+    const state = reduce(initialState(), {
+      kind: 'user-message-appended',
+      message: { id: 'u1', role: 'user', text: 'hi', timestamp: 1 },
+    });
+    expect(state.session.messages).toEqual([{ id: 'u1', role: 'user', text: 'hi', timestamp: 1 }]);
+  });
 });

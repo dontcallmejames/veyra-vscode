@@ -71,7 +71,8 @@ export type FromExtension =
   | { kind: 'system-message'; message: SystemMessage }
   | { kind: 'floor-changed'; holder: AgentId | null }
   | { kind: 'status-changed'; agentId: AgentId; status: AgentStatus }
-  | { kind: 'settings-changed'; settings: Settings };
+  | { kind: 'settings-changed'; settings: Settings }
+  | { kind: 'user-message-appended'; message: UserMessage };
 
 export type FromWebview =
   | { kind: 'send'; text: string }

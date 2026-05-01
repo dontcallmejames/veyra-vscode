@@ -127,8 +127,7 @@ export class ChatPanel {
       timestamp: Date.now(),
     };
     this.store.appendUser(userMsg);
-    // Webview already shows it locally on send; we don't echo it back.
-    // (G3 will add a 'user-message-appended' event to make extension authoritative.)
+    this.send({ kind: 'user-message-appended', message: userMsg });
 
     // Build the in-progress message states + drive the router.
     const inProgressByAgent = new Map<AgentId, { id: string; text: string; toolEvents: any[]; agentId: AgentId; timestamp: number; error?: string; cancelled?: boolean }>();
