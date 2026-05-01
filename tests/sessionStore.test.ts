@@ -112,4 +112,25 @@ describe('SessionStore', () => {
 
     expect(mockedMkdir).toHaveBeenCalledWith('/fake/workspace/.vscode/agent-chat', { recursive: true });
   });
+
+  it('onWriteError fires when scheduled write fails', async () => {
+    const store = new SessionStore(FOLDER);
+    await store.load();
+
+    const errors: unknown[] = [];
+    store.onWriteError((err) => errors.push(err));
+
+    // Make rename throw on next call.
+    const fsModule = await import('node:fs');
+    const mockedRename = fsModule.promises.rename as unknown as ReturnType<typeof vi.fn>;
+    mockedRename.mockRejectedValueOnce(new Error('disk full'));
+
+    store.appendUser(sampleUser);
+    vi.advanceTimersByTime(200);
+    // Drain enough microtask cycles for writeFile→rename→catch to settle.
+    for (let i = 0; i < 8; i++) await Promise.resolve();
+
+    expect(errors.length).toBeGreaterThan(0);
+    expect(String(errors[0])).toContain('disk full');
+  });
 });

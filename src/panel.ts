@@ -80,6 +80,21 @@ export class ChatPanel {
     this.disposables.push(
       { dispose: this.router.onFloorChange((holder) => this.send({ kind: 'floor-changed', holder })) },
       { dispose: this.router.onStatusChange((agentId, s) => this.send({ kind: 'status-changed', agentId, status: s })) },
+      {
+        dispose: this.store.onWriteError((err) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          const sys: SystemMessage = {
+            id: ulid(),
+            role: 'system',
+            kind: 'error',
+            text: `Couldn't save chat history: ${msg}`,
+            timestamp: Date.now(),
+          };
+          // Post to webview directly without using appendSystem (which would
+          // schedule another write and could loop on persistent failures).
+          this.send({ kind: 'system-message', message: sys });
+        }),
+      },
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration('agentChat')) {
           this.send({ kind: 'settings-changed', settings: this.readSettings() });

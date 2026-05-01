@@ -13,6 +13,12 @@ export class SessionStore {
   private writeTimer: NodeJS.Timeout | null = null;
   private writePromise: Promise<void> | null = null;
   private filePath: string;
+  private writeErrorListeners = new Set<(err: unknown) => void>();
+
+  onWriteError(listener: (err: unknown) => void): () => void {
+    this.writeErrorListeners.add(listener);
+    return () => this.writeErrorListeners.delete(listener);
+  }
 
   constructor(workspaceFolder: string) {
     this.filePath = join(workspaceFolder, SESSIONS_SUBPATH).replace(/\\/g, '/');
@@ -71,7 +77,12 @@ export class SessionStore {
       clearTimeout(this.writeTimer);
       this.writeTimer = null;
     }
-    await this.write();
+    try {
+      await this.write();
+    } catch (err) {
+      console.error('SessionStore flush failed:', err);
+      for (const l of this.writeErrorListeners) l(err);
+    }
   }
 
   private scheduleWrite(): void {
@@ -80,13 +91,14 @@ export class SessionStore {
     }
     this.writeTimer = setTimeout(() => {
       this.writeTimer = null;
-      // Fire-and-forget: skip mkdir (dir created on first flush/load).
-      // Chain writeFile→rename without top-level await so the side-effects
-      // land within one microtask drain, satisfying debounce tests.
       const tmp = this.filePath + '.tmp';
       const data = JSON.stringify(this.session, null, 2);
       this.writePromise = fsp.writeFile(tmp, data, 'utf8')
-        .then(() => fsp.rename(tmp, this.filePath));
+        .then(() => fsp.rename(tmp, this.filePath))
+        .catch((err) => {
+          console.error('SessionStore write failed:', err);
+          for (const l of this.writeErrorListeners) l(err);
+        });
     }, DEBOUNCE_MS);
   }
 
