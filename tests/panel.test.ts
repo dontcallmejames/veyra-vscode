@@ -55,6 +55,10 @@ import * as vscode from 'vscode';
 const ctx = {
   extensionUri: { fsPath: '/fake/ext' },
   subscriptions: [] as any[],
+  workspaceState: {
+    get: vi.fn().mockReturnValue(undefined),
+    update: vi.fn().mockResolvedValue(undefined),
+  },
 } as unknown as import('vscode').ExtensionContext;
 
 describe('ChatPanel', () => {

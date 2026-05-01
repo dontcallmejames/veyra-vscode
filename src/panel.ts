@@ -41,13 +41,17 @@ export class ChatPanel {
         localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'dist')],
       }
     );
-    ChatPanel.current = new ChatPanel(panel, context.extensionUri, folder.uri.fsPath);
+    ChatPanel.current = new ChatPanel(panel, context, folder.uri.fsPath);
     await ChatPanel.current.initialize();
   }
 
-  private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, workspacePath: string) {
+  private constructor(
+    panel: vscode.WebviewPanel,
+    private context: vscode.ExtensionContext,
+    private workspacePath: string,
+  ) {
     this.panel = panel;
-    this.extensionUri = extensionUri;
+    this.extensionUri = context.extensionUri;
     const claude = new ClaudeAgent();
     const codex = new CodexAgent();
     const gemini = new GeminiAgent();
@@ -126,6 +130,9 @@ export class ChatPanel {
       text,
       timestamp: Date.now(),
     };
+    if (this.store.isFirstSession()) {
+      await this.maybeShowGitignorePrompt(this.workspacePath);
+    }
     this.store.appendUser(userMsg);
     this.send({ kind: 'user-message-appended', message: userMsg });
 
@@ -181,6 +188,39 @@ export class ChatPanel {
         this.send({ kind: 'message-finalized', message: finalized });
         inProgressByAgent.delete(event.agentId);
       }
+    }
+  }
+
+  private async maybeShowGitignorePrompt(workspacePath: string): Promise<void> {
+    const stateKey = 'agentChat.gitignorePromptDismissed';
+    if (this.context.workspaceState.get(stateKey)) return;
+
+    const gitignorePath = path.join(workspacePath, '.gitignore');
+    let gitignore = '';
+    if (fs.existsSync(gitignorePath)) {
+      gitignore = fs.readFileSync(gitignorePath, 'utf8');
+    }
+    const alreadyCovered =
+      gitignore.split(/\r?\n/).some((line) => {
+        const trimmed = line.trim();
+        return trimmed === '.vscode/' ||
+               trimmed === '.vscode/agent-chat/' ||
+               trimmed === '.vscode/agent-chat';
+      });
+    if (alreadyCovered) return;
+
+    const choice = await vscode.window.showInformationMessage(
+      'Agent Chat stores session history in .vscode/agent-chat/. Add to .gitignore?',
+      'Add to .gitignore',
+      'Not now',
+      "Don't ask again",
+    );
+    if (choice === 'Add to .gitignore') {
+      const additionalLines = (gitignore.length > 0 && !gitignore.endsWith('\n') ? '\n' : '')
+        + '\n# Agent Chat session history\n.vscode/agent-chat/\n';
+      fs.appendFileSync(gitignorePath, additionalLines, 'utf8');
+    } else if (choice === "Don't ask again") {
+      await this.context.workspaceState.update(stateKey, true);
     }
   }
 
