@@ -14,6 +14,7 @@ import type {
   FromExtension, FromWebview, Settings, AgentMessage, UserMessage, SystemMessage,
 } from './shared/protocol.js';
 import type { AgentId, AgentStatus } from './types.js';
+import type { AgentRegistry } from './messageRouter.js';
 
 export class ChatPanel {
   private static current: ChatPanel | undefined;
@@ -25,7 +26,7 @@ export class ChatPanel {
   private currentDispatchInProgress: Map<AgentId, { cancelled?: boolean }> | null = null;
   private hangSec: number = 60;
 
-  static async show(context: vscode.ExtensionContext): Promise<void> {
+  static async show(context: vscode.ExtensionContext, agentsOverride?: AgentRegistry): Promise<void> {
     if (ChatPanel.current) {
       ChatPanel.current.panel.reveal();
       return;
@@ -45,7 +46,12 @@ export class ChatPanel {
         localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'dist')],
       }
     );
-    ChatPanel.current = new ChatPanel(panel, context, folder.uri.fsPath);
+    const agents = agentsOverride ?? {
+      claude: new ClaudeAgent(),
+      codex: new CodexAgent(),
+      gemini: new GeminiAgent(),
+    };
+    ChatPanel.current = new ChatPanel(panel, context, folder.uri.fsPath, agents);
     await ChatPanel.current.initialize();
   }
 
@@ -53,15 +59,13 @@ export class ChatPanel {
     panel: vscode.WebviewPanel,
     private context: vscode.ExtensionContext,
     private workspacePath: string,
+    agents: AgentRegistry,
   ) {
     this.panel = panel;
     this.extensionUri = context.extensionUri;
-    const claude = new ClaudeAgent();
-    const codex = new CodexAgent();
-    const gemini = new GeminiAgent();
     const watchdogMinutes = vscode.workspace.getConfiguration('agentChat').get<number>('watchdogMinutes', 5);
     this.router = new MessageRouter(
-      { claude, codex, gemini },
+      agents,
       chooseFacilitatorAgent,
       { watchdogMs: watchdogMinutes * 60_000 },
     );

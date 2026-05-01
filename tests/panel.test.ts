@@ -96,4 +96,53 @@ describe('ChatPanel', () => {
 
     expect(getMock).toHaveBeenCalledWith('hangDetectionSeconds', expect.anything());
   });
+
+  it('full round-trip: send → user-message-appended → message-started → chunks → message-finalized', async () => {
+    (ChatPanel as any).current = undefined;
+    (vscode as any).__test.messages.length = 0;
+
+    // Mock agents with canned chunks.
+    const claude = {
+      id: 'claude' as const,
+      status: vi.fn().mockResolvedValue('ready'),
+      cancel: vi.fn().mockResolvedValue(undefined),
+      send: vi.fn(() => (async function* () {
+        yield { type: 'text', text: 'hello' };
+        yield { type: 'done' };
+      })()),
+    };
+    const codex = {
+      id: 'codex' as const,
+      status: vi.fn().mockResolvedValue('ready'),
+      cancel: vi.fn().mockResolvedValue(undefined),
+      send: vi.fn(() => (async function* () { yield { type: 'done' }; })()),
+    };
+    const gemini = {
+      id: 'gemini' as const,
+      status: vi.fn().mockResolvedValue('ready'),
+      cancel: vi.fn().mockResolvedValue(undefined),
+      send: vi.fn(() => (async function* () { yield { type: 'done' }; })()),
+    };
+
+    await ChatPanel.show(ctx, { claude, codex, gemini } as any);
+
+    const onDidReceive = (vscode as any).__test.onDidReceive.handler;
+    await onDidReceive({ kind: 'send', text: '@claude hi' });
+
+    // Wait for stream to drain.
+    await new Promise((r) => setImmediate(r));
+    await new Promise((r) => setImmediate(r));
+    await new Promise((r) => setImmediate(r));
+
+    const msgs = (vscode as any).__test.messages;
+    const kinds = msgs.map((m: any) => m.kind);
+
+    expect(kinds).toContain('user-message-appended');
+    expect(kinds).toContain('message-started');
+    expect(kinds.filter((k: string) => k === 'message-chunk').length).toBeGreaterThan(0);
+    expect(kinds).toContain('message-finalized');
+
+    // Confirm order: started before finalized.
+    expect(kinds.indexOf('message-started')).toBeLessThan(kinds.indexOf('message-finalized'));
+  });
 });
