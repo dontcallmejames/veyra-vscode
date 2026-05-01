@@ -1,6 +1,17 @@
 import * as esbuild from 'esbuild';
+import { copyFileSync, mkdirSync } from 'node:fs';
 
 const watch = process.argv.includes('--watch');
+
+const copyHtmlPlugin = {
+  name: 'copy-html',
+  setup(build) {
+    build.onEnd(() => {
+      mkdirSync('dist', { recursive: true });
+      copyFileSync('src/webview/index.html', 'dist/index.html');
+    });
+  },
+};
 
 const extensionConfig = {
   entryPoints: ['src/extension.ts'],
@@ -25,6 +36,7 @@ const webviewConfig = {
   jsx: 'automatic',
   jsxImportSource: 'preact',
   loader: { '.css': 'text' },
+  plugins: [copyHtmlPlugin],
   logLevel: 'info',
 };
 

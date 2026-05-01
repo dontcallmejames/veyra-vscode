@@ -225,7 +225,7 @@ export class ChatPanel {
   }
 
   private renderHtml(): string {
-    const htmlPath = path.join(this.extensionUri.fsPath, 'src', 'webview', 'index.html');
+    const htmlPath = path.join(this.extensionUri.fsPath, 'dist', 'index.html');
     const jsUri = this.panel.webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, 'dist', 'webview.js')
     );
