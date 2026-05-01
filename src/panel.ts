@@ -21,6 +21,7 @@ export class ChatPanel {
   private router: MessageRouter;
   private store: SessionStore;
   private extensionUri: vscode.Uri;
+  private currentDispatchInProgress: Map<AgentId, { cancelled?: boolean }> | null = null;
 
   static async show(context: vscode.ExtensionContext): Promise<void> {
     if (ChatPanel.current) {
@@ -104,6 +105,11 @@ export class ChatPanel {
         await this.dispatchUserMessage(msg.text);
         break;
       case 'cancel':
+        if (this.currentDispatchInProgress) {
+          for (const ip of this.currentDispatchInProgress.values()) {
+            ip.cancelled = true;
+          }
+        }
         await this.router.cancelAll();
         break;
       case 'reload-status':
@@ -139,6 +145,7 @@ export class ChatPanel {
 
     // Build the in-progress message states + drive the router.
     const inProgressByAgent = new Map<AgentId, { id: string; text: string; toolEvents: any[]; agentId: AgentId; timestamp: number; error?: string; cancelled?: boolean }>();
+    this.currentDispatchInProgress = inProgressByAgent;
 
     for await (const event of this.router.handle(text, { cwd: this.workspacePath })) {
       if (event.kind === 'routing-needed') {
@@ -175,6 +182,8 @@ export class ChatPanel {
       if (event.kind === 'dispatch-end') {
         const ip = inProgressByAgent.get(event.agentId);
         if (!ip) continue;
+        const status: AgentMessage['status'] =
+          ip.cancelled ? 'cancelled' : (ip.error ? 'errored' : 'complete');
         const finalized: AgentMessage = {
           id: ip.id,
           role: 'agent',
@@ -182,7 +191,7 @@ export class ChatPanel {
           text: ip.text,
           toolEvents: ip.toolEvents,
           timestamp: ip.timestamp,
-          status: ip.error ? 'errored' : 'complete',
+          status,
           ...(ip.error ? { error: ip.error } : {}),
         };
         this.store.appendAgent(finalized);
@@ -190,6 +199,7 @@ export class ChatPanel {
         inProgressByAgent.delete(event.agentId);
       }
     }
+    this.currentDispatchInProgress = null;
   }
 
   private async maybeShowGitignorePrompt(workspacePath: string): Promise<void> {
