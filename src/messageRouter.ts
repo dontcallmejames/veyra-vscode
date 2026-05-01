@@ -40,6 +40,14 @@ export class MessageRouter {
     return () => this.statusListeners.delete(listener);
   }
 
+  async cancelAll(): Promise<void> {
+    await Promise.all([
+      this.agents.claude.cancel(),
+      this.agents.codex.cancel(),
+      this.agents.gemini.cancel(),
+    ]);
+  }
+
   /** Called externally (by ChatPanel after running statusChecks) to broadcast a change. */
   notifyStatusChange(agentId: AgentId, status: AgentStatus): void {
     if (this.lastStatus[agentId] === status) return;

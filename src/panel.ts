@@ -93,9 +93,96 @@ export class ChatPanel {
     };
   }
 
-  // Stubbed in G1; G2 wires this up
-  private async handleFromWebview(_msg: FromWebview): Promise<void> {
-    // intentionally empty for G1
+  private async handleFromWebview(msg: FromWebview): Promise<void> {
+    switch (msg.kind) {
+      case 'send':
+        await this.dispatchUserMessage(msg.text);
+        break;
+      case 'cancel':
+        await this.router.cancelAll();
+        break;
+      case 'reload-status':
+        clearStatusCache();
+        const fresh: Record<AgentId, AgentStatus> = {
+          claude: await checkClaude(),
+          codex: await checkCodex(),
+          gemini: await checkGemini(),
+        };
+        for (const id of ['claude', 'codex', 'gemini'] as AgentId[]) {
+          this.send({ kind: 'status-changed', agentId: id, status: fresh[id] });
+          this.router.notifyStatusChange(id, fresh[id]);
+        }
+        break;
+      case 'open-external':
+        vscode.env.openExternal(vscode.Uri.parse(msg.url));
+        break;
+    }
+  }
+
+  private async dispatchUserMessage(text: string): Promise<void> {
+    const userMsg: UserMessage = {
+      id: ulid(),
+      role: 'user',
+      text,
+      timestamp: Date.now(),
+    };
+    this.store.appendUser(userMsg);
+    // Webview already shows it locally on send; we don't echo it back.
+    // (G3 will add a 'user-message-appended' event to make extension authoritative.)
+
+    // Build the in-progress message states + drive the router.
+    const inProgressByAgent = new Map<AgentId, { id: string; text: string; toolEvents: any[]; agentId: AgentId; timestamp: number; error?: string; cancelled?: boolean }>();
+
+    for await (const event of this.router.handle(text)) {
+      if (event.kind === 'routing-needed') {
+        const sys: SystemMessage = {
+          id: ulid(),
+          role: 'system',
+          kind: 'routing-needed',
+          text: 'Please prefix with @claude / @gpt / @gemini / @all to route this message.',
+          timestamp: Date.now(),
+        };
+        this.store.appendSystem(sys);
+        this.send({ kind: 'system-message', message: sys });
+        continue;
+      }
+      if (event.kind === 'dispatch-start') {
+        const id = ulid();
+        const ts = Date.now();
+        inProgressByAgent.set(event.agentId, { id, text: '', toolEvents: [], agentId: event.agentId, timestamp: ts });
+        this.send({ kind: 'message-started', id, agentId: event.agentId, timestamp: ts });
+        continue;
+      }
+      if (event.kind === 'chunk') {
+        const ip = inProgressByAgent.get(event.agentId);
+        if (!ip) continue;
+        // Mirror state on the extension side so we can persist a final AgentMessage.
+        if (event.chunk.type === 'text') ip.text += event.chunk.text;
+        else if (event.chunk.type === 'tool-call') ip.toolEvents.push({ kind: 'call', name: event.chunk.name, input: event.chunk.input, timestamp: Date.now() });
+        else if (event.chunk.type === 'tool-result') ip.toolEvents.push({ kind: 'result', name: event.chunk.name, output: event.chunk.output, timestamp: Date.now() });
+        else if (event.chunk.type === 'error') ip.error = event.chunk.message;
+        // Forward to webview
+        this.send({ kind: 'message-chunk', id: ip.id, chunk: event.chunk });
+        continue;
+      }
+      if (event.kind === 'dispatch-end') {
+        const ip = inProgressByAgent.get(event.agentId);
+        if (!ip) continue;
+        const finalized: AgentMessage = {
+          id: ip.id,
+          role: 'agent',
+          agentId: ip.agentId,
+          text: ip.text,
+          toolEvents: ip.toolEvents,
+          timestamp: ip.timestamp,
+          status: ip.error ? 'errored' : 'complete',
+          ...(ip.error ? { error: ip.error } : {}),
+        };
+        this.store.appendAgent(finalized);
+        this.send({ kind: 'message-finalized', message: finalized });
+        inProgressByAgent.delete(event.agentId);
+      }
+    }
   }
 
   private renderHtml(): string {
