@@ -139,7 +139,7 @@ export class ChatPanel {
     // Build the in-progress message states + drive the router.
     const inProgressByAgent = new Map<AgentId, { id: string; text: string; toolEvents: any[]; agentId: AgentId; timestamp: number; error?: string; cancelled?: boolean }>();
 
-    for await (const event of this.router.handle(text)) {
+    for await (const event of this.router.handle(text, { cwd: this.workspacePath })) {
       if (event.kind === 'routing-needed') {
         const sys: SystemMessage = {
           id: ulid(),

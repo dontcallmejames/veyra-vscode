@@ -1,6 +1,6 @@
 import { parseMentions } from './mentions.js';
 import { FloorManager } from './floor.js';
-import type { Agent } from './agents/types.js';
+import type { Agent, SendOptions } from './agents/types.js';
 import type { AgentChunk, AgentId, AgentStatus } from './types.js';
 
 export interface AgentRegistry {
@@ -55,7 +55,7 @@ export class MessageRouter {
     for (const l of this.statusListeners) l(agentId, status);
   }
 
-  async *handle(input: string): AsyncIterable<RouterEvent> {
+  async *handle(input: string, opts: SendOptions = {}): AsyncIterable<RouterEvent> {
     const { targets, remainingText } = parseMentions(input);
 
     if (targets.length === 0) {
@@ -69,7 +69,7 @@ export class MessageRouter {
         yield { kind: 'dispatch-start', agentId: targetId };
         const agent = this.agents[targetId];
         try {
-          for await (const chunk of agent.send(remainingText)) {
+          for await (const chunk of agent.send(remainingText, opts)) {
             yield { kind: 'chunk', agentId: targetId, chunk };
           }
         } catch (err) {

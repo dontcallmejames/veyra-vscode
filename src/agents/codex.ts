@@ -4,6 +4,7 @@ import type { ChildProcess } from 'node:child_process';
 import type { Agent, SendOptions } from './types.js';
 import type { AgentChunk, AgentStatus } from '../types.js';
 import { checkCodex } from '../statusChecks.js';
+import { findNode } from '../findNode.js';
 
 // Spike A3: invoke `codex exec --json '<prompt>'` for non-interactive JSONL.
 //
@@ -20,10 +21,10 @@ function resolveCodexCommand(): { command: string; args: string[] } {
   }
   const npmRoot = execSync('npm root -g', { encoding: 'utf8' }).trim();
   const bundle = join(npmRoot, '@openai', 'codex', 'bin', 'codex.js');
-  return { command: process.execPath, args: [bundle] };
+  return { command: findNode(), args: [bundle] };
 }
 
-const CODEX_ARGS = (prompt: string): string[] => ['exec', '--json', prompt];
+const CODEX_ARGS = (prompt: string): string[] => ['exec', '--json', '--skip-git-repo-check', prompt];
 
 export class CodexAgent implements Agent {
   readonly id = 'codex' as const;

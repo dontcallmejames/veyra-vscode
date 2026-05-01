@@ -4,6 +4,7 @@ import type { ChildProcess } from 'node:child_process';
 import type { Agent, SendOptions } from './types.js';
 import type { AgentChunk, AgentStatus } from '../types.js';
 import { checkGemini } from '../statusChecks.js';
+import { findNode } from '../findNode.js';
 
 // Spike A4: invoke `gemini -p '<prompt>' -o stream-json` for non-interactive JSONL.
 //
@@ -21,7 +22,7 @@ function resolveGeminiCommand(): { command: string; args: string[] } {
   }
   const npmRoot = execSync('npm root -g', { encoding: 'utf8' }).trim();
   const bundle = join(npmRoot, '@google', 'gemini-cli', 'bundle', 'gemini.js');
-  return { command: process.execPath, args: [bundle] };
+  return { command: findNode(), args: [bundle] };
 }
 
 const GEMINI_ARGS = (prompt: string): string[] => ['-p', prompt, '-o', 'stream-json'];
