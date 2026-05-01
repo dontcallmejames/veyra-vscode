@@ -116,20 +116,37 @@ export class ChatPanel {
     );
 
     const recheckIntervalMs = 60_000;
-    const recheckInterval = setInterval(async () => {
-      clearStatusCache();
-      const fresh: Record<AgentId, AgentStatus> = {
-        claude: await checkClaude(),
-        codex: await checkCodex(),
-        gemini: await checkGemini(),
-      };
-      for (const id of ['claude', 'codex', 'gemini'] as AgentId[]) {
-        // notifyStatusChange dedupes; status-changed only fires when value differs.
-        // ChatPanel already subscribes to onStatusChange and forwards to webview.
-        this.router.notifyStatusChange(id, fresh[id]);
+    let recheckHandle: NodeJS.Timeout | null = null;
+    let recheckCancelled = false;
+    const tick = async () => {
+      if (recheckCancelled) return;
+      try {
+        clearStatusCache();
+        const fresh: Record<AgentId, AgentStatus> = {
+          claude: await checkClaude(),
+          codex: await checkCodex(),
+          gemini: await checkGemini(),
+        };
+        if (recheckCancelled) return;
+        for (const id of ['claude', 'codex', 'gemini'] as AgentId[]) {
+          // notifyStatusChange dedupes; status-changed only fires when value differs.
+          // ChatPanel already subscribes to onStatusChange and forwards to webview.
+          this.router.notifyStatusChange(id, fresh[id]);
+        }
+      } catch {
+        // ignore individual recheck failures
       }
-    }, recheckIntervalMs);
-    this.disposables.push({ dispose: () => clearInterval(recheckInterval) });
+      if (!recheckCancelled) {
+        recheckHandle = setTimeout(tick, recheckIntervalMs);
+      }
+    };
+    recheckHandle = setTimeout(tick, recheckIntervalMs);
+    this.disposables.push({
+      dispose: () => {
+        recheckCancelled = true;
+        if (recheckHandle) clearTimeout(recheckHandle);
+      },
+    });
   }
 
   private send(msg: FromExtension): void {
@@ -214,78 +231,81 @@ export class ChatPanel {
       }
     }, 1000) : null;
 
-    for await (const event of this.router.handle(text, { cwd: this.workspacePath })) {
-      if (event.kind === 'facilitator-decision') {
-        const sys: SystemMessage = {
-          id: ulid(),
-          role: 'system',
-          kind: 'facilitator-decision',
-          text: '',  // text not used for this kind; rendering uses agentId + reason
-          timestamp: Date.now(),
-          agentId: event.agentId,
-          reason: event.reason,
-        };
-        this.store.appendSystem(sys);
-        this.send({ kind: 'system-message', message: sys });
-        continue;
+    try {
+      for await (const event of this.router.handle(text, { cwd: this.workspacePath })) {
+        if (event.kind === 'facilitator-decision') {
+          const sys: SystemMessage = {
+            id: ulid(),
+            role: 'system',
+            kind: 'facilitator-decision',
+            text: '',  // text not used for this kind; rendering uses agentId + reason
+            timestamp: Date.now(),
+            agentId: event.agentId,
+            reason: event.reason,
+          };
+          this.store.appendSystem(sys);
+          this.send({ kind: 'system-message', message: sys });
+          continue;
+        }
+        if (event.kind === 'routing-needed') {
+          const sys: SystemMessage = {
+            id: ulid(),
+            role: 'system',
+            kind: 'routing-needed',
+            text: 'Please prefix with @claude / @gpt / @gemini / @all to route this message.',
+            timestamp: Date.now(),
+          };
+          this.store.appendSystem(sys);
+          this.send({ kind: 'system-message', message: sys });
+          continue;
+        }
+        if (event.kind === 'dispatch-start') {
+          const id = ulid();
+          const ts = Date.now();
+          inProgressByAgent.set(event.agentId, { id, text: '', toolEvents: [], agentId: event.agentId, timestamp: ts });
+          this.send({ kind: 'message-started', id, agentId: event.agentId, timestamp: ts });
+          activeAgentForHang = event.agentId;
+          lastChunkAt = Date.now();
+          continue;
+        }
+        if (event.kind === 'chunk') {
+          const ip = inProgressByAgent.get(event.agentId);
+          if (!ip) continue;
+          // Mirror state on the extension side so we can persist a final AgentMessage.
+          if (event.chunk.type === 'text') ip.text += event.chunk.text;
+          else if (event.chunk.type === 'tool-call') ip.toolEvents.push({ kind: 'call', name: event.chunk.name, input: event.chunk.input, timestamp: Date.now() });
+          else if (event.chunk.type === 'tool-result') ip.toolEvents.push({ kind: 'result', name: event.chunk.name, output: event.chunk.output, timestamp: Date.now() });
+          else if (event.chunk.type === 'error') ip.error = event.chunk.message;
+          lastChunkAt = Date.now();
+          // Forward to webview
+          this.send({ kind: 'message-chunk', id: ip.id, chunk: event.chunk });
+          continue;
+        }
+        if (event.kind === 'dispatch-end') {
+          const ip = inProgressByAgent.get(event.agentId);
+          if (!ip) continue;
+          const status: AgentMessage['status'] =
+            ip.cancelled ? 'cancelled' : (ip.error ? 'errored' : 'complete');
+          const finalized: AgentMessage = {
+            id: ip.id,
+            role: 'agent',
+            agentId: ip.agentId,
+            text: ip.text,
+            toolEvents: ip.toolEvents,
+            timestamp: ip.timestamp,
+            status,
+            ...(ip.error ? { error: ip.error } : {}),
+          };
+          this.store.appendAgent(finalized);
+          this.send({ kind: 'message-finalized', message: finalized });
+          inProgressByAgent.delete(event.agentId);
+          activeAgentForHang = null;
+        }
       }
-      if (event.kind === 'routing-needed') {
-        const sys: SystemMessage = {
-          id: ulid(),
-          role: 'system',
-          kind: 'routing-needed',
-          text: 'Please prefix with @claude / @gpt / @gemini / @all to route this message.',
-          timestamp: Date.now(),
-        };
-        this.store.appendSystem(sys);
-        this.send({ kind: 'system-message', message: sys });
-        continue;
-      }
-      if (event.kind === 'dispatch-start') {
-        const id = ulid();
-        const ts = Date.now();
-        inProgressByAgent.set(event.agentId, { id, text: '', toolEvents: [], agentId: event.agentId, timestamp: ts });
-        this.send({ kind: 'message-started', id, agentId: event.agentId, timestamp: ts });
-        activeAgentForHang = event.agentId;
-        lastChunkAt = Date.now();
-        continue;
-      }
-      if (event.kind === 'chunk') {
-        const ip = inProgressByAgent.get(event.agentId);
-        if (!ip) continue;
-        // Mirror state on the extension side so we can persist a final AgentMessage.
-        if (event.chunk.type === 'text') ip.text += event.chunk.text;
-        else if (event.chunk.type === 'tool-call') ip.toolEvents.push({ kind: 'call', name: event.chunk.name, input: event.chunk.input, timestamp: Date.now() });
-        else if (event.chunk.type === 'tool-result') ip.toolEvents.push({ kind: 'result', name: event.chunk.name, output: event.chunk.output, timestamp: Date.now() });
-        else if (event.chunk.type === 'error') ip.error = event.chunk.message;
-        lastChunkAt = Date.now();
-        // Forward to webview
-        this.send({ kind: 'message-chunk', id: ip.id, chunk: event.chunk });
-        continue;
-      }
-      if (event.kind === 'dispatch-end') {
-        const ip = inProgressByAgent.get(event.agentId);
-        if (!ip) continue;
-        const status: AgentMessage['status'] =
-          ip.cancelled ? 'cancelled' : (ip.error ? 'errored' : 'complete');
-        const finalized: AgentMessage = {
-          id: ip.id,
-          role: 'agent',
-          agentId: ip.agentId,
-          text: ip.text,
-          toolEvents: ip.toolEvents,
-          timestamp: ip.timestamp,
-          status,
-          ...(ip.error ? { error: ip.error } : {}),
-        };
-        this.store.appendAgent(finalized);
-        this.send({ kind: 'message-finalized', message: finalized });
-        inProgressByAgent.delete(event.agentId);
-        activeAgentForHang = null;
-      }
+    } finally {
+      if (hangCheckTimer) clearInterval(hangCheckTimer);
+      this.currentDispatchInProgress = null;
     }
-    if (hangCheckTimer) clearInterval(hangCheckTimer);
-    this.currentDispatchInProgress = null;
   }
 
   private async maybeShowGitignorePrompt(workspacePath: string): Promise<void> {

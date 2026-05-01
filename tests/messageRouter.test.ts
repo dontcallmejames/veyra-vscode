@@ -188,6 +188,53 @@ describe('MessageRouter', () => {
     expect(geminiStarted).toBe(false);
   });
 
+  it('cancelAll: each target gets its own AC; aborting one does not cascade to siblings', async () => {
+    let claudeStartedSend = false;
+    let codexStartedSend = false;
+    const claude: Agent = {
+      id: 'claude',
+      status: vi.fn().mockResolvedValue('ready'),
+      cancel: vi.fn().mockResolvedValue(undefined),
+      send: (() => {
+        claudeStartedSend = true;
+        return (async function* () {
+          await new Promise(() => { /* hangs forever */ });
+        })();
+      }) as Agent['send'],
+    };
+    const codex: Agent = {
+      id: 'codex',
+      status: vi.fn().mockResolvedValue('ready'),
+      cancel: vi.fn().mockResolvedValue(undefined),
+      send: (() => {
+        codexStartedSend = true;
+        return (async function* () {
+          yield { type: 'text', text: 'codex reply' } as AgentChunk;
+          yield { type: 'done' } as AgentChunk;
+        })();
+      }) as Agent['send'],
+    };
+    const gemini = fakeAgent('gemini', [{ type: 'done' }]);
+
+    const router = new MessageRouter({ claude, codex, gemini });
+
+    const events: any[] = [];
+    const task = (async () => {
+      for await (const ev of router.handle('@all hello')) events.push(ev);
+    })();
+
+    await new Promise((r) => setTimeout(r, 10));
+    expect(claudeStartedSend).toBe(true);
+
+    await router.cancelAll();
+    await task;
+
+    // Claude was actively dispatching — its drain handles dispatch-end.
+    // Codex and Gemini were queued — drainQueue prevents them from getting
+    // a real handle, so their send() is never invoked.
+    expect(codexStartedSend).toBe(false);
+  });
+
   it('with facilitator: yields facilitator-decision then dispatches to chosen agent', async () => {
     const claude = fakeAgent('claude', [
       { type: 'text', text: 'pick' }, { type: 'done' },

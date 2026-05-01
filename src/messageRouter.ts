@@ -55,7 +55,7 @@ export class MessageRouter {
   private floorListeners = new Set<FloorListener>();
   private statusListeners = new Set<StatusListener>();
   private lastStatus: Partial<Record<AgentId, AgentStatus>> = {};
-  private activeAbortController: AbortController | null = null;
+  private activeControllers: Set<AbortController> = new Set();
   private watchdogMs: number;
 
   constructor(
@@ -81,7 +81,9 @@ export class MessageRouter {
 
   async cancelAll(): Promise<void> {
     this.floor.drainQueue();
-    this.activeAbortController?.abort();
+    for (const ac of this.activeControllers) {
+      ac.abort();
+    }
     await Promise.all([
       this.agents.claude.cancel(),
       this.agents.codex.cancel(),
@@ -123,10 +125,6 @@ export class MessageRouter {
       promptText = text;
     }
 
-    // Create an AbortController for this dispatch so cancelAll() can abort it.
-    const ac = new AbortController();
-    this.activeAbortController = ac;
-
     // Pre-acquire floor handles for all targets so they queue in the FloorManager.
     // drainQueue() can then cancel queued (not-yet-dispatched) agents.
     const handlePromises = dispatchTargets.map((id) => this.floor.acquire(id));
@@ -138,6 +136,11 @@ export class MessageRouter {
       if (handle.noop) {
         continue;
       }
+
+      // Each target gets its own AbortController so that cancelling or
+      // watchdog-firing on one agent does not cascade to subsequent agents.
+      const ac = new AbortController();
+      this.activeControllers.add(ac);
 
       const targetId = dispatchTargets[i];
       let watchdogFired = false;
@@ -171,10 +174,9 @@ export class MessageRouter {
         yield { kind: 'dispatch-end', agentId: targetId };
       } finally {
         if (watchdog) clearTimeout(watchdog);
+        this.activeControllers.delete(ac);
         handle.release();
       }
     }
-
-    this.activeAbortController = null;
   }
 }
