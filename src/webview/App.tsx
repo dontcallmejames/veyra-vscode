@@ -1,6 +1,7 @@
 import { h } from 'preact';
 import { useEffect, useReducer } from 'preact/hooks';
 import { initialState, reduce } from './state.js';
+import { FloorIndicator } from './components/FloorIndicator.js';
 import { MessageList } from './components/MessageList.js';
 import { Composer } from './components/Composer.js';
 import type { FromExtension, FromWebview } from '../shared/protocol.js';
@@ -20,6 +21,7 @@ export function App() {
 
   return (
     <div class="app">
+      <FloorIndicator holder={state.floorHolder} />
       <MessageList session={state.session} inProgress={state.inProgress} settings={state.settings} />
       <Composer send={send} floorHolder={state.floorHolder} status={state.status} />
     </div>
