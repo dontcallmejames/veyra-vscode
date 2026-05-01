@@ -2,6 +2,7 @@ import { parseMentions } from './mentions.js';
 import { FloorManager } from './floor.js';
 import type { Agent, SendOptions } from './agents/types.js';
 import type { AgentChunk, AgentId, AgentStatus } from './types.js';
+import type { FacilitatorFn } from './facilitator.js';
 
 export interface AgentRegistry {
   claude: Agent;
@@ -13,7 +14,8 @@ export type RouterEvent =
   | { kind: 'dispatch-start'; agentId: AgentId }
   | { kind: 'chunk'; agentId: AgentId; chunk: AgentChunk }
   | { kind: 'dispatch-end'; agentId: AgentId }
-  | { kind: 'routing-needed'; text: string };
+  | { kind: 'routing-needed'; text: string }
+  | { kind: 'facilitator-decision'; agentId: AgentId; reason: string };
 
 type FloorListener = (holder: AgentId | null) => void;
 type StatusListener = (agentId: AgentId, status: AgentStatus) => void;
@@ -51,7 +53,10 @@ export class MessageRouter {
   private lastStatus: Partial<Record<AgentId, AgentStatus>> = {};
   private activeAbortController: AbortController | null = null;
 
-  constructor(private agents: AgentRegistry) {
+  constructor(
+    private agents: AgentRegistry,
+    private facilitator?: FacilitatorFn,
+  ) {
     this.floor.onChange((holder) => {
       for (const l of this.floorListeners) l(holder);
     });
@@ -87,9 +92,28 @@ export class MessageRouter {
   async *handle(input: string, opts: SendOptions = {}): AsyncIterable<RouterEvent> {
     const { targets, remainingText } = parseMentions(input);
 
-    if (targets.length === 0) {
-      yield { kind: 'routing-needed', text: remainingText || input };
-      return;
+    let dispatchTargets = targets;
+    let promptText = remainingText;
+
+    if (dispatchTargets.length === 0) {
+      if (!this.facilitator) {
+        yield { kind: 'routing-needed', text: remainingText || input };
+        return;
+      }
+      const status: Record<AgentId, AgentStatus> = {
+        claude: this.lastStatus.claude ?? 'ready',
+        codex: this.lastStatus.codex ?? 'ready',
+        gemini: this.lastStatus.gemini ?? 'ready',
+      };
+      const text = remainingText || input;
+      const decision = await this.facilitator(text, status);
+      if ('error' in decision) {
+        yield { kind: 'routing-needed', text: decision.error };
+        return;
+      }
+      yield { kind: 'facilitator-decision', agentId: decision.agent, reason: decision.reason };
+      dispatchTargets = [decision.agent];
+      promptText = text;
     }
 
     // Create an AbortController for this dispatch so cancelAll() can abort it.
@@ -98,9 +122,9 @@ export class MessageRouter {
 
     // Pre-acquire floor handles for all targets so they queue in the FloorManager.
     // drainQueue() can then cancel queued (not-yet-dispatched) agents.
-    const handlePromises = targets.map((id) => this.floor.acquire(id));
+    const handlePromises = dispatchTargets.map((id) => this.floor.acquire(id));
 
-    for (let i = 0; i < targets.length; i++) {
+    for (let i = 0; i < dispatchTargets.length; i++) {
       const handle = await handlePromises[i];
 
       // A noop handle means this agent was drained by cancelAll(); skip it.
@@ -108,12 +132,12 @@ export class MessageRouter {
         continue;
       }
 
-      const targetId = targets[i];
+      const targetId = dispatchTargets[i];
       try {
         yield { kind: 'dispatch-start', agentId: targetId };
         const agent = this.agents[targetId];
         try {
-          for await (const chunk of withAbort(agent.send(remainingText, opts), ac.signal)) {
+          for await (const chunk of withAbort(agent.send(promptText, opts), ac.signal)) {
             yield { kind: 'chunk', agentId: targetId, chunk };
           }
         } catch (err) {

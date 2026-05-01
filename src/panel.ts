@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import { ulid } from './ulid.js';
 import { cspNonce } from './cspNonce.js';
 import { MessageRouter } from './messageRouter.js';
+import { chooseFacilitatorAgent } from './facilitator.js';
 import { ClaudeAgent } from './agents/claude.js';
 import { CodexAgent } from './agents/codex.js';
 import { GeminiAgent } from './agents/gemini.js';
@@ -57,7 +58,7 @@ export class ChatPanel {
     const claude = new ClaudeAgent();
     const codex = new CodexAgent();
     const gemini = new GeminiAgent();
-    this.router = new MessageRouter({ claude, codex, gemini });
+    this.router = new MessageRouter({ claude, codex, gemini }, chooseFacilitatorAgent);
     this.store = new SessionStore(workspacePath);
 
     this.panel.webview.html = this.renderHtml();
@@ -163,6 +164,20 @@ export class ChatPanel {
     this.currentDispatchInProgress = inProgressByAgent;
 
     for await (const event of this.router.handle(text, { cwd: this.workspacePath })) {
+      if (event.kind === 'facilitator-decision') {
+        const sys: SystemMessage = {
+          id: ulid(),
+          role: 'system',
+          kind: 'facilitator-decision',
+          text: '',  // text not used for this kind; rendering uses agentId + reason
+          timestamp: Date.now(),
+          agentId: event.agentId,
+          reason: event.reason,
+        };
+        this.store.appendSystem(sys);
+        this.send({ kind: 'system-message', message: sys });
+        continue;
+      }
       if (event.kind === 'routing-needed') {
         const sys: SystemMessage = {
           id: ulid(),

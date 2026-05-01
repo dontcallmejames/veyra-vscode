@@ -187,4 +187,59 @@ describe('MessageRouter', () => {
     // (Because they were queued behind Claude when cancelAll fired.)
     expect(geminiStarted).toBe(false);
   });
+
+  it('with facilitator: yields facilitator-decision then dispatches to chosen agent', async () => {
+    const claude = fakeAgent('claude', [
+      { type: 'text', text: 'pick' }, { type: 'done' },
+    ]);
+    const codex = fakeAgent('codex', []);
+    const gemini = fakeAgent('gemini', []);
+    const facilitator = vi.fn().mockResolvedValue({ agent: 'claude', reason: 'code review' });
+
+    const router = new MessageRouter({ claude, codex, gemini }, facilitator);
+
+    const events: any[] = [];
+    for await (const ev of router.handle('please review this')) events.push(ev);
+
+    expect(facilitator).toHaveBeenCalledWith('please review this', expect.any(Object));
+    expect(events[0]).toEqual({ kind: 'facilitator-decision', agentId: 'claude', reason: 'code review' });
+    expect(events).toContainEqual({ kind: 'dispatch-start', agentId: 'claude' });
+  });
+
+  it('with facilitator returning error: yields routing-needed', async () => {
+    const claude = fakeAgent('claude', []);
+    const codex = fakeAgent('codex', []);
+    const gemini = fakeAgent('gemini', []);
+    const facilitator = vi.fn().mockResolvedValue({ error: 'Routing unavailable; please prefix with @' });
+    const router = new MessageRouter({ claude, codex, gemini }, facilitator);
+
+    const events: any[] = [];
+    for await (const ev of router.handle('hello')) events.push(ev);
+
+    expect(events).toEqual([
+      { kind: 'routing-needed', text: 'Routing unavailable; please prefix with @' },
+    ]);
+  });
+
+  it('without facilitator: yields routing-needed (Plan 2a behavior)', async () => {
+    const claude = fakeAgent('claude', []);
+    const codex = fakeAgent('codex', []);
+    const gemini = fakeAgent('gemini', []);
+    const router = new MessageRouter({ claude, codex, gemini });
+
+    const events: any[] = [];
+    for await (const ev of router.handle('hello')) events.push(ev);
+    expect(events[0]).toMatchObject({ kind: 'routing-needed' });
+  });
+
+  it('facilitator only called when no @mention', async () => {
+    const claude = fakeAgent('claude', [{ type: 'done' }]);
+    const codex = fakeAgent('codex', []);
+    const gemini = fakeAgent('gemini', []);
+    const facilitator = vi.fn().mockResolvedValue({ agent: 'gemini', reason: 'x' });
+    const router = new MessageRouter({ claude, codex, gemini }, facilitator);
+
+    for await (const _ of router.handle('@claude hi')) { /* drain */ }
+    expect(facilitator).not.toHaveBeenCalled();
+  });
 });
