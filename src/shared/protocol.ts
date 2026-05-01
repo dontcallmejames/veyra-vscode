@@ -28,9 +28,11 @@ export type AgentMessage = {
 export type SystemMessage = {
   id: string;
   role: 'system';
-  kind: 'routing-needed' | 'error';
+  kind: 'routing-needed' | 'error' | 'facilitator-decision';
   text: string;
   timestamp: number;
+  agentId?: AgentId;     // present only when kind === 'facilitator-decision'
+  reason?: string;       // present only when kind === 'facilitator-decision' (separate from `text` for richer rendering)
 };
 
 export type SessionMessage = UserMessage | AgentMessage | SystemMessage;

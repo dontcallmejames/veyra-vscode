@@ -87,6 +87,22 @@ body {
   border-color: var(--error-border);
   color: var(--error-color);
 }
+.system-notice.facilitator {
+  background: rgba(255, 184, 74, 0.08);
+  border: 1px solid rgba(255, 184, 74, 0.45);
+  color: #ffce85;
+  font-style: normal;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.system-notice.facilitator .agent-name {
+  font-weight: 600;
+}
+.system-notice.facilitator .reason {
+  opacity: 0.8;
+  font-size: 11px;
+}
 
 .tool-card {
   margin-top: 6px;
