@@ -2,6 +2,7 @@ import type { Agent, SendOptions } from './types.js';
 import type { AgentChunk, AgentStatus } from '../types.js';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { checkClaude } from '../statusChecks.js';
+import { findNode } from '../findNode.js';
 
 export class ClaudeAgent implements Agent {
   readonly id = 'claude' as const;
@@ -20,12 +21,23 @@ export class ClaudeAgent implements Agent {
       else opts.signal.addEventListener('abort', onAbort, { once: true });
     }
 
+    // The SDK spawns its native bridge using process.execPath. Inside the
+    // VSCode extension host that's Code.exe (Electron), not real node — the
+    // bridge then crashes with "path argument undefined". Override execPath
+    // to the real node binary for the duration of the SDK call.
+    const origExecPath = process.execPath;
+    const overrideExecPath = process.versions.electron !== undefined;
+    if (overrideExecPath) {
+      process.execPath = findNode();
+    }
+
     let stream: AsyncIterable<unknown>;
     try {
       stream = query({ prompt, options: { abortController, cwd: opts.cwd } });
     } catch (err) {
       yield { type: 'error', message: errorMessage(err) };
       yield { type: 'done' };
+      if (overrideExecPath) process.execPath = origExecPath;
       opts.signal?.removeEventListener('abort', onAbort);
       this.activeAbortController = null;
       return;
@@ -44,6 +56,7 @@ export class ClaudeAgent implements Agent {
       yield { type: 'error', message: errorMessage(err) };
       yield { type: 'done' };
     } finally {
+      if (overrideExecPath) process.execPath = origExecPath;
       opts.signal?.removeEventListener('abort', onAbort);
       this.activeAbortController = null;
     }
