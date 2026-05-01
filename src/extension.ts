@@ -1,10 +1,9 @@
 import * as vscode from 'vscode';
+import { ChatPanel } from './panel.js';
 
 export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
-    vscode.commands.registerCommand('agentChat.openPanel', () => {
-      vscode.window.showInformationMessage('Agent Chat: panel coming in Plan 2');
-    })
+    vscode.commands.registerCommand('agentChat.openPanel', () => ChatPanel.show(context)),
   );
 }
 

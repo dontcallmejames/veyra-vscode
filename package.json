@@ -22,7 +22,18 @@
         "command": "agentChat.openPanel",
         "title": "Agent Chat: Open Panel"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Agent Chat",
+      "properties": {
+        "agentChat.toolCallRenderStyle": {
+          "type": "string",
+          "enum": ["verbose", "compact", "hidden"],
+          "default": "compact",
+          "description": "How tool calls (file reads, edits, terminal commands) are displayed in the chat."
+        }
+      }
+    }
   },
   "scripts": {
     "build": "node esbuild.config.mjs",
