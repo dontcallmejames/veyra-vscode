@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { ulid } from './ulid.js';
+import { cspNonce } from './cspNonce.js';
 import { MessageRouter } from './messageRouter.js';
 import { ClaudeAgent } from './agents/claude.js';
 import { CodexAgent } from './agents/codex.js';
@@ -229,7 +230,7 @@ export class ChatPanel {
     const jsUri = this.panel.webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, 'dist', 'webview.js')
     );
-    const nonce = ulid();
+    const nonce = cspNonce();
     let html = fs.readFileSync(htmlPath, 'utf8');
     html = html
       .replace(/{{NONCE}}/g, nonce)
