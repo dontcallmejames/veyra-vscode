@@ -10,6 +10,10 @@ export interface AgentRegistry {
   gemini: Agent;
 }
 
+export interface RouterOptions {
+  watchdogMs?: number;
+}
+
 export type RouterEvent =
   | { kind: 'dispatch-start'; agentId: AgentId }
   | { kind: 'chunk'; agentId: AgentId; chunk: AgentChunk }
@@ -52,11 +56,14 @@ export class MessageRouter {
   private statusListeners = new Set<StatusListener>();
   private lastStatus: Partial<Record<AgentId, AgentStatus>> = {};
   private activeAbortController: AbortController | null = null;
+  private watchdogMs: number;
 
   constructor(
     private agents: AgentRegistry,
     private facilitator?: FacilitatorFn,
+    options: RouterOptions = {},
   ) {
+    this.watchdogMs = options.watchdogMs ?? 0;
     this.floor.onChange((holder) => {
       for (const l of this.floorListeners) l(holder);
     });
@@ -133,12 +140,25 @@ export class MessageRouter {
       }
 
       const targetId = dispatchTargets[i];
+      let watchdogFired = false;
+      const watchdog = this.watchdogMs > 0 ? setTimeout(() => {
+        watchdogFired = true;
+        ac.abort();
+        this.agents[targetId].cancel().catch(() => { /* best-effort */ });
+      }, this.watchdogMs) : null;
+
       try {
         yield { kind: 'dispatch-start', agentId: targetId };
         const agent = this.agents[targetId];
         try {
           for await (const chunk of withAbort(agent.send(promptText, opts), ac.signal)) {
             yield { kind: 'chunk', agentId: targetId, chunk };
+          }
+          if (watchdogFired) {
+            const minutes = (this.watchdogMs / 60_000).toFixed(0);
+            const minutesText = minutes === '0' ? `${(this.watchdogMs / 1000).toFixed(0)} seconds` : `${minutes} minutes`;
+            yield { kind: 'chunk', agentId: targetId, chunk: { type: 'error', message: `Watchdog: ${targetId} held the floor for over ${minutesText}; releasing.` } };
+            yield { kind: 'chunk', agentId: targetId, chunk: { type: 'done' } };
           }
         } catch (err) {
           // Adapters MUST yield error+done chunks instead of throwing, but
@@ -150,6 +170,7 @@ export class MessageRouter {
         }
         yield { kind: 'dispatch-end', agentId: targetId };
       } finally {
+        if (watchdog) clearTimeout(watchdog);
         handle.release();
       }
     }

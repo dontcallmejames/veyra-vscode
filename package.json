@@ -38,6 +38,13 @@
           "minimum": 0,
           "maximum": 600,
           "description": "Seconds with no output from an agent before showing a 'still waiting?' notice. Set to 0 to disable."
+        },
+        "agentChat.watchdogMinutes": {
+          "type": "number",
+          "default": 5,
+          "minimum": 0,
+          "maximum": 60,
+          "description": "Maximum minutes an agent may hold the dispatch floor before it's force-released. Set to 0 to disable."
         }
       }
     }

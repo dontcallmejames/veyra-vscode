@@ -59,7 +59,12 @@ export class ChatPanel {
     const claude = new ClaudeAgent();
     const codex = new CodexAgent();
     const gemini = new GeminiAgent();
-    this.router = new MessageRouter({ claude, codex, gemini }, chooseFacilitatorAgent);
+    const watchdogMinutes = vscode.workspace.getConfiguration('agentChat').get<number>('watchdogMinutes', 5);
+    this.router = new MessageRouter(
+      { claude, codex, gemini },
+      chooseFacilitatorAgent,
+      { watchdogMs: watchdogMinutes * 60_000 },
+    );
     this.store = new SessionStore(workspacePath);
 
     this.panel.webview.html = this.renderHtml();

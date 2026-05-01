@@ -242,4 +242,54 @@ describe('MessageRouter', () => {
     for await (const _ of router.handle('@claude hi')) { /* drain */ }
     expect(facilitator).not.toHaveBeenCalled();
   });
+
+  it('watchdog: cancels active agent and yields error+done after configured ms', async () => {
+    vi.useFakeTimers();
+    try {
+      const cancelSpy = vi.fn().mockResolvedValue(undefined);
+      const claude: Agent = {
+        id: 'claude',
+        status: vi.fn().mockResolvedValue('ready'),
+        cancel: cancelSpy,
+        send: (() => {
+          // Generator that hangs forever.
+          return (async function* () {
+            await new Promise(() => { /* never resolves */ });
+          })();
+        }) as Agent['send'],
+      };
+      const codex = fakeAgent('codex', []);
+      const gemini = fakeAgent('gemini', []);
+
+      const router = new MessageRouter({ claude, codex, gemini }, undefined, { watchdogMs: 5000 });
+
+      const events: any[] = [];
+      const task = (async () => {
+        for await (const ev of router.handle('@claude hi')) events.push(ev);
+      })();
+
+      // Let the dispatch start.
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // Advance past the watchdog timeout.
+      vi.advanceTimersByTime(5000);
+      await Promise.resolve();
+
+      // Cancel was called by watchdog.
+      expect(cancelSpy).toHaveBeenCalled();
+
+      // Allow the cancellation to propagate.
+      vi.advanceTimersByTime(100);
+      await task;
+
+      // We should see an error chunk from the watchdog.
+      const errorChunk = events.find(
+        (e) => e.kind === 'chunk' && e.chunk.type === 'error' && /watchdog|5 minutes|seconds/i.test(e.chunk.message)
+      );
+      expect(errorChunk).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
