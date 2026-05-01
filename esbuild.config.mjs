@@ -17,7 +17,16 @@ const extensionConfig = {
   entryPoints: ['src/extension.ts'],
   bundle: true,
   outfile: 'dist/extension.js',
-  external: ['vscode'],
+  external: [
+    'vscode',
+    // Don't bundle the Claude Agent SDK — it ships a native claude.exe in
+    // a platform-specific sibling package and resolves the binary path via
+    // import.meta.url / require.resolve at runtime. Bundling breaks that
+    // resolution (import.meta.url ends up pointing at our bundle, not the
+    // SDK location), causing the SDK to throw "path argument undefined"
+    // when it tries to spawn its native bridge.
+    '@anthropic-ai/claude-agent-sdk',
+  ],
   format: 'cjs',
   platform: 'node',
   target: 'node20',
