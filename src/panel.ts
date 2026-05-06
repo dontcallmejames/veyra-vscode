@@ -259,6 +259,8 @@ export class ChatPanel {
     };
     if (this.store.isFirstSession()) {
       await this.maybeShowGitignorePrompt(this.workspacePath);
+      await this.maybeShowAgentchatMdTip();
+      await this.maybeShowCommitHookPrompt();
     }
     this.store.appendUser(userMsg);
     this.send({ kind: 'user-message-appended', message: userMsg });
@@ -439,6 +441,47 @@ export class ChatPanel {
       const additionalLines = (gitignore.length > 0 && !gitignore.endsWith('\n') ? '\n' : '')
         + '\n# Agent Chat session history\n.vscode/agent-chat/\n';
       fs.appendFileSync(gitignorePath, additionalLines, 'utf8');
+    } else if (choice === "Don't ask again") {
+      await this.context.workspaceState.update(stateKey, true);
+    }
+  }
+
+  private async maybeShowAgentchatMdTip(): Promise<void> {
+    const stateKey = 'agentChat.agentchatMdTipShown';
+    if (this.context.workspaceState.get(stateKey)) return;
+    if (fs.existsSync(path.join(this.workspacePath, 'agentchat.md'))) return;
+
+    const choice = await vscode.window.showInformationMessage(
+      'Tip: create agentchat.md at the workspace root to pin per-project instructions for all agents.',
+      'Create now',
+      "Don't show again",
+    );
+    if (choice === 'Create now') {
+      const filePath = path.join(this.workspacePath, 'agentchat.md');
+      const seed = '# agentchat.md\n\nWorkspace rules pinned to all agent prompts. Free-form Markdown.\n';
+      fs.writeFileSync(filePath, seed, 'utf8');
+      const doc = await vscode.workspace.openTextDocument(filePath);
+      await vscode.window.showTextDocument(doc);
+      await this.context.workspaceState.update(stateKey, true);
+    } else if (choice === "Don't show again") {
+      await this.context.workspaceState.update(stateKey, true);
+    }
+  }
+
+  private async maybeShowCommitHookPrompt(): Promise<void> {
+    const stateKey = 'agentChat.commitHookPromptDismissed';
+    if (this.context.workspaceState.get(stateKey)) return;
+    if (!fs.existsSync(path.join(this.workspacePath, '.git'))) return;
+
+    const choice = await vscode.window.showInformationMessage(
+      'Install commit hook to tag commits made by agents? Adds .git/hooks/prepare-commit-msg. Removable via "Agent Chat: Uninstall commit hook".',
+      'Install',
+      'Not now',
+      "Don't ask again",
+    );
+    if (choice === 'Install') {
+      await vscode.commands.executeCommand('agentChat.installCommitHook');
+      await this.context.workspaceState.update(stateKey, true);
     } else if (choice === "Don't ask again") {
       await this.context.workspaceState.update(stateKey, true);
     }
