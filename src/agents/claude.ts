@@ -165,3 +165,21 @@ function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   return String(err);
 }
+
+const CLAUDE_WRITE_TOOLS: Record<string, string[]> = {
+  Edit: ['file_path'],
+  Write: ['file_path'],
+  MultiEdit: ['file_path'],
+  NotebookEdit: ['notebook_path'],
+};
+
+export function getEditedPath(toolName: string, input: unknown): string | null {
+  const fields = CLAUDE_WRITE_TOOLS[toolName];
+  if (!fields) return null;
+  if (typeof input !== 'object' || input === null) return null;
+  const obj = input as Record<string, unknown>;
+  for (const f of fields) {
+    if (typeof obj[f] === 'string') return obj[f] as string;
+  }
+  return null;
+}

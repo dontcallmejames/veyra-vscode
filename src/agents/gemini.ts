@@ -130,3 +130,14 @@ function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   return String(err);
 }
+
+const GEMINI_WRITE_TOOLS = new Set(['write_file', 'replace']);
+
+export function getEditedPath(toolName: string, input: unknown): string | null {
+  if (!GEMINI_WRITE_TOOLS.has(toolName)) return null;
+  if (typeof input !== 'object' || input === null) return null;
+  const obj = input as Record<string, unknown>;
+  if (typeof obj.file_path === 'string') return obj.file_path as string;
+  if (typeof obj.path === 'string') return obj.path as string;
+  return null;
+}

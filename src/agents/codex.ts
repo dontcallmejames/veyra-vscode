@@ -125,3 +125,14 @@ function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   return String(err);
 }
+
+const CODEX_WRITE_TOOLS = new Set(['apply_patch', 'write_file', 'update_file']);
+
+export function getEditedPath(toolName: string, input: unknown): string | null {
+  if (!CODEX_WRITE_TOOLS.has(toolName)) return null;
+  if (typeof input !== 'object' || input === null) return null;
+  const obj = input as Record<string, unknown>;
+  if (typeof obj.path === 'string') return obj.path;
+  if (typeof obj.file_path === 'string') return obj.file_path as string;
+  return null;
+}
