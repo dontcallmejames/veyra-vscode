@@ -9,6 +9,7 @@ import { ClaudeAgent } from './agents/claude.js';
 import { CodexAgent } from './agents/codex.js';
 import { GeminiAgent } from './agents/gemini.js';
 import { SessionStore } from './sessionStore.js';
+import { SentinelWriter } from './commitHook.js';
 import { checkClaude, checkCodex, checkGemini, clearStatusCache } from './statusChecks.js';
 import { buildSharedContext } from './sharedContext.js';
 import { readWorkspaceRules } from './workspaceRules.js';
@@ -40,6 +41,7 @@ export class ChatPanel {
   private extensionUri: vscode.Uri;
   private currentDispatchInProgress: Map<AgentId, { cancelled?: boolean }> | null = null;
   private hangSec: number = 60;
+  private sentinel: SentinelWriter;
 
   static async show(
     context: vscode.ExtensionContext,
@@ -90,6 +92,9 @@ export class ChatPanel {
       { watchdogMs: watchdogMinutes * 60_000 },
     );
     this.store = new SessionStore(workspacePath);
+    this.sentinel = new SentinelWriter(workspacePath, {
+      enabled: vscode.workspace.getConfiguration('agentChat').get<boolean>('commitSignature.enabled', true),
+    });
 
     this.panel.webview.html = this.renderHtml();
     this.disposables.push(
@@ -130,6 +135,9 @@ export class ChatPanel {
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration('agentChat')) {
           this.hangSec = this.readHangSeconds();
+          this.sentinel = new SentinelWriter(this.workspacePath, {
+            enabled: vscode.workspace.getConfiguration('agentChat').get<boolean>('commitSignature.enabled', true),
+          });
           this.send({ kind: 'settings-changed', settings: this.readSettings() });
         }
       }),
@@ -322,6 +330,7 @@ export class ChatPanel {
           continue;
         }
         if (event.kind === 'dispatch-start') {
+          this.sentinel.dispatchStart(event.agentId);
           const id = ulid();
           const ts = Date.now();
           inProgressByAgent.set(event.agentId, { id, text: '', toolEvents: [], agentId: event.agentId, timestamp: ts });
@@ -373,6 +382,7 @@ export class ChatPanel {
           this.send({ kind: 'message-finalized', message: finalized });
           inProgressByAgent.delete(event.agentId);
           activeAgentForHang = null;
+          this.sentinel.dispatchEnd(event.agentId);
         }
       }
     } finally {
