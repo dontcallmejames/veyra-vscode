@@ -248,7 +248,7 @@ describe('MessageRouter', () => {
     const events: any[] = [];
     for await (const ev of router.handle('please review this')) events.push(ev);
 
-    expect(facilitator).toHaveBeenCalledWith('please review this', expect.any(Object));
+    expect(facilitator).toHaveBeenCalledWith('please review this', expect.any(Object), undefined);
     expect(events[0]).toEqual({ kind: 'facilitator-decision', agentId: 'claude', reason: 'code review' });
     expect(events).toContainEqual({ kind: 'dispatch-start', agentId: 'claude' });
   });
@@ -338,5 +338,65 @@ describe('MessageRouter', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('per-target prompt composition (v2)', () => {
+  it('calls composePromptForTarget once per target before agent.send', async () => {
+    const calls: Array<{ id: AgentId; prompt: string }> = [];
+    const make = (id: AgentId): Agent => ({
+      id,
+      status: vi.fn().mockResolvedValue('ready'),
+      cancel: vi.fn().mockResolvedValue(undefined),
+      async *send(prompt: string) {
+        calls.push({ id, prompt });
+        yield { type: 'text', text: `from-${id}` };
+        yield { type: 'done' };
+      },
+    });
+
+    const agents = { claude: make('claude'), codex: make('codex'), gemini: make('gemini') };
+    const router = new MessageRouter(agents);
+
+    const composer = vi.fn((targetId: AgentId, baseText: string) => `[${targetId}-prompt] ${baseText}`);
+
+    for await (const _ of router.handle('@all hi', { composePromptForTarget: composer })) {
+      // drain
+    }
+
+    expect(composer).toHaveBeenCalledTimes(3);
+    expect(composer).toHaveBeenCalledWith('claude', 'hi');
+    expect(composer).toHaveBeenCalledWith('codex', 'hi');
+    expect(composer).toHaveBeenCalledWith('gemini', 'hi');
+    expect(calls.find((c) => c.id === 'claude')?.prompt).toBe('[claude-prompt] hi');
+    expect(calls.find((c) => c.id === 'codex')?.prompt).toBe('[codex-prompt] hi');
+    expect(calls.find((c) => c.id === 'gemini')?.prompt).toBe('[gemini-prompt] hi');
+  });
+
+  it('forwards sharedContext to facilitator', async () => {
+    const facilitator = vi.fn(async (_text: string, _avail: any, _ctx?: string) => ({
+      agent: 'claude' as AgentId,
+      reason: 'r',
+    }));
+
+    const agents = {
+      claude: fakeAgent('claude', [{ type: 'done' }]),
+      codex: fakeAgent('codex', [{ type: 'done' }]),
+      gemini: fakeAgent('gemini', [{ type: 'done' }]),
+    };
+    const router = new MessageRouter(agents, facilitator as any);
+
+    for await (const _ of router.handle('plain text', {
+      composePromptForTarget: (_id, t) => t,
+      sharedContextForFacilitator: '[Conversation so far]\nuser: prior\n[/Conversation so far]',
+    })) {
+      // drain
+    }
+
+    expect(facilitator).toHaveBeenCalledWith(
+      'plain text',
+      expect.any(Object),
+      '[Conversation so far]\nuser: prior\n[/Conversation so far]',
+    );
   });
 });

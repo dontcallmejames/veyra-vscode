@@ -98,7 +98,13 @@ export class MessageRouter {
     for (const l of this.statusListeners) l(agentId, status);
   }
 
-  async *handle(input: string, opts: SendOptions = {}): AsyncIterable<RouterEvent> {
+  async *handle(
+    input: string,
+    opts: SendOptions & {
+      composePromptForTarget?: (targetId: AgentId, baseText: string) => string;
+      sharedContextForFacilitator?: string;
+    } = {},
+  ): AsyncIterable<RouterEvent> {
     const { targets, remainingText } = parseMentions(input);
 
     let dispatchTargets = targets;
@@ -115,7 +121,7 @@ export class MessageRouter {
         gemini: this.lastStatus.gemini ?? 'ready',
       };
       const text = remainingText || input;
-      const decision = await this.facilitator(text, status);
+      const decision = await this.facilitator(text, status, opts.sharedContextForFacilitator);
       if ('error' in decision) {
         yield { kind: 'routing-needed', text: decision.error };
         return;
@@ -125,20 +131,12 @@ export class MessageRouter {
       promptText = text;
     }
 
-    // Pre-acquire floor handles for all targets so they queue in the FloorManager.
-    // drainQueue() can then cancel queued (not-yet-dispatched) agents.
     const handlePromises = dispatchTargets.map((id) => this.floor.acquire(id));
 
     for (let i = 0; i < dispatchTargets.length; i++) {
       const handle = await handlePromises[i];
+      if (handle.noop) continue;
 
-      // A noop handle means this agent was drained by cancelAll(); skip it.
-      if (handle.noop) {
-        continue;
-      }
-
-      // Each target gets its own AbortController so that cancelling or
-      // watchdog-firing on one agent does not cascade to subsequent agents.
       const ac = new AbortController();
       this.activeControllers.add(ac);
 
@@ -153,8 +151,12 @@ export class MessageRouter {
       try {
         yield { kind: 'dispatch-start', agentId: targetId };
         const agent = this.agents[targetId];
+        // V2: rebuild prompt fresh for each target so later @all members see prior replies.
+        const finalPrompt = opts.composePromptForTarget
+          ? opts.composePromptForTarget(targetId, promptText)
+          : promptText;
         try {
-          for await (const chunk of withAbort(agent.send(promptText, opts), ac.signal)) {
+          for await (const chunk of withAbort(agent.send(finalPrompt, opts), ac.signal)) {
             yield { kind: 'chunk', agentId: targetId, chunk };
           }
           if (watchdogFired) {
@@ -164,9 +166,6 @@ export class MessageRouter {
             yield { kind: 'chunk', agentId: targetId, chunk: { type: 'done' } };
           }
         } catch (err) {
-          // Adapters MUST yield error+done chunks instead of throwing, but
-          // defend against contract violations so the consumer sees a
-          // single, consistent error path.
           const message = err instanceof Error ? err.message : String(err);
           yield { kind: 'chunk', agentId: targetId, chunk: { type: 'error', message } };
           yield { kind: 'chunk', agentId: targetId, chunk: { type: 'done' } };
