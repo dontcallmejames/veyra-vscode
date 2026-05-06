@@ -139,4 +139,11 @@ describe('embedFiles', () => {
     const r = embedFiles(['/elsewhere/outside.ts'], ws, { maxLines: 500 });
     expect(r.errors).toEqual([{ path: '/elsewhere/outside.ts', reason: 'Path escapes workspace' }]);
   });
+
+  it('rejects paths in a sibling directory whose name starts with the workspace name (substring trap)', () => {
+    fsState.set('/fake/ws-other/x.ts', 'sibling');
+    const r = embedFiles(['/fake/ws-other/x.ts'], ws, { maxLines: 500 });
+    expect(r.errors).toEqual([{ path: '/fake/ws-other/x.ts', reason: 'Path escapes workspace' }]);
+    expect(r.attached).toEqual([]);
+  });
 });
