@@ -367,13 +367,14 @@ export class ChatPanel {
           if (event.chunk.type === 'text') ip.text += event.chunk.text;
           else if (event.chunk.type === 'tool-call') ip.toolEvents.push({ kind: 'call', name: event.chunk.name, input: event.chunk.input, timestamp: Date.now() });
           else if (event.chunk.type === 'tool-result') {
-            ip.toolEvents.push({ kind: 'result', name: event.chunk.name, output: event.chunk.output, timestamp: Date.now() });
+            const chunk = event.chunk;
+            ip.toolEvents.push({ kind: 'result', name: chunk.name, output: chunk.output, timestamp: Date.now() });
             // Find the matching pending tool-call to recover input — we already pushed the call before the result arrived.
             const matchingCall = [...ip.toolEvents].reverse().find(
-              (e: any) => e.kind === 'call' && e.name === event.chunk.name,
+              (e: any) => e.kind === 'call' && e.name === chunk.name,
             ) as { input: unknown } | undefined;
             if (matchingCall && this.badgeController) {
-              const editedPath = getEditedPathForAgent(event.agentId, event.chunk.name, matchingCall.input);
+              const editedPath = getEditedPathForAgent(event.agentId, chunk.name, matchingCall.input);
               if (editedPath) {
                 this.badgeController.registerEdit(editedPath, event.agentId);
                 this.send({ kind: 'file-edited', path: editedPath, agentId: event.agentId, timestamp: Date.now() });

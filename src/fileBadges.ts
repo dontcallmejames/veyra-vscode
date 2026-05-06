@@ -59,10 +59,14 @@ export class FileBadgesController implements vscode.FileDecorationProvider {
 
   registerEdit(filePath: string, agentId: AgentId): void {
     const now = Date.now();
-    const next = pruneStale(recordEdit(this.records, filePath, agentId, now), now);
+    // Normalize to VS Code's platform-native fsPath form so it matches uri.fsPath
+    // in provideFileDecoration. Without this, forward-slash paths from agents
+    // never match VS Code's backslash-normalized URIs on Windows.
+    const normalized = vscode.Uri.file(filePath).fsPath;
+    const next = pruneStale(recordEdit(this.records, normalized, agentId, now), now);
     this.records = next;
     void this.context.workspaceState.update(STATE_KEY, next);
-    this._onDidChange.fire(vscode.Uri.file(filePath));
+    this._onDidChange.fire(vscode.Uri.file(normalized));
   }
 
   provideFileDecoration(uri: vscode.Uri): vscode.FileDecoration | undefined {
