@@ -6,12 +6,19 @@ export type ToolEvent =
   | { kind: 'call'; name: string; input: unknown; timestamp: number }
   | { kind: 'result'; name: string; output: unknown; timestamp: number };
 
+export type AttachedFile = {
+  path: string;     // workspace-relative or absolute as resolved at send time
+  lines: number;
+  truncated: boolean;
+};
+
 export type UserMessage = {
   id: string;
   role: 'user';
   text: string;
   timestamp: number;
   mentions?: AgentId[];
+  attachedFiles?: AttachedFile[];
 };
 
 export type AgentMessage = {
@@ -74,7 +81,8 @@ export type FromExtension =
   | { kind: 'floor-changed'; holder: AgentId | null }
   | { kind: 'status-changed'; agentId: AgentId; status: AgentStatus }
   | { kind: 'settings-changed'; settings: Settings }
-  | { kind: 'user-message-appended'; message: UserMessage };
+  | { kind: 'user-message-appended'; message: UserMessage }
+  | { kind: 'file-edited'; path: string; agentId: AgentId; timestamp: number };
 
 export type FromWebview =
   | { kind: 'send'; text: string }
