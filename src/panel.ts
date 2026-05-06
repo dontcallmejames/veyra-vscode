@@ -10,6 +10,10 @@ import { CodexAgent } from './agents/codex.js';
 import { GeminiAgent } from './agents/gemini.js';
 import { SessionStore } from './sessionStore.js';
 import { checkClaude, checkCodex, checkGemini, clearStatusCache } from './statusChecks.js';
+import { buildSharedContext } from './sharedContext.js';
+import { readWorkspaceRules } from './workspaceRules.js';
+import { parseFileMentions, embedFiles } from './fileMentions.js';
+import { composePrompt } from './composePrompt.js';
 import type {
   FromExtension, FromWebview, Settings, AgentMessage, UserMessage, SystemMessage,
 } from './shared/protocol.js';
@@ -196,11 +200,18 @@ export class ChatPanel {
   }
 
   private async dispatchUserMessage(text: string): Promise<void> {
+    const fileEmbedMaxLines = vscode.workspace.getConfiguration('agentChat').get<number>('fileEmbedMaxLines', 500);
+    const sharedContextWindow = vscode.workspace.getConfiguration('agentChat').get<number>('sharedContextWindow', 25);
+
+    const { filePaths, remainingText } = parseFileMentions(text);
+    const embedResult = embedFiles(filePaths, this.workspacePath, { maxLines: fileEmbedMaxLines });
+
     const userMsg: UserMessage = {
       id: ulid(),
       role: 'user',
       text,
       timestamp: Date.now(),
+      ...(embedResult.attached.length > 0 ? { attachedFiles: embedResult.attached } : {}),
     };
     if (this.store.isFirstSession()) {
       await this.maybeShowGitignorePrompt(this.workspacePath);
@@ -208,7 +219,18 @@ export class ChatPanel {
     this.store.appendUser(userMsg);
     this.send({ kind: 'user-message-appended', message: userMsg });
 
-    // Build the in-progress message states + drive the router.
+    for (const e of embedResult.errors) {
+      const sys: SystemMessage = {
+        id: ulid(),
+        role: 'system',
+        kind: 'error',
+        text: `${e.path}: ${e.reason}`,
+        timestamp: Date.now(),
+      };
+      this.store.appendSystem(sys);
+      this.send({ kind: 'system-message', message: sys });
+    }
+
     const inProgressByAgent = new Map<AgentId, { id: string; text: string; toolEvents: any[]; agentId: AgentId; timestamp: number; error?: string; cancelled?: boolean }>();
     this.currentDispatchInProgress = inProgressByAgent;
 
@@ -227,18 +249,42 @@ export class ChatPanel {
         };
         this.store.appendSystem(sys);
         this.send({ kind: 'system-message', message: sys });
-        lastChunkAt = Date.now(); // reset so we don't spam every interval tick
+        lastChunkAt = Date.now();
       }
     }, 1000) : null;
 
+    const composePromptForTarget = (_targetId: AgentId, baseText: string): string => {
+      const session = this.store.snapshot();
+      const sharedContext = buildSharedContext(session, { window: sharedContextWindow });
+      const rules = readWorkspaceRules(this.workspacePath);
+      return composePrompt({
+        rules,
+        sharedContext,
+        fileBlocks: embedResult.embedded,
+        userText: baseText,
+      });
+    };
+
+    const sharedContextForFacilitator = buildSharedContext(
+      this.store.snapshot(),
+      { window: sharedContextWindow },
+    );
+
     try {
-      for await (const event of this.router.handle(text, { cwd: this.workspacePath })) {
+      for await (const event of this.router.handle(
+        remainingText,
+        {
+          cwd: this.workspacePath,
+          composePromptForTarget,
+          sharedContextForFacilitator,
+        },
+      )) {
         if (event.kind === 'facilitator-decision') {
           const sys: SystemMessage = {
             id: ulid(),
             role: 'system',
             kind: 'facilitator-decision',
-            text: '',  // text not used for this kind; rendering uses agentId + reason
+            text: '',
             timestamp: Date.now(),
             agentId: event.agentId,
             reason: event.reason,
@@ -271,13 +317,11 @@ export class ChatPanel {
         if (event.kind === 'chunk') {
           const ip = inProgressByAgent.get(event.agentId);
           if (!ip) continue;
-          // Mirror state on the extension side so we can persist a final AgentMessage.
           if (event.chunk.type === 'text') ip.text += event.chunk.text;
           else if (event.chunk.type === 'tool-call') ip.toolEvents.push({ kind: 'call', name: event.chunk.name, input: event.chunk.input, timestamp: Date.now() });
           else if (event.chunk.type === 'tool-result') ip.toolEvents.push({ kind: 'result', name: event.chunk.name, output: event.chunk.output, timestamp: Date.now() });
           else if (event.chunk.type === 'error') ip.error = event.chunk.message;
           lastChunkAt = Date.now();
-          // Forward to webview
           this.send({ kind: 'message-chunk', id: ip.id, chunk: event.chunk });
           continue;
         }

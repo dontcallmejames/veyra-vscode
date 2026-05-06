@@ -72,6 +72,10 @@ export class SessionStore {
     this.scheduleWrite();
   }
 
+  snapshot(): Session {
+    return { version: this.session.version, messages: [...this.session.messages] };
+  }
+
   async flush(): Promise<void> {
     if (this.writeTimer !== null) {
       clearTimeout(this.writeTimer);

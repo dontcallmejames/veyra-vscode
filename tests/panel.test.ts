@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+// fsState must be declared at module scope so both the vi.mock factory
+// (which runs once at module-load) and individual test bodies can access it.
+// Keys are always forward-slash normalized so Windows path.join backslashes are handled.
+const fsState = new Map<string, string>();
+const fsNorm = (p: string) => String(p).replace(/\\/g, '/');
+fsState.set('/fake/ext/dist/index.html', '<html><body><div id="root"></div><script src="{{WEBVIEW_JS_URI}}"></script></body></html>');
+
 // Hoist a fake vscode module before importing ChatPanel.
 vi.mock('vscode', () => {
   const messages: any[] = [];
@@ -36,13 +43,23 @@ vi.mock('vscode', () => {
 });
 
 vi.mock('node:fs', () => ({
-  existsSync: vi.fn((p: string) => p.endsWith('.html')),
-  readFileSync: vi.fn().mockReturnValue('<html><body><div id="root"></div><script src="{{WEBVIEW_JS_URI}}"></script></body></html>'),
+  existsSync: (p: string) => fsState.has(fsNorm(p)),
+  readFileSync: (p: string) => {
+    const v = fsState.get(fsNorm(p));
+    if (v === undefined) throw new Error('ENOENT');
+    return v;
+  },
+  statSync: (p: string) => {
+    const v = fsState.get(fsNorm(p));
+    if (v === undefined) throw new Error('ENOENT');
+    return { size: Buffer.byteLength(v, 'utf8') };
+  },
   promises: {
     mkdir: vi.fn().mockResolvedValue(undefined),
     writeFile: vi.fn().mockResolvedValue(undefined),
     rename: vi.fn().mockResolvedValue(undefined),
   },
+  appendFileSync: vi.fn(),
 }));
 
 // Mock the agent SDK and child_process so adapters don't try to run anything
@@ -144,5 +161,54 @@ describe('ChatPanel', () => {
 
     // Confirm order: started before finalized.
     expect(kinds.indexOf('message-started')).toBeLessThan(kinds.indexOf('message-finalized'));
+  });
+
+  it('persists attachedFiles + surfaces embed errors when @file used', async () => {
+    (ChatPanel as any).current = undefined;
+    (vscode as any).__test.messages.length = 0;
+
+    // Make /fake/workspace/foo.ts available in the fs mock.
+    fsState.set('/fake/workspace/foo.ts', 'export const x = 1;\n');
+
+    const claude = {
+      id: 'claude' as const,
+      status: vi.fn().mockResolvedValue('ready'),
+      cancel: vi.fn().mockResolvedValue(undefined),
+      send: vi.fn(() => (async function* () { yield { type: 'done' }; })()),
+    };
+    const codex = {
+      id: 'codex' as const,
+      status: vi.fn().mockResolvedValue('ready'),
+      cancel: vi.fn().mockResolvedValue(undefined),
+      send: vi.fn(() => (async function* () { yield { type: 'done' }; })()),
+    };
+    const gemini = {
+      id: 'gemini' as const,
+      status: vi.fn().mockResolvedValue('ready'),
+      cancel: vi.fn().mockResolvedValue(undefined),
+      send: vi.fn(() => (async function* () { yield { type: 'done' }; })()),
+    };
+
+    await ChatPanel.show(ctx, { claude, codex, gemini } as any);
+
+    const onDidReceive = (vscode as any).__test.onDidReceive.handler;
+    await onDidReceive({ kind: 'send', text: '@claude review @foo.ts and @missing.ts' });
+
+    await new Promise((r) => setImmediate(r));
+    await new Promise((r) => setImmediate(r));
+    await new Promise((r) => setImmediate(r));
+
+    const msgs = (vscode as any).__test.messages;
+    const userAppended = msgs.find((m: any) => m.kind === 'user-message-appended');
+    expect(userAppended).toBeDefined();
+    expect(userAppended.message.attachedFiles).toEqual([
+      { path: 'foo.ts', lines: 1, truncated: false },
+    ]);
+
+    const errSys = msgs.find((m: any) => m.kind === 'system-message' && m.message.text.includes('missing.ts'));
+    expect(errSys).toBeDefined();
+
+    // Clean up the test-specific fs entry so it doesn't affect other tests.
+    fsState.delete('/fake/workspace/foo.ts');
   });
 });
