@@ -13,6 +13,7 @@ describe('webview state reducer', () => {
       session: { version: 1, messages: [{ id: 'u1', role: 'user', text: 'hi', timestamp: 1 }] },
       status: { claude: 'ready', codex: 'unauthenticated', gemini: 'ready' },
       settings: { toolCallRenderStyle: 'verbose' },
+      agentchatMdPresent: false,
     };
     const next = reduce(state, event);
     expect(next.session.messages).toHaveLength(1);
@@ -98,6 +99,7 @@ describe('webview state reducer', () => {
       session: emptySession,
       status: { claude: 'ready', codex: 'ready', gemini: 'ready' },
       settings: DEFAULT_SETTINGS,
+      agentchatMdPresent: false,
     });
     state = reduce(state, { kind: 'status-changed', agentId: 'gemini', status: 'unauthenticated' });
     expect(state.status.gemini).toBe('unauthenticated');

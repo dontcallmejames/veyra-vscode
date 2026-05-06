@@ -112,7 +112,8 @@ export class ChatPanel {
       gemini: await checkGemini(),
     };
     const settings = this.readSettings();
-    this.send({ kind: 'init', session, status, settings });
+    const agentchatMdPresent = fs.existsSync(path.join(this.workspacePath, 'agentchat.md'));
+    this.send({ kind: 'init', session, status, settings, agentchatMdPresent });
 
     this.disposables.push(
       { dispose: this.router.onFloorChange((holder) => this.send({ kind: 'floor-changed', holder })) },
@@ -142,6 +143,15 @@ export class ChatPanel {
         }
       }),
     );
+
+    const rulesWatcher = vscode.workspace.createFileSystemWatcher('**/agentchat.md', false, true, false);
+    const onRulesChange = () => {
+      const present = fs.existsSync(path.join(this.workspacePath, 'agentchat.md'));
+      this.send({ kind: 'agentchat-md-changed', present });
+    };
+    rulesWatcher.onDidCreate(onRulesChange);
+    rulesWatcher.onDidDelete(onRulesChange);
+    this.disposables.push(rulesWatcher);
 
     const recheckIntervalMs = 60_000;
     let recheckHandle: NodeJS.Timeout | null = null;
@@ -220,6 +230,16 @@ export class ChatPanel {
       case 'open-external':
         vscode.env.openExternal(vscode.Uri.parse(msg.url));
         break;
+      case 'open-workspace-file': {
+        const fileUri = vscode.Uri.file(path.join(this.workspacePath, msg.relativePath));
+        try {
+          const doc = await vscode.workspace.openTextDocument(fileUri);
+          await vscode.window.showTextDocument(doc);
+        } catch {
+          vscode.window.showWarningMessage(`Could not open ${msg.relativePath}`);
+        }
+        break;
+      }
     }
   }
 

@@ -1,4 +1,4 @@
-﻿import { h } from 'preact';
+import { h } from 'preact';
 import { useState } from 'preact/hooks';
 import type { AgentId, AgentStatus } from '../../types.js';
 import type { FromWebview } from '../../shared/protocol.js';
@@ -21,9 +21,10 @@ const FIX_INSTRUCTIONS: Record<AgentId, Record<Exclude<AgentStatus, 'ready' | 'b
 interface Props {
   status: Record<AgentId, AgentStatus>;
   send: (msg: FromWebview) => void;
+  agentchatMdPresent: boolean;
 }
 
-export function HealthStrip({ status, send }: Props) {
+export function HealthStrip({ status, send, agentchatMdPresent }: Props) {
   const [popoverFor, setPopoverFor] = useState<AgentId | null>(null);
 
   const labels: Record<AgentId, string> = {
@@ -64,6 +65,15 @@ export function HealthStrip({ status, send }: Props) {
           </div>
         );
       })}
+      {agentchatMdPresent && (
+        <span
+          class="health-pill rules"
+          title="agentchat.md present — rules pinned to all agent prompts"
+          onClick={() => send({ kind: 'open-workspace-file', relativePath: 'agentchat.md' })}
+        >
+          📋 rules
+        </span>
+      )}
     </div>
   );
 }

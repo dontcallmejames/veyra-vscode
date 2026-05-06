@@ -23,7 +23,7 @@ export function App() {
     <div class="app">
       <FloorIndicator holder={state.floorHolder} />
       <MessageList session={state.session} inProgress={state.inProgress} settings={state.settings} />
-      <Composer send={send} floorHolder={state.floorHolder} status={state.status} />
+      <Composer send={send} floorHolder={state.floorHolder} status={state.status} agentchatMdPresent={state.agentchatMdPresent} />
     </div>
   );
 }

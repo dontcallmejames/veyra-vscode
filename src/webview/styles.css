@@ -224,3 +224,36 @@ body {
   0% { box-shadow: 0 0 0 0 rgba(109,212,126,0.6); }
   100% { box-shadow: 0 0 0 8px rgba(109,212,126,0); }
 }
+
+.file-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 4px 0 0 0;
+}
+.file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-family: var(--vscode-editor-font-family, monospace);
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  opacity: 0.85;
+}
+.attached-files {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  opacity: 0.7;
+  font-family: var(--vscode-editor-font-family, monospace);
+}
+.health-pill.rules {
+  cursor: pointer;
+  color: #ffce85;
+  border-color: rgba(255, 184, 74, 0.45);
+}

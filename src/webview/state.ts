@@ -10,6 +10,7 @@ export type WebviewState = {
   status: Record<AgentId, AgentStatus>;
   settings: Settings;
   floorHolder: AgentId | null;
+  agentchatMdPresent: boolean;
 };
 
 export function initialState(): WebviewState {
@@ -19,6 +20,7 @@ export function initialState(): WebviewState {
     status: { claude: 'ready', codex: 'ready', gemini: 'ready' },
     settings: DEFAULT_SETTINGS,
     floorHolder: null,
+    agentchatMdPresent: false,
   };
 }
 
@@ -30,7 +32,11 @@ export function reduce(state: WebviewState, event: FromExtension): WebviewState 
         session: event.session,
         status: event.status,
         settings: event.settings,
+        agentchatMdPresent: event.agentchatMdPresent,
       };
+
+    case 'agentchat-md-changed':
+      return { ...state, agentchatMdPresent: event.present };
 
     case 'message-started': {
       const next = new Map(state.inProgress);
@@ -97,6 +103,9 @@ export function reduce(state: WebviewState, event: FromExtension): WebviewState 
           messages: [...state.session.messages, event.message],
         },
       };
+
+    case 'file-edited':
+      return state;
   }
 }
 

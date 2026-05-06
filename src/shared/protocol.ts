@@ -73,7 +73,8 @@ export const DEFAULT_SETTINGS: Settings = {
 // === postMessage protocol ===
 
 export type FromExtension =
-  | { kind: 'init'; session: Session; status: Record<AgentId, AgentStatus>; settings: Settings }
+  | { kind: 'init'; session: Session; status: Record<AgentId, AgentStatus>; settings: Settings; agentchatMdPresent: boolean }
+  | { kind: 'agentchat-md-changed'; present: boolean }
   | { kind: 'message-started'; id: string; agentId: AgentId; timestamp: number }
   | { kind: 'message-chunk'; id: string; chunk: AgentChunk }
   | { kind: 'message-finalized'; message: AgentMessage }
@@ -88,4 +89,5 @@ export type FromWebview =
   | { kind: 'send'; text: string }
   | { kind: 'cancel' }
   | { kind: 'reload-status' }
-  | { kind: 'open-external'; url: string };
+  | { kind: 'open-external'; url: string }
+  | { kind: 'open-workspace-file'; relativePath: string };
