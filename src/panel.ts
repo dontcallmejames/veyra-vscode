@@ -19,6 +19,17 @@ import type {
 } from './shared/protocol.js';
 import type { AgentId, AgentStatus } from './types.js';
 import type { AgentRegistry } from './messageRouter.js';
+import type { FileBadgesController } from './fileBadges.js';
+import { getEditedPath as getClaudeEditedPath } from './agents/claude.js';
+import { getEditedPath as getCodexEditedPath } from './agents/codex.js';
+import { getEditedPath as getGeminiEditedPath } from './agents/gemini.js';
+
+function getEditedPathForAgent(agentId: AgentId, toolName: string, input: unknown): string | null {
+  if (agentId === 'claude') return getClaudeEditedPath(toolName, input);
+  if (agentId === 'codex') return getCodexEditedPath(toolName, input);
+  if (agentId === 'gemini') return getGeminiEditedPath(toolName, input);
+  return null;
+}
 
 export class ChatPanel {
   private static current: ChatPanel | undefined;
@@ -30,7 +41,11 @@ export class ChatPanel {
   private currentDispatchInProgress: Map<AgentId, { cancelled?: boolean }> | null = null;
   private hangSec: number = 60;
 
-  static async show(context: vscode.ExtensionContext, agentsOverride?: AgentRegistry): Promise<void> {
+  static async show(
+    context: vscode.ExtensionContext,
+    agentsOverride?: AgentRegistry,
+    badgeController?: FileBadgesController,
+  ): Promise<void> {
     if (ChatPanel.current) {
       ChatPanel.current.panel.reveal();
       return;
@@ -55,7 +70,7 @@ export class ChatPanel {
       codex: new CodexAgent(),
       gemini: new GeminiAgent(),
     };
-    ChatPanel.current = new ChatPanel(panel, context, folder.uri.fsPath, agents);
+    ChatPanel.current = new ChatPanel(panel, context, folder.uri.fsPath, agents, badgeController);
     await ChatPanel.current.initialize();
   }
 
@@ -64,6 +79,7 @@ export class ChatPanel {
     private context: vscode.ExtensionContext,
     private workspacePath: string,
     agents: AgentRegistry,
+    private badgeController?: FileBadgesController,
   ) {
     this.panel = panel;
     this.extensionUri = context.extensionUri;
@@ -319,7 +335,20 @@ export class ChatPanel {
           if (!ip) continue;
           if (event.chunk.type === 'text') ip.text += event.chunk.text;
           else if (event.chunk.type === 'tool-call') ip.toolEvents.push({ kind: 'call', name: event.chunk.name, input: event.chunk.input, timestamp: Date.now() });
-          else if (event.chunk.type === 'tool-result') ip.toolEvents.push({ kind: 'result', name: event.chunk.name, output: event.chunk.output, timestamp: Date.now() });
+          else if (event.chunk.type === 'tool-result') {
+            ip.toolEvents.push({ kind: 'result', name: event.chunk.name, output: event.chunk.output, timestamp: Date.now() });
+            // Find the matching pending tool-call to recover input — we already pushed the call before the result arrived.
+            const matchingCall = [...ip.toolEvents].reverse().find(
+              (e: any) => e.kind === 'call' && e.name === event.chunk.name,
+            ) as { input: unknown } | undefined;
+            if (matchingCall && this.badgeController) {
+              const editedPath = getEditedPathForAgent(event.agentId, event.chunk.name, matchingCall.input);
+              if (editedPath) {
+                this.badgeController.registerEdit(editedPath, event.agentId);
+                this.send({ kind: 'file-edited', path: editedPath, agentId: event.agentId, timestamp: Date.now() });
+              }
+            }
+          }
           else if (event.chunk.type === 'error') ip.error = event.chunk.message;
           lastChunkAt = Date.now();
           this.send({ kind: 'message-chunk', id: ip.id, chunk: event.chunk });

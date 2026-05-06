@@ -163,6 +163,54 @@ describe('ChatPanel', () => {
     expect(kinds.indexOf('message-started')).toBeLessThan(kinds.indexOf('message-finalized'));
   });
 
+  it('emits file-edited and calls badgeController.registerEdit when an agent successfully writes a file', async () => {
+    (ChatPanel as any).current = undefined;
+    (vscode as any).__test.messages.length = 0;
+
+    const claude = {
+      id: 'claude' as const,
+      status: vi.fn().mockResolvedValue('ready'),
+      cancel: vi.fn().mockResolvedValue(undefined),
+      send: vi.fn(() => (async function* () {
+        yield { type: 'tool-call', name: 'Edit', input: { file_path: '/abs/foo.ts', new_string: 'x', old_string: 'y' } };
+        yield { type: 'tool-result', name: 'Edit', output: 'OK' };
+        yield { type: 'text', text: 'done' };
+        yield { type: 'done' };
+      })()),
+    };
+    const codex = {
+      id: 'codex' as const,
+      status: vi.fn().mockResolvedValue('ready'),
+      cancel: vi.fn().mockResolvedValue(undefined),
+      send: vi.fn(() => (async function* () { yield { type: 'done' }; })()),
+    };
+    const gemini = {
+      id: 'gemini' as const,
+      status: vi.fn().mockResolvedValue('ready'),
+      cancel: vi.fn().mockResolvedValue(undefined),
+      send: vi.fn(() => (async function* () { yield { type: 'done' }; })()),
+    };
+
+    const badgeController = { registerEdit: vi.fn() };
+
+    await ChatPanel.show(ctx, { claude, codex, gemini } as any, badgeController as any);
+
+    const onDidReceive = (vscode as any).__test.onDidReceive.handler;
+    await onDidReceive({ kind: 'send', text: '@claude edit foo' });
+
+    await new Promise((r) => setImmediate(r));
+    await new Promise((r) => setImmediate(r));
+    await new Promise((r) => setImmediate(r));
+
+    expect(badgeController.registerEdit).toHaveBeenCalledTimes(1);
+    expect(badgeController.registerEdit).toHaveBeenCalledWith('/abs/foo.ts', 'claude');
+
+    const msgs = (vscode as any).__test.messages;
+    const fileEdited = msgs.find((m: any) => m.kind === 'file-edited');
+    expect(fileEdited).toMatchObject({ kind: 'file-edited', path: '/abs/foo.ts', agentId: 'claude' });
+    expect(typeof fileEdited.timestamp).toBe('number');
+  });
+
   it('persists attachedFiles + surfaces embed errors when @file used', async () => {
     (ChatPanel as any).current = undefined;
     (vscode as any).__test.messages.length = 0;
