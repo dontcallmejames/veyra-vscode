@@ -1,0 +1,21 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`integration: full prompt composition > produces the expected prompt for rules + 3-turn history + @file mention 1`] = `
+"[Workspace rules from agentchat.md]
+Always use pnpm.
+[/Workspace rules]
+
+[Conversation so far]
+user: How do we handle auth?
+claude: Use OAuth2 with PKCE.
+user: @gpt implement the route handlers
+[/Conversation so far]
+
+[File: src/auth.ts]
+\`\`\`ts
+export const greet = () => "hi";
+\`\`\`
+[/File]
+
+@gpt review please"
+`;
