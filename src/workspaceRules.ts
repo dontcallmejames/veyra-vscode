@@ -4,7 +4,7 @@ import * as path from 'node:path';
 const MAX_BYTES = 10 * 1024 * 1024;
 
 export function readWorkspaceRules(workspacePath: string): string {
-  const file = path.join(workspacePath, 'agentchat.md');
+  const file = path.join(workspacePath, 'agentchat.md').replace(/\\/g, '/');
   try {
     if (!fs.existsSync(file)) return '';
     const stat = fs.statSync(file);

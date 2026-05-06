@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { readWorkspaceRules } from '../src/workspaceRules.js';
 
 const fsState = new Map<string, string>();
 
@@ -16,9 +17,6 @@ vi.mock('node:fs', () => ({
   },
 }));
 
-// Import after mock is defined
-const { readWorkspaceRules } = await import('../src/workspaceRules.js');
-
 beforeEach(() => {
   fsState.clear();
 });
@@ -29,19 +27,19 @@ describe('readWorkspaceRules', () => {
   });
 
   it('returns file contents verbatim when present', () => {
-    fsState.set('\\fake\\ws\\agentchat.md', '# Rules\n\n- always pnpm\n');
+    fsState.set('/fake/ws/agentchat.md', '# Rules\n\n- always pnpm\n');
     expect(readWorkspaceRules('/fake/ws')).toBe('# Rules\n\n- always pnpm\n');
   });
 
   it('re-reads on each call (no caching)', () => {
-    fsState.set('\\fake\\ws\\agentchat.md', 'first');
+    fsState.set('/fake/ws/agentchat.md', 'first');
     expect(readWorkspaceRules('/fake/ws')).toBe('first');
-    fsState.set('\\fake\\ws\\agentchat.md', 'second');
+    fsState.set('/fake/ws/agentchat.md', 'second');
     expect(readWorkspaceRules('/fake/ws')).toBe('second');
   });
 
   it('returns empty string when file exceeds 10MB ceiling', () => {
-    fsState.set('\\fake\\ws\\agentchat.md', 'x'.repeat(11 * 1024 * 1024));
+    fsState.set('/fake/ws/agentchat.md', 'x'.repeat(11 * 1024 * 1024));
     expect(readWorkspaceRules('/fake/ws')).toBe('');
   });
 });
