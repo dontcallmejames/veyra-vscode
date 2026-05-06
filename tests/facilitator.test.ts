@@ -72,4 +72,33 @@ describe('chooseFacilitatorAgent', () => {
     const decision = await chooseFacilitatorAgent('hi', allReady);
     expect(decision).toMatchObject({ error: expect.stringContaining('Routing unavailable') });
   });
+
+  it('passes shared context into the system prompt when provided', async () => {
+    let capturedSystemPrompt = '';
+    let capturedUserPrompt = '';
+    mockedQuery.mockImplementationOnce(({ prompt, options }: { prompt: string; options: { systemPrompt: string } }) => {
+      capturedSystemPrompt = options.systemPrompt;
+      capturedUserPrompt = prompt;
+      return sdkResponse('{"agent":"claude","reason":"r"}');
+    });
+
+    const sharedContext = '[Conversation so far]\nuser: prior\n[/Conversation so far]';
+    await chooseFacilitatorAgent('what next', allReady, sharedContext);
+
+    expect(capturedSystemPrompt).toContain('Conversation so far');
+    expect(capturedSystemPrompt).toContain('user: prior');
+    expect(capturedUserPrompt).toBe('what next');
+  });
+
+  it('omits shared-context block from system prompt when sharedContext is empty', async () => {
+    let capturedSystemPrompt = '';
+    mockedQuery.mockImplementationOnce(({ options }: { options: { systemPrompt: string } }) => {
+      capturedSystemPrompt = options.systemPrompt;
+      return sdkResponse('{"agent":"claude","reason":"r"}');
+    });
+
+    await chooseFacilitatorAgent('hi', allReady, '');
+
+    expect(capturedSystemPrompt).not.toContain('Recent conversation context');
+  });
 });

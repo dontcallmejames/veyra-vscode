@@ -11,6 +11,7 @@ export type FacilitatorDecision =
 export type FacilitatorFn = (
   userMessage: string,
   availability: Record<AgentId, AgentStatus>,
+  sharedContext?: string,
 ) => Promise<FacilitatorDecision>;
 
 const PROFILES: Record<AgentId, string> = {
@@ -19,7 +20,11 @@ const PROFILES: Record<AgentId, string> = {
   gemini: 'research, current events, large-context document reading',
 };
 
-export const chooseFacilitatorAgent: FacilitatorFn = async (userMessage, availability) => {
+export const chooseFacilitatorAgent: FacilitatorFn = async (
+  userMessage,
+  availability,
+  sharedContext = '',
+) => {
   const available = (Object.entries(availability) as Array<[AgentId, AgentStatus]>)
     .filter(([, status]) => status === 'ready' || status === 'busy')
     .map(([id]) => id);
@@ -30,15 +35,24 @@ export const chooseFacilitatorAgent: FacilitatorFn = async (userMessage, availab
 
   const profileLines = available.map((id) => `- ${id}: ${PROFILES[id]}`).join('\n');
 
-  const systemPrompt = [
+  const systemPromptParts = [
     "You are a routing assistant for a multi-agent chat tool. Pick the single best agent for the user's message and explain your choice in 4-8 words.",
     '',
     'Available agents:',
     profileLines,
     '',
-    'Respond with EXACTLY this JSON shape and nothing else:',
+  ];
+  if (sharedContext.trim().length > 0) {
+    systemPromptParts.push('Recent conversation context (for follow-up routing):');
+    systemPromptParts.push(sharedContext);
+    systemPromptParts.push('');
+  }
+  systemPromptParts.push('Respond with EXACTLY this JSON shape and nothing else:');
+  systemPromptParts.push(
     '{ "agent": "<one of: ' + available.join(' | ') + '>", "reason": "<brief reason>" }',
-  ].join('\n');
+  );
+
+  const systemPrompt = systemPromptParts.join('\n');
 
   let responseText = '';
   try {
