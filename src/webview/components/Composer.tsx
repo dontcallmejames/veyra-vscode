@@ -9,7 +9,7 @@ interface Props {
   send: (msg: FromWebview) => void;
   floorHolder: AgentId | null;
   status: Record<AgentId, AgentStatus>;
-  agentchatMdPresent: boolean;
+  gambitMdPresent: boolean;
 }
 
 const AGENT_TOKENS = new Set(['@claude', '@gpt', '@codex', '@chatgpt', '@gemini', '@all']);
@@ -25,7 +25,7 @@ function detectFileMentions(text: string): string[] {
   return out;
 }
 
-export function Composer({ send, floorHolder, status, agentchatMdPresent }: Props) {
+export function Composer({ send, floorHolder, status, gambitMdPresent }: Props) {
   const [text, setText] = useState('');
   const [autocomplete, setAutocomplete] = useState<{ open: boolean; filter: string; activeIndex: number }>({
     open: false, filter: '', activeIndex: 0,
@@ -97,7 +97,7 @@ export function Composer({ send, floorHolder, status, agentchatMdPresent }: Prop
         </div>
       )}
       <div class="composer-row">
-        <HealthStrip status={status} send={send} agentchatMdPresent={agentchatMdPresent} />
+        <HealthStrip status={status} send={send} gambitMdPresent={gambitMdPresent} />
         <div style="flex:1" />
         {isFloorHeld && (
           <button class="cancel" onClick={() => send({ kind: 'cancel' })}>Cancel</button>

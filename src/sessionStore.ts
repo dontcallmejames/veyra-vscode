@@ -6,7 +6,7 @@ import type {
 } from './shared/protocol.js';
 
 const DEBOUNCE_MS = 200;
-const SESSIONS_SUBPATH = '.vscode/agent-chat/sessions.json';
+const SESSIONS_SUBPATH = '.vscode/gambit/sessions.json';
 
 export class SessionStore {
   private session: Session = { version: 1, messages: [] };

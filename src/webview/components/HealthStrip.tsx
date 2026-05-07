@@ -21,10 +21,10 @@ const FIX_INSTRUCTIONS: Record<AgentId, Record<Exclude<AgentStatus, 'ready' | 'b
 interface Props {
   status: Record<AgentId, AgentStatus>;
   send: (msg: FromWebview) => void;
-  agentchatMdPresent: boolean;
+  gambitMdPresent: boolean;
 }
 
-export function HealthStrip({ status, send, agentchatMdPresent }: Props) {
+export function HealthStrip({ status, send, gambitMdPresent }: Props) {
   const [popoverFor, setPopoverFor] = useState<AgentId | null>(null);
 
   const labels: Record<AgentId, string> = {
@@ -65,11 +65,11 @@ export function HealthStrip({ status, send, agentchatMdPresent }: Props) {
           </div>
         );
       })}
-      {agentchatMdPresent && (
+      {gambitMdPresent && (
         <span
           class="health-pill rules"
-          title="agentchat.md present — rules pinned to all agent prompts"
-          onClick={() => send({ kind: 'open-workspace-file', relativePath: 'agentchat.md' })}
+          title="gambit.md present — rules pinned to all agent prompts"
+          onClick={() => send({ kind: 'open-workspace-file', relativePath: 'gambit.md' })}
         >
           📋 rules
         </span>

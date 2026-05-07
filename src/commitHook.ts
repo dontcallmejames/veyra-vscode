@@ -2,7 +2,7 @@
 import * as path from 'node:path';
 import type { AgentId } from './types.js';
 
-const SENTINEL_DIR_REL = path.join('.vscode', 'agent-chat');
+const SENTINEL_DIR_REL = path.join('.vscode', 'gambit');
 const SENTINEL_NAME = 'active-dispatch';
 
 export interface SentinelWriterOptions {
@@ -60,14 +60,14 @@ export class SentinelWriter {
 
 export const COMMIT_HOOK_SNIPPET = [
   '#!/bin/sh',
-  '# AGENT-CHAT-MANAGED',
-  '# Tags commits made during an Agent Chat dispatch with a Co-Authored-By trailer.',
-  'SENTINEL=".vscode/agent-chat/active-dispatch"',
+  '# GAMBIT-MANAGED',
+  '# Tags commits made during a Gambit dispatch with a Co-Authored-By trailer.',
+  'SENTINEL=".vscode/gambit/active-dispatch"',
   'if [ -f "$SENTINEL" ]; then',
   '  AGENT_ID=$(cat "$SENTINEL" | tr -d \'[:space:]\')',
   '  if [ -n "$AGENT_ID" ]; then',
-  '    if ! grep -q "Co-Authored-By: Agent Chat" "$1"; then',
-  '      printf "\\nCo-Authored-By: Agent Chat (%s) <agent-chat@local>\\n" "$AGENT_ID" >> "$1"',
+  '    if ! grep -q "Co-Authored-By: Gambit" "$1"; then',
+  '      printf "\\nCo-Authored-By: Gambit (%s) <gambit@local>\\n" "$AGENT_ID" >> "$1"',
   '    fi',
   '  fi',
   'fi',
@@ -118,7 +118,7 @@ export function installCommitHook(workspacePath: string): InstallResult {
     } catch {
       return { status: 'refused-existing' };
     }
-    if (!existing.includes('AGENT-CHAT-MANAGED')) {
+    if (!existing.includes('GAMBIT-MANAGED')) {
       return { status: 'refused-existing' };
     }
   }
@@ -147,7 +147,7 @@ export function uninstallCommitHook(workspacePath: string): UninstallResult {
   } catch {
     return { status: 'refused-not-managed' };
   }
-  if (!existing.includes('AGENT-CHAT-MANAGED')) {
+  if (!existing.includes('GAMBIT-MANAGED')) {
     return { status: 'refused-not-managed' };
   }
   try {

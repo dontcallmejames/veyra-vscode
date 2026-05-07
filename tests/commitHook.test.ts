@@ -21,7 +21,7 @@ beforeEach(() => {
 
 describe('SentinelWriter', () => {
   const ws = '/fake/ws';
-  const sentinelPath = '/fake/ws/.vscode/agent-chat/active-dispatch';
+  const sentinelPath = '/fake/ws/.vscode/gambit/active-dispatch';
 
   it('writes the agent id to the sentinel file on dispatchStart', () => {
     const w = new SentinelWriter(ws);
@@ -97,8 +97,8 @@ describe('installCommitHook', () => {
     fsState.set('/fake/ws/.git', 'directory-marker');
     const result = installCommitHook(ws);
     expect(result).toEqual({ status: 'installed', path: hookPath });
-    expect(fsState.get(hookPath)).toContain('AGENT-CHAT-MANAGED');
-    expect(fsState.get(hookPath)).toContain('Co-Authored-By: Agent Chat');
+    expect(fsState.get(hookPath)).toContain('GAMBIT-MANAGED');
+    expect(fsState.get(hookPath)).toContain('Co-Authored-By: Gambit');
   });
 
   it('refuses when a non-marker hook already exists', () => {
@@ -108,12 +108,12 @@ describe('installCommitHook', () => {
     expect(result.status).toBe('refused-existing');
   });
 
-  it('overwrites an existing AGENT-CHAT-MANAGED hook (idempotent upgrade)', () => {
+  it('overwrites an existing GAMBIT-MANAGED hook (idempotent upgrade)', () => {
     fsState.set('/fake/ws/.git', 'directory-marker');
-    fsState.set(hookPath, '#!/bin/sh\n# AGENT-CHAT-MANAGED\nold-content\n');
+    fsState.set(hookPath, '#!/bin/sh\n# GAMBIT-MANAGED\nold-content\n');
     const result = installCommitHook(ws);
     expect(result.status).toBe('installed');
-    expect(fsState.get(hookPath)).toContain('Co-Authored-By: Agent Chat');
+    expect(fsState.get(hookPath)).toContain('Co-Authored-By: Gambit');
     expect(fsState.get(hookPath)).not.toContain('old-content');
   });
 
@@ -138,7 +138,7 @@ describe('uninstallCommitHook', () => {
   const hookPath = '/fake/ws/.git/hooks/prepare-commit-msg';
 
   it('removes our managed hook', () => {
-    fsState.set(hookPath, '#!/bin/sh\n# AGENT-CHAT-MANAGED\n...');
+    fsState.set(hookPath, '#!/bin/sh\n# GAMBIT-MANAGED\n...');
     const result = uninstallCommitHook(ws);
     expect(result.status).toBe('removed');
     expect(fsState.has(hookPath)).toBe(false);
@@ -158,14 +158,14 @@ describe('uninstallCommitHook', () => {
 });
 
 describe('COMMIT_HOOK_SNIPPET', () => {
-  it('contains the AGENT-CHAT-MANAGED marker', () => {
-    expect(COMMIT_HOOK_SNIPPET).toContain('AGENT-CHAT-MANAGED');
+  it('contains the GAMBIT-MANAGED marker', () => {
+    expect(COMMIT_HOOK_SNIPPET).toContain('GAMBIT-MANAGED');
   });
   it('reads the active-dispatch sentinel', () => {
-    expect(COMMIT_HOOK_SNIPPET).toContain('.vscode/agent-chat/active-dispatch');
+    expect(COMMIT_HOOK_SNIPPET).toContain('.vscode/gambit/active-dispatch');
   });
   it('is idempotent (greps before appending)', () => {
-    expect(COMMIT_HOOK_SNIPPET).toContain('Co-Authored-By: Agent Chat');
+    expect(COMMIT_HOOK_SNIPPET).toContain('Co-Authored-By: Gambit');
     expect(COMMIT_HOOK_SNIPPET).toContain('grep -q');
   });
 });

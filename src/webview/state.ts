@@ -10,7 +10,7 @@ export type WebviewState = {
   status: Record<AgentId, AgentStatus>;
   settings: Settings;
   floorHolder: AgentId | null;
-  agentchatMdPresent: boolean;
+  gambitMdPresent: boolean;
 };
 
 export function initialState(): WebviewState {
@@ -20,7 +20,7 @@ export function initialState(): WebviewState {
     status: { claude: 'ready', codex: 'ready', gemini: 'ready' },
     settings: DEFAULT_SETTINGS,
     floorHolder: null,
-    agentchatMdPresent: false,
+    gambitMdPresent: false,
   };
 }
 
@@ -32,11 +32,11 @@ export function reduce(state: WebviewState, event: FromExtension): WebviewState 
         session: event.session,
         status: event.status,
         settings: event.settings,
-        agentchatMdPresent: event.agentchatMdPresent,
+        gambitMdPresent: event.gambitMdPresent,
       };
 
-    case 'agentchat-md-changed':
-      return { ...state, agentchatMdPresent: event.present };
+    case 'gambit-md-changed':
+      return { ...state, gambitMdPresent: event.present };
 
     case 'message-started': {
       const next = new Map(state.inProgress);

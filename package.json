@@ -1,7 +1,7 @@
 {
-  "name": "agent-chat",
-  "displayName": "Agent Chat",
-  "description": "Chat with Claude, ChatGPT, and Gemini in a shared VSCode panel",
+  "name": "gambit",
+  "displayName": "Gambit",
+  "description": "Gambit — Claude, GPT, and Gemini playing your move in one VS Code chat panel.",
   "version": "0.0.1",
   "private": true,
   "publisher": "dontcallmejames",
@@ -14,82 +14,82 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:agentChat.openPanel",
-    "onCommand:agentChat.installCommitHook",
-    "onCommand:agentChat.uninstallCommitHook",
-    "onCommand:agentChat.showCommitHookSnippet"
+    "onCommand:gambit.openPanel",
+    "onCommand:gambit.installCommitHook",
+    "onCommand:gambit.uninstallCommitHook",
+    "onCommand:gambit.showCommitHookSnippet"
   ],
   "contributes": {
     "commands": [
       {
-        "command": "agentChat.openPanel",
-        "title": "Agent Chat: Open Panel"
+        "command": "gambit.openPanel",
+        "title": "Gambit: Open Panel"
       },
       {
-        "command": "agentChat.installCommitHook",
-        "title": "Agent Chat: Install commit hook"
+        "command": "gambit.installCommitHook",
+        "title": "Gambit: Install commit hook"
       },
       {
-        "command": "agentChat.uninstallCommitHook",
-        "title": "Agent Chat: Uninstall commit hook"
+        "command": "gambit.uninstallCommitHook",
+        "title": "Gambit: Uninstall commit hook"
       },
       {
-        "command": "agentChat.showCommitHookSnippet",
-        "title": "Agent Chat: Show commit hook snippet"
+        "command": "gambit.showCommitHookSnippet",
+        "title": "Gambit: Show commit hook snippet"
       }
     ],
     "configuration": {
-      "title": "Agent Chat",
+      "title": "Gambit",
       "properties": {
-        "agentChat.toolCallRenderStyle": {
+        "gambit.toolCallRenderStyle": {
           "type": "string",
           "enum": ["verbose", "compact", "hidden"],
           "default": "compact",
           "description": "How tool calls (file reads, edits, terminal commands) are displayed in the chat."
         },
-        "agentChat.hangDetectionSeconds": {
+        "gambit.hangDetectionSeconds": {
           "type": "number",
           "default": 60,
           "minimum": 0,
           "maximum": 600,
           "description": "Seconds with no output from an agent before showing a 'still waiting?' notice. Set to 0 to disable."
         },
-        "agentChat.watchdogMinutes": {
+        "gambit.watchdogMinutes": {
           "type": "number",
           "default": 5,
           "minimum": 0,
           "maximum": 60,
           "description": "Maximum minutes an agent may hold the dispatch floor before it's force-released. Set to 0 to disable."
         },
-        "agentChat.fileEmbedMaxLines": {
+        "gambit.fileEmbedMaxLines": {
           "type": "number",
           "default": 500,
           "minimum": 1,
           "maximum": 10000,
           "description": "Maximum lines embedded per @file mention before truncating."
         },
-        "agentChat.sharedContextWindow": {
+        "gambit.sharedContextWindow": {
           "type": "number",
           "default": 25,
           "minimum": 1,
           "maximum": 200,
           "description": "Number of recent user+agent messages included in cross-agent context."
         },
-        "agentChat.fileBadges.enabled": {
+        "gambit.fileBadges.enabled": {
           "type": "boolean",
           "default": true,
           "description": "Show colored dots in the file explorer for files recently edited by an agent."
         },
-        "agentChat.commitSignature.enabled": {
+        "gambit.commitSignature.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Write the .vscode/agent-chat/active-dispatch sentinel during dispatches so the prepare-commit-msg hook can attribute commits."
+          "description": "Write the .vscode/gambit/active-dispatch sentinel during dispatches so the prepare-commit-msg hook can attribute commits."
         }
       }
     },
     "colors": [
       {
-        "id": "agentChat.claudeColor",
+        "id": "gambit.claudeColor",
         "description": "Color used for Claude file decoration badges.",
         "defaults": {
           "dark": "#d97757",
@@ -98,7 +98,7 @@
         }
       },
       {
-        "id": "agentChat.codexColor",
+        "id": "gambit.codexColor",
         "description": "Color used for Codex file decoration badges.",
         "defaults": {
           "dark": "#10a37f",
@@ -107,7 +107,7 @@
         }
       },
       {
-        "id": "agentChat.geminiColor",
+        "id": "gambit.geminiColor",
         "description": "Color used for Gemini file decoration badges.",
         "defaults": {
           "dark": "#4a8df0",

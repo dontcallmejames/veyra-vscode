@@ -29,7 +29,7 @@ beforeEach(() => {
 
 describe('integration: full prompt composition', () => {
   it('produces the expected prompt for rules + 3-turn history + @file mention', () => {
-    fsState.set('/fake/ws/agentchat.md', 'Always use pnpm.\n');
+    fsState.set('/fake/ws/gambit.md', 'Always use pnpm.\n');
     fsState.set('/fake/ws/src/auth.ts', 'export const greet = () => "hi";\n');
 
     const session: Session = {
@@ -59,7 +59,7 @@ describe('integration: full prompt composition', () => {
 
     // Snapshot match — vitest will create the snapshot on first run.
     // Verify it contains the expected blocks in order:
-    expect(prompt).toContain('[Workspace rules from agentchat.md]');
+    expect(prompt).toContain('[Workspace rules from gambit.md]');
     expect(prompt).toContain('Always use pnpm.');
     expect(prompt).toContain('[/Workspace rules]');
     expect(prompt).toContain('[Conversation so far]');

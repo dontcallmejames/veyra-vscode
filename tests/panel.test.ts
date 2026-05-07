@@ -112,7 +112,7 @@ describe('ChatPanel', () => {
     expect(statusChanged.length).toBeGreaterThan(0);
   });
 
-  it('reads agentChat.hangDetectionSeconds setting on init', async () => {
+  it('reads gambit.hangDetectionSeconds setting on init', async () => {
     const getMock = vi.fn((key: string, dflt: any) => key === 'hangDetectionSeconds' ? 30 : dflt);
     (vscode as any).workspace.getConfiguration = vi.fn(() => ({ get: getMock }));
 

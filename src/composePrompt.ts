@@ -9,7 +9,7 @@ export function composePrompt(input: ComposePromptInput): string {
   const parts: string[] = [];
 
   if (input.rules.trim().length > 0) {
-    parts.push(['[Workspace rules from agentchat.md]', input.rules.trimEnd(), '[/Workspace rules]'].join('\n'));
+    parts.push(['[Workspace rules from gambit.md]', input.rules.trimEnd(), '[/Workspace rules]'].join('\n'));
   }
   if (input.sharedContext.trim().length > 0) {
     parts.push(input.sharedContext.trimEnd());

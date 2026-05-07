@@ -54,12 +54,12 @@ export class ChatPanel {
     }
     const folder = vscode.workspace.workspaceFolders?.[0];
     if (!folder) {
-      vscode.window.showErrorMessage('Agent Chat requires an open workspace folder.');
+      vscode.window.showErrorMessage('Gambit requires an open workspace folder.');
       return;
     }
     const panel = vscode.window.createWebviewPanel(
-      'agentChat',
-      'Agent Chat',
+      'gambit',
+      'Gambit',
       vscode.ViewColumn.One,
       {
         enableScripts: true,
@@ -85,7 +85,7 @@ export class ChatPanel {
   ) {
     this.panel = panel;
     this.extensionUri = context.extensionUri;
-    const watchdogMinutes = vscode.workspace.getConfiguration('agentChat').get<number>('watchdogMinutes', 5);
+    const watchdogMinutes = vscode.workspace.getConfiguration('gambit').get<number>('watchdogMinutes', 5);
     this.router = new MessageRouter(
       agents,
       chooseFacilitatorAgent,
@@ -93,7 +93,7 @@ export class ChatPanel {
     );
     this.store = new SessionStore(workspacePath);
     this.sentinel = new SentinelWriter(workspacePath, {
-      enabled: vscode.workspace.getConfiguration('agentChat').get<boolean>('commitSignature.enabled', true),
+      enabled: vscode.workspace.getConfiguration('gambit').get<boolean>('commitSignature.enabled', true),
     });
 
     this.panel.webview.html = this.renderHtml();
@@ -112,8 +112,8 @@ export class ChatPanel {
       gemini: await checkGemini(),
     };
     const settings = this.readSettings();
-    const agentchatMdPresent = fs.existsSync(path.join(this.workspacePath, 'agentchat.md'));
-    this.send({ kind: 'init', session, status, settings, agentchatMdPresent });
+    const gambitMdPresent = fs.existsSync(path.join(this.workspacePath, 'gambit.md'));
+    this.send({ kind: 'init', session, status, settings, gambitMdPresent });
 
     this.disposables.push(
       { dispose: this.router.onFloorChange((holder) => this.send({ kind: 'floor-changed', holder })) },
@@ -134,20 +134,20 @@ export class ChatPanel {
         }),
       },
       vscode.workspace.onDidChangeConfiguration((e) => {
-        if (e.affectsConfiguration('agentChat')) {
+        if (e.affectsConfiguration('gambit')) {
           this.hangSec = this.readHangSeconds();
           this.sentinel = new SentinelWriter(this.workspacePath, {
-            enabled: vscode.workspace.getConfiguration('agentChat').get<boolean>('commitSignature.enabled', true),
+            enabled: vscode.workspace.getConfiguration('gambit').get<boolean>('commitSignature.enabled', true),
           });
           this.send({ kind: 'settings-changed', settings: this.readSettings() });
         }
       }),
     );
 
-    const rulesWatcher = vscode.workspace.createFileSystemWatcher('**/agentchat.md', false, true, false);
+    const rulesWatcher = vscode.workspace.createFileSystemWatcher('**/gambit.md', false, true, false);
     const onRulesChange = () => {
-      const present = fs.existsSync(path.join(this.workspacePath, 'agentchat.md'));
-      this.send({ kind: 'agentchat-md-changed', present });
+      const present = fs.existsSync(path.join(this.workspacePath, 'gambit.md'));
+      this.send({ kind: 'gambit-md-changed', present });
     };
     rulesWatcher.onDidCreate(onRulesChange);
     rulesWatcher.onDidDelete(onRulesChange);
@@ -192,14 +192,14 @@ export class ChatPanel {
   }
 
   private readSettings(): Settings {
-    const config = vscode.workspace.getConfiguration('agentChat');
+    const config = vscode.workspace.getConfiguration('gambit');
     return {
       toolCallRenderStyle: config.get<Settings['toolCallRenderStyle']>('toolCallRenderStyle', 'compact'),
     };
   }
 
   private readHangSeconds(): number {
-    return vscode.workspace.getConfiguration('agentChat').get<number>('hangDetectionSeconds', 60);
+    return vscode.workspace.getConfiguration('gambit').get<number>('hangDetectionSeconds', 60);
   }
 
   private async handleFromWebview(msg: FromWebview): Promise<void> {
@@ -244,8 +244,8 @@ export class ChatPanel {
   }
 
   private async dispatchUserMessage(text: string): Promise<void> {
-    const fileEmbedMaxLines = vscode.workspace.getConfiguration('agentChat').get<number>('fileEmbedMaxLines', 500);
-    const sharedContextWindow = vscode.workspace.getConfiguration('agentChat').get<number>('sharedContextWindow', 25);
+    const fileEmbedMaxLines = vscode.workspace.getConfiguration('gambit').get<number>('fileEmbedMaxLines', 500);
+    const sharedContextWindow = vscode.workspace.getConfiguration('gambit').get<number>('sharedContextWindow', 25);
 
     const { filePaths, remainingText } = parseFileMentions(text);
     const embedResult = embedFiles(filePaths, this.workspacePath, { maxLines: fileEmbedMaxLines });
@@ -259,7 +259,7 @@ export class ChatPanel {
     };
     if (this.store.isFirstSession()) {
       await this.maybeShowGitignorePrompt(this.workspacePath);
-      await this.maybeShowAgentchatMdTip();
+      await this.maybeShowGambitMdTip();
       await this.maybeShowCommitHookPrompt();
     }
     this.store.appendUser(userMsg);
@@ -415,7 +415,7 @@ export class ChatPanel {
   }
 
   private async maybeShowGitignorePrompt(workspacePath: string): Promise<void> {
-    const stateKey = 'agentChat.gitignorePromptDismissed';
+    const stateKey = 'gambit.gitignorePromptDismissed';
     if (this.context.workspaceState.get(stateKey)) return;
 
     const gitignorePath = path.join(workspacePath, '.gitignore');
@@ -427,39 +427,39 @@ export class ChatPanel {
       gitignore.split(/\r?\n/).some((line) => {
         const trimmed = line.trim();
         return trimmed === '.vscode/' ||
-               trimmed === '.vscode/agent-chat/' ||
-               trimmed === '.vscode/agent-chat';
+               trimmed === '.vscode/gambit/' ||
+               trimmed === '.vscode/gambit';
       });
     if (alreadyCovered) return;
 
     const choice = await vscode.window.showInformationMessage(
-      'Agent Chat stores session history in .vscode/agent-chat/. Add to .gitignore?',
+      'Gambit stores session history in .vscode/gambit/. Add to .gitignore?',
       'Add to .gitignore',
       'Not now',
       "Don't ask again",
     );
     if (choice === 'Add to .gitignore') {
       const additionalLines = (gitignore.length > 0 && !gitignore.endsWith('\n') ? '\n' : '')
-        + '\n# Agent Chat session history\n.vscode/agent-chat/\n';
+        + '\n# Gambit session history\n.vscode/gambit/\n';
       fs.appendFileSync(gitignorePath, additionalLines, 'utf8');
     } else if (choice === "Don't ask again") {
       await this.context.workspaceState.update(stateKey, true);
     }
   }
 
-  private async maybeShowAgentchatMdTip(): Promise<void> {
-    const stateKey = 'agentChat.agentchatMdTipShown';
+  private async maybeShowGambitMdTip(): Promise<void> {
+    const stateKey = 'gambit.gambitMdTipShown';
     if (this.context.workspaceState.get(stateKey)) return;
-    if (fs.existsSync(path.join(this.workspacePath, 'agentchat.md'))) return;
+    if (fs.existsSync(path.join(this.workspacePath, 'gambit.md'))) return;
 
     const choice = await vscode.window.showInformationMessage(
-      'Tip: create agentchat.md at the workspace root to pin per-project instructions for all agents.',
+      'Tip: create gambit.md at the workspace root to pin per-project instructions for all agents.',
       'Create now',
       "Don't show again",
     );
     if (choice === 'Create now') {
-      const filePath = path.join(this.workspacePath, 'agentchat.md');
-      const seed = '# agentchat.md\n\nWorkspace rules pinned to all agent prompts. Free-form Markdown.\n';
+      const filePath = path.join(this.workspacePath, 'gambit.md');
+      const seed = '# gambit.md\n\nWorkspace rules pinned to all agent prompts. Free-form Markdown.\n';
       fs.writeFileSync(filePath, seed, 'utf8');
       const doc = await vscode.workspace.openTextDocument(filePath);
       await vscode.window.showTextDocument(doc);
@@ -470,18 +470,18 @@ export class ChatPanel {
   }
 
   private async maybeShowCommitHookPrompt(): Promise<void> {
-    const stateKey = 'agentChat.commitHookPromptDismissed';
+    const stateKey = 'gambit.commitHookPromptDismissed';
     if (this.context.workspaceState.get(stateKey)) return;
     if (!fs.existsSync(path.join(this.workspacePath, '.git'))) return;
 
     const choice = await vscode.window.showInformationMessage(
-      'Install commit hook to tag commits made by agents? Adds .git/hooks/prepare-commit-msg. Removable via "Agent Chat: Uninstall commit hook".',
+      'Install commit hook to tag commits made by agents? Adds .git/hooks/prepare-commit-msg. Removable via "Gambit: Uninstall commit hook".',
       'Install',
       'Not now',
       "Don't ask again",
     );
     if (choice === 'Install') {
-      await vscode.commands.executeCommand('agentChat.installCommitHook');
+      await vscode.commands.executeCommand('gambit.installCommitHook');
       await this.context.workspaceState.update(stateKey, true);
     } else if (choice === "Don't ask again") {
       await this.context.workspaceState.update(stateKey, true);

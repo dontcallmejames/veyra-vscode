@@ -8,7 +8,7 @@ export function activate(context: vscode.ExtensionContext): void {
   let badgeController: FileBadgesController | undefined;
   if (folder) {
     badgeController = new FileBadgesController(context);
-    if (vscode.workspace.getConfiguration('agentChat').get<boolean>('fileBadges.enabled', true)) {
+    if (vscode.workspace.getConfiguration('gambit').get<boolean>('fileBadges.enabled', true)) {
       context.subscriptions.push(
         vscode.window.registerFileDecorationProvider(badgeController),
       );
@@ -16,9 +16,9 @@ export function activate(context: vscode.ExtensionContext): void {
   }
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('agentChat.openPanel', () =>
+    vscode.commands.registerCommand('gambit.openPanel', () =>
       ChatPanel.show(context, undefined, badgeController)),
-    vscode.commands.registerCommand('agentChat.installCommitHook', async () => {
+    vscode.commands.registerCommand('gambit.installCommitHook', async () => {
       const ws = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
       if (!ws) {
         vscode.window.showErrorMessage('Open a workspace folder first.');
@@ -26,18 +26,18 @@ export function activate(context: vscode.ExtensionContext): void {
       }
       const result = installCommitHook(ws);
       if (result.status === 'installed') {
-        vscode.window.showInformationMessage(`Installed Agent Chat commit hook at ${result.path}`);
+        vscode.window.showInformationMessage(`Installed Gambit commit hook at ${result.path}`);
       } else if (result.status === 'refused-hook-manager') {
         vscode.window.showWarningMessage(
-          `Detected ${result.manager}. Add the Agent Chat trailer logic manually — run "Agent Chat: Show commit hook snippet" to copy it.`,
+          `Detected ${result.manager}. Add the Gambit trailer logic manually — run "Gambit: Show commit hook snippet" to copy it.`,
         );
       } else if (result.status === 'refused-existing') {
-        vscode.window.showWarningMessage('A non-Agent-Chat prepare-commit-msg hook already exists; refusing to overwrite.');
+        vscode.window.showWarningMessage('A non-Gambit prepare-commit-msg hook already exists; refusing to overwrite.');
       } else if (result.status === 'refused-no-git') {
         vscode.window.showErrorMessage('No .git directory at workspace root.');
       }
     }),
-    vscode.commands.registerCommand('agentChat.uninstallCommitHook', async () => {
+    vscode.commands.registerCommand('gambit.uninstallCommitHook', async () => {
       const ws = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
       if (!ws) {
         vscode.window.showErrorMessage('Open a workspace folder first.');
@@ -45,14 +45,14 @@ export function activate(context: vscode.ExtensionContext): void {
       }
       const result = uninstallCommitHook(ws);
       if (result.status === 'removed') {
-        vscode.window.showInformationMessage('Removed Agent Chat commit hook.');
+        vscode.window.showInformationMessage('Removed Gambit commit hook.');
       } else if (result.status === 'refused-not-managed') {
-        vscode.window.showWarningMessage('Existing prepare-commit-msg is not Agent-Chat-managed; refusing to remove.');
+        vscode.window.showWarningMessage('Existing prepare-commit-msg is not Gambit-managed; refusing to remove.');
       } else {
-        vscode.window.showInformationMessage('No Agent Chat commit hook installed.');
+        vscode.window.showInformationMessage('No Gambit commit hook installed.');
       }
     }),
-    vscode.commands.registerCommand('agentChat.showCommitHookSnippet', async () => {
+    vscode.commands.registerCommand('gambit.showCommitHookSnippet', async () => {
       const doc = await vscode.workspace.openTextDocument({
         content: COMMIT_HOOK_SNIPPET,
         language: 'shellscript',

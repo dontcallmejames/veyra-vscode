@@ -22,24 +22,24 @@ beforeEach(() => {
 });
 
 describe('readWorkspaceRules', () => {
-  it('returns empty string when agentchat.md missing', () => {
+  it('returns empty string when gambit.md missing', () => {
     expect(readWorkspaceRules('/fake/ws')).toBe('');
   });
 
   it('returns file contents verbatim when present', () => {
-    fsState.set('/fake/ws/agentchat.md', '# Rules\n\n- always pnpm\n');
+    fsState.set('/fake/ws/gambit.md', '# Rules\n\n- always pnpm\n');
     expect(readWorkspaceRules('/fake/ws')).toBe('# Rules\n\n- always pnpm\n');
   });
 
   it('re-reads on each call (no caching)', () => {
-    fsState.set('/fake/ws/agentchat.md', 'first');
+    fsState.set('/fake/ws/gambit.md', 'first');
     expect(readWorkspaceRules('/fake/ws')).toBe('first');
-    fsState.set('/fake/ws/agentchat.md', 'second');
+    fsState.set('/fake/ws/gambit.md', 'second');
     expect(readWorkspaceRules('/fake/ws')).toBe('second');
   });
 
   it('returns empty string when file exceeds 10MB ceiling', () => {
-    fsState.set('/fake/ws/agentchat.md', 'x'.repeat(11 * 1024 * 1024));
+    fsState.set('/fake/ws/gambit.md', 'x'.repeat(11 * 1024 * 1024));
     expect(readWorkspaceRules('/fake/ws')).toBe('');
   });
 });

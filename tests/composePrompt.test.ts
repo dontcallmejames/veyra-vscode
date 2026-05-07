@@ -28,7 +28,7 @@ describe('composePrompt', () => {
 
   it('wraps rules in [Workspace rules] markers', () => {
     const out = composePrompt({ rules: 'always pnpm', sharedContext: '', fileBlocks: '', userText: 'x' });
-    expect(out).toContain('[Workspace rules from agentchat.md]');
+    expect(out).toContain('[Workspace rules from gambit.md]');
     expect(out).toContain('always pnpm');
     expect(out).toContain('[/Workspace rules]');
   });
