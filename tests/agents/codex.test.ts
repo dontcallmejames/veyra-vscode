@@ -49,6 +49,86 @@ describe('CodexAgent', () => {
     ]);
   });
 
+  it('parses file_change item into tool-call chunks for badge firing', async () => {
+    // Codex file_change event shape from codex-rs/exec source analysis:
+    // item.completed with item.type === 'file_change' carries a changes array
+    // with { path, kind } entries. Each path is surfaced as an 'apply_patch'
+    // tool-call so getEditedPath can resolve the badge target.
+    mockedSpawn.mockReturnValueOnce(
+      fakeProcess([
+        '{"type":"thread.started","thread_id":"abc"}\n',
+        '{"type":"turn.started"}\n',
+        '{"type":"item.completed","item":{"id":"item_0","type":"file_change","changes":[{"path":"/abs/scratch_spike.txt","kind":"Add"}],"status":"Completed"}}\n',
+        '{"type":"item.completed","item":{"type":"agent_message","text":"done"}}\n',
+        '{"type":"turn.completed","usage":{"input_tokens":100,"output_tokens":5}}\n',
+      ])
+    );
+
+    const agent = new CodexAgent();
+    const chunks = [];
+    for await (const c of agent.send('Create a file')) chunks.push(c);
+
+    expect(chunks).toContainEqual({
+      type: 'tool-call',
+      name: 'apply_patch',
+      input: { path: '/abs/scratch_spike.txt' },
+    });
+    expect(chunks).toContainEqual({ type: 'text', text: 'done' });
+    expect(chunks.at(-1)).toEqual({ type: 'done' });
+  });
+
+  it('parses command_execution item into tool-call + tool-result chunks', async () => {
+    // command_execution event shape from codex-rs/exec source:
+    // surfaced as tool-call with name 'shell'; badge skipped (not in CODEX_WRITE_TOOLS).
+    mockedSpawn.mockReturnValueOnce(
+      fakeProcess([
+        '{"type":"item.completed","item":{"id":"item_0","type":"command_execution","command":"echo hello","aggregated_output":"hello\\n","exit_code":0,"status":"Completed"}}\n',
+        '{"type":"turn.completed","usage":{}}\n',
+      ])
+    );
+
+    const agent = new CodexAgent();
+    const chunks = [];
+    for await (const c of agent.send('run echo')) chunks.push(c);
+
+    expect(chunks).toContainEqual({
+      type: 'tool-call',
+      name: 'shell',
+      input: { command: 'echo hello' },
+    });
+    expect(chunks).toContainEqual({
+      type: 'tool-result',
+      name: 'shell',
+      output: 'hello\n',
+    });
+  });
+
+  it('parses mcp_tool_call item with write tool into tool-call chunk', async () => {
+    // mcp_tool_call event shape from codex-rs/exec source:
+    // tool name maps directly; if it matches CODEX_WRITE_TOOLS then badge fires.
+    mockedSpawn.mockReturnValueOnce(
+      fakeProcess([
+        '{"type":"item.completed","item":{"id":"item_0","type":"mcp_tool_call","server":"filesystem","tool":"write_file","status":"Completed","arguments":{"path":"/abs/out.txt","content":"hi"},"result":{"content":"wrote 2 bytes","structured_content":null},"error":null}}\n',
+        '{"type":"turn.completed","usage":{}}\n',
+      ])
+    );
+
+    const agent = new CodexAgent();
+    const chunks = [];
+    for await (const c of agent.send('write file')) chunks.push(c);
+
+    expect(chunks).toContainEqual({
+      type: 'tool-call',
+      name: 'write_file',
+      input: { path: '/abs/out.txt', content: 'hi' },
+    });
+    expect(chunks).toContainEqual({
+      type: 'tool-result',
+      name: 'write_file',
+      output: { content: 'wrote 2 bytes', structured_content: null },
+    });
+  });
+
   it('emits an error chunk on non-zero exit', async () => {
     mockedSpawn.mockReturnValueOnce(fakeProcess([], 1));
 

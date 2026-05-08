@@ -65,21 +65,23 @@ export class GeminiAgent implements Agent {
 
     let buffer = '';
     let sawDone = false;
+    // Track tool_id → tool_name within this send() call so tool_result events
+    // can resolve the friendly tool name (the tool_result event carries only tool_id).
+    const toolNameById = new Map<string, string>();
     try {
       for await (const data of child.stdout!) {
         buffer += String(data);
         const lines = buffer.split('\n');
         buffer = lines.pop() ?? '';
         for (const line of lines) {
-          const chunk = parseGeminiEvent(line);
-          if (!chunk) continue;
-          if (chunk.type === 'done') sawDone = true;
-          yield chunk;
+          for (const chunk of parseGeminiEvent(line, toolNameById)) {
+            if (chunk.type === 'done') sawDone = true;
+            yield chunk;
+          }
         }
       }
       if (buffer.trim()) {
-        const chunk = parseGeminiEvent(buffer);
-        if (chunk) {
+        for (const chunk of parseGeminiEvent(buffer, toolNameById)) {
           if (chunk.type === 'done') sawDone = true;
           yield chunk;
         }
@@ -103,34 +105,78 @@ export class GeminiAgent implements Agent {
   }
 }
 
-// Gemini stream-json event shapes from spike A4:
-//   { type: 'init', ... }                                                     -> ignore
+// Gemini stream-json event shapes from spike A4 + gemini-KXTGCWBT.js source analysis:
+//   { type: 'init', timestamp, session_id, model }                            -> ignore
 //   { type: 'message', role: 'user', content: '...' }                         -> ignore (user echo)
 //   { type: 'message', role: 'assistant', content: '...', delta: true }       -> text chunk
-//   { type: 'result', status: 'success' }                                     -> done
-//   { type: 'result', status: 'error', error: '...' }                         -> error then done
-function parseGeminiEvent(line: string): AgentChunk | null {
+//   { type: 'tool_use', timestamp, tool_name, tool_id, parameters }           -> tool-call chunk
+//   { type: 'tool_result', timestamp, tool_id, status, output, error? }       -> tool-result chunk
+//   { type: 'result', status: 'success', stats: {...} }                       -> done
+//   { type: 'result', status: 'error', error: {...} }                         -> error (handled outside)
+//   { type: 'error', severity, message }                                      -> non-fatal warning (ignore)
+//
+// Actual tool_use event shape captured from gemini-KXTGCWBT.js source:
+//   {"type":"tool_use","timestamp":"...","tool_name":"write_file",
+//    "tool_id":"call_abc123","parameters":{"file_path":"/abs/path/file.txt","content":"hello"}}
+//
+// Actual tool_result event shape:
+//   {"type":"tool_result","timestamp":"...","tool_id":"call_abc123",
+//    "status":"success","output":"Wrote 5 bytes"}
+//
+// Note: tool_result carries only tool_id (not tool_name). The toolNameById map
+// is populated on tool_use and looked up here so the AgentChunk carries a
+// friendly name consistent with what getEditedPath expects.
+function* parseGeminiEvent(
+  line: string,
+  toolNameById: Map<string, string>,
+): Generator<AgentChunk> {
   const trimmed = line.trim();
-  if (!trimmed) return null;
-  let event: { type?: string; role?: string; content?: string; delta?: boolean; status?: string; error?: string };
+  if (!trimmed) return;
+  let event: {
+    type?: string;
+    role?: string;
+    content?: string;
+    delta?: boolean;
+    status?: string;
+    error?: unknown;
+    // tool_use
+    tool_name?: string;
+    tool_id?: string;
+    parameters?: unknown;
+    // tool_result
+    output?: unknown;
+  };
   try {
     event = JSON.parse(trimmed);
   } catch {
-    return null; // ignore non-JSON lines (stderr warnings get filtered upstream)
+    return; // ignore non-JSON lines (stderr warnings get filtered upstream)
   }
   switch (event.type) {
     case 'message':
       if (event.role === 'assistant' && typeof event.content === 'string') {
-        return { type: 'text', text: event.content };
+        yield { type: 'text', text: event.content };
       }
-      return null;
+      return;
+    case 'tool_use': {
+      const name = typeof event.tool_name === 'string' ? event.tool_name : 'unknown_tool';
+      const id = typeof event.tool_id === 'string' ? event.tool_id : '';
+      if (id) toolNameById.set(id, name);
+      yield { type: 'tool-call', name, input: event.parameters ?? {} };
+      return;
+    }
+    case 'tool_result': {
+      const id = typeof event.tool_id === 'string' ? event.tool_id : '';
+      const name = toolNameById.get(id) ?? 'unknown_tool';
+      yield { type: 'tool-result', name, output: event.output ?? null };
+      return;
+    }
     case 'result':
       if (event.status === 'success') {
-        return { type: 'done' };
+        yield { type: 'done' };
       }
-      return null;
+      return;
     default:
-      return null;
+      return;
   }
 }
 
