@@ -1,4 +1,17 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+vi.mock('vscode', () => ({
+  workspace: {
+    getConfiguration: vi.fn(() => ({ get: (_k: string, dflt: unknown) => dflt })),
+  },
+}));
+
+vi.mock('@anthropic-ai/claude-agent-sdk', () => ({ query: vi.fn() }));
+vi.mock('node:child_process', () => ({
+  spawn: vi.fn(),
+  execSync: vi.fn().mockReturnValue('/fake/npm/root\n'),
+}));
+
 import { getEditedPath as getClaudeEditedPath } from '../../src/agents/claude.js';
 import { getEditedPath as getCodexEditedPath } from '../../src/agents/codex.js';
 import { getEditedPath as getGeminiEditedPath } from '../../src/agents/gemini.js';

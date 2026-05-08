@@ -1,4 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+vi.mock('vscode', () => ({
+  workspace: {
+    getConfiguration: vi.fn(() => ({ get: (_k: string, dflt: unknown) => dflt })),
+  },
+}));
+
 import { CodexAgent } from '../../src/agents/codex.js';
 
 describe('CodexAgent — LIVE', () => {

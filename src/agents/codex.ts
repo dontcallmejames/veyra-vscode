@@ -5,6 +5,7 @@ import type { Agent, SendOptions } from './types.js';
 import type { AgentChunk, AgentStatus } from '../types.js';
 import { checkCodex } from '../statusChecks.js';
 import { findNode } from '../findNode.js';
+import * as vscode from 'vscode';
 
 // Spike A3: invoke `codex exec --json '<prompt>'` for non-interactive JSONL.
 //
@@ -24,7 +25,14 @@ function resolveCodexCommand(): { command: string; args: string[] } {
   return { command: findNode(), args: [bundle] };
 }
 
-const CODEX_ARGS = (prompt: string): string[] => ['exec', '--json', '--skip-git-repo-check', prompt];
+const CODEX_BASE_ARGS = ['exec', '--json', '--skip-git-repo-check'];
+const CODEX_AUTO_EDIT_ARGS = ['--sandbox', 'workspace-write'];
+
+function codexArgs(prompt: string): string[] {
+  const writeApproval = vscode.workspace.getConfiguration('gambit').get<string>('writeApproval', 'auto-edit');
+  const extra = writeApproval === 'auto-edit' ? CODEX_AUTO_EDIT_ARGS : [];
+  return [...CODEX_BASE_ARGS, ...extra, prompt];
+}
 
 export class CodexAgent implements Agent {
   readonly id = 'codex' as const;
@@ -37,7 +45,7 @@ export class CodexAgent implements Agent {
   async *send(prompt: string, opts: SendOptions = {}): AsyncIterable<AgentChunk> {
     const child = spawn(
       CODEX_CMD.command,
-      [...CODEX_CMD.args, ...CODEX_ARGS(prompt)],
+      [...CODEX_CMD.args, ...codexArgs(prompt)],
       { cwd: opts.cwd, stdio: ['ignore', 'pipe', 'pipe'] }
     );
     this.active = child;

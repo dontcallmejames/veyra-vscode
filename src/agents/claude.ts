@@ -3,6 +3,7 @@ import type { AgentChunk, AgentStatus } from '../types.js';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { checkClaude } from '../statusChecks.js';
 import { findNode } from '../findNode.js';
+import * as vscode from 'vscode';
 
 export class ClaudeAgent implements Agent {
   readonly id = 'claude' as const;
@@ -33,7 +34,9 @@ export class ClaudeAgent implements Agent {
 
     let stream: AsyncIterable<unknown>;
     try {
-      stream = query({ prompt, options: { abortController, cwd: opts.cwd } });
+      const writeApproval = vscode.workspace.getConfiguration('gambit').get<string>('writeApproval', 'auto-edit');
+      const permissionMode = writeApproval === 'auto-edit' ? 'acceptEdits' : 'default';
+      stream = query({ prompt, options: { abortController, cwd: opts.cwd, permissionMode } });
     } catch (err) {
       yield { type: 'error', message: errorMessage(err) };
       yield { type: 'done' };

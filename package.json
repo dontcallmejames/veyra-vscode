@@ -84,6 +84,12 @@
           "type": "boolean",
           "default": true,
           "description": "Write the .vscode/gambit/active-dispatch sentinel during dispatches so the prepare-commit-msg hook can attribute commits."
+        },
+        "gambit.writeApproval": {
+          "type": "string",
+          "enum": ["auto-edit", "ask"],
+          "default": "auto-edit",
+          "description": "How agent file-edit requests are handled. 'auto-edit' grants write access automatically; 'ask' will defer to each CLI's interactive prompt (which currently means writes silently fail in non-interactive mode — switch back to 'auto-edit' if edits stop working)."
         }
       }
     },

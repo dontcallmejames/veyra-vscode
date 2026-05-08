@@ -5,6 +5,7 @@ import type { Agent, SendOptions } from './types.js';
 import type { AgentChunk, AgentStatus } from '../types.js';
 import { checkGemini } from '../statusChecks.js';
 import { findNode } from '../findNode.js';
+import * as vscode from 'vscode';
 
 // Spike A4: invoke `gemini -p '<prompt>' -o stream-json` for non-interactive JSONL.
 //
@@ -25,7 +26,14 @@ function resolveGeminiCommand(): { command: string; args: string[] } {
   return { command: findNode(), args: [bundle] };
 }
 
-const GEMINI_ARGS = (prompt: string): string[] => ['-p', prompt, '-o', 'stream-json'];
+const GEMINI_BASE_ARGS = ['-o', 'stream-json'];
+const GEMINI_AUTO_EDIT_ARGS = ['--approval-mode', 'auto_edit'];
+
+function geminiArgs(prompt: string): string[] {
+  const writeApproval = vscode.workspace.getConfiguration('gambit').get<string>('writeApproval', 'auto-edit');
+  const extra = writeApproval === 'auto-edit' ? GEMINI_AUTO_EDIT_ARGS : [];
+  return ['-p', prompt, ...extra, ...GEMINI_BASE_ARGS];
+}
 
 export class GeminiAgent implements Agent {
   readonly id = 'gemini' as const;
@@ -38,7 +46,7 @@ export class GeminiAgent implements Agent {
   async *send(prompt: string, opts: SendOptions = {}): AsyncIterable<AgentChunk> {
     const child = spawn(
       GEMINI_CMD.command,
-      [...GEMINI_CMD.args, ...GEMINI_ARGS(prompt)],
+      [...GEMINI_CMD.args, ...geminiArgs(prompt)],
       { cwd: opts.cwd, stdio: ['ignore', 'pipe', 'pipe'] }
     );
     this.active = child;

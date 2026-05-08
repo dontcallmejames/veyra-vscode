@@ -1,6 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { ClaudeAgent } from '../../src/agents/claude.js';
 
+vi.mock('vscode', () => ({
+  workspace: {
+    getConfiguration: vi.fn(() => ({ get: (_k: string, dflt: unknown) => dflt })),
+  },
+}));
+
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
   query: vi.fn(),
 }));

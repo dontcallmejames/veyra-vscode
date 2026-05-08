@@ -3,6 +3,12 @@ import { EventEmitter } from 'node:events';
 import { Readable } from 'node:stream';
 import { GeminiAgent } from '../../src/agents/gemini.js';
 
+vi.mock('vscode', () => ({
+  workspace: {
+    getConfiguration: vi.fn(() => ({ get: (_k: string, dflt: unknown) => dflt })),
+  },
+}));
+
 vi.mock('node:child_process', () => ({
   spawn: vi.fn(),
   execSync: vi.fn().mockReturnValue('/fake/npm/root\n'),
