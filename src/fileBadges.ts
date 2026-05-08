@@ -16,6 +16,12 @@ const AGENT_COLORS: Record<AgentId, string> = {
   gemini: 'gambit.geminiColor',
 };
 
+const AGENT_BADGES: Record<AgentId, string> = {
+  claude: 'C',
+  codex: 'X',
+  gemini: 'G',
+};
+
 export function recordEdit(
   state: FileEditRecord[],
   filePath: string,
@@ -78,9 +84,10 @@ export class FileBadgesController implements vscode.FileDecorationProvider {
       ? `Last edited by ${record.agentId} ${minutesAgo}m ago (also: ${record.alsoBy.join(', ')})`
       : `Edited by ${record.agentId} ${minutesAgo}m ago`;
     return {
-      badge: '●',
+      badge: AGENT_BADGES[record.agentId],
       tooltip,
       color: new vscode.ThemeColor(AGENT_COLORS[record.agentId]),
+      propagate: false,
     };
   }
 }
