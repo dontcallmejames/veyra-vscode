@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'node:path';
 import type { AgentId } from './types.js';
 
 export type FileEditRecord = {
@@ -65,10 +66,13 @@ export class FileBadgesController implements vscode.FileDecorationProvider {
 
   registerEdit(filePath: string, agentId: AgentId): void {
     const now = Date.now();
-    // Normalize to VS Code's platform-native fsPath form so it matches uri.fsPath
-    // in provideFileDecoration. Without this, forward-slash paths from agents
-    // never match VS Code's backslash-normalized URIs on Windows.
-    const normalized = vscode.Uri.file(filePath).fsPath;
+    // Resolve relative paths (Gemini's `replace` tool emits "hello.ts", not an
+    // absolute path) against the workspace root before normalizing. Without
+    // this, Uri.file('hello.ts').fsPath produces '\hello.ts' on Windows and
+    // never matches the real file URI in provideFileDecoration.
+    const ws = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    const absolute = path.isAbsolute(filePath) || !ws ? filePath : path.join(ws, filePath);
+    const normalized = vscode.Uri.file(absolute).fsPath;
     const next = pruneStale(recordEdit(this.records, normalized, agentId, now), now);
     this.records = next;
     void this.context.workspaceState.update(STATE_KEY, next);

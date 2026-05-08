@@ -160,12 +160,13 @@ function* parseCodexEvent(line: string): Generator<AgentChunk> {
       if (item.type === 'agent_message' && typeof item.text === 'string') {
         yield { type: 'text', text: item.text };
       } else if (item.type === 'file_change' && Array.isArray(item.changes)) {
-        // Each changed path → one tool-call chunk so the badge can fire.
-        // We surface as 'apply_patch' because that is the internal Codex write tool
-        // name and getEditedPath already knows to look for it.
+        // Emit call AND result per changed path. The badge controller only
+        // fires registerEdit on tool-result (it looks back for the call to
+        // recover the path), so a tool-call alone leaves the badge stale.
         for (const change of item.changes) {
           if (typeof change.path === 'string') {
             yield { type: 'tool-call', name: 'apply_patch', input: { path: change.path } };
+            yield { type: 'tool-result', name: 'apply_patch', output: { kind: change.kind ?? 'edit', path: change.path } };
           }
         }
       } else if (item.type === 'command_execution' && typeof item.command === 'string') {
