@@ -2,7 +2,7 @@ export type MentionTarget = 'claude' | 'codex' | 'gemini' | 'all';
 
 export type AgentId = 'claude' | 'codex' | 'gemini';
 
-export type AgentStatus = 'ready' | 'unauthenticated' | 'not-installed' | 'busy';
+export type AgentStatus = 'ready' | 'unauthenticated' | 'not-installed' | 'inaccessible' | 'misconfigured' | 'node-missing' | 'busy';
 
 export type AgentChunk =
   | { type: 'text'; text: string }

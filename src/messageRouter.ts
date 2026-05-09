@@ -24,9 +24,11 @@ export type RouterEvent =
 type FloorListener = (holder: AgentId | null) => void;
 type StatusListener = (agentId: AgentId, status: AgentStatus) => void;
 
+const AGENT_IDS: AgentId[] = ['claude', 'codex', 'gemini'];
+
 /**
  * Wraps an async iterable so it terminates when the AbortSignal fires.
- * The in-flight next() promise is abandoned (not cancelled) — acceptable for
+ * The in-flight next() promise is abandoned (not cancelled) - acceptable for
  * generators that block indefinitely, as in tests.
  */
 async function* withAbort<T>(source: AsyncIterable<T>, signal: AbortSignal): AsyncGenerator<T> {
@@ -115,11 +117,7 @@ export class MessageRouter {
         yield { kind: 'routing-needed', text: remainingText || input };
         return;
       }
-      const status: Record<AgentId, AgentStatus> = {
-        claude: this.lastStatus.claude ?? 'ready',
-        codex: this.lastStatus.codex ?? 'ready',
-        gemini: this.lastStatus.gemini ?? 'ready',
-      };
+      const status = await this.refreshAgentStatuses();
       const text = remainingText || input;
       const decision = await this.facilitator(text, status, opts.sharedContextForFacilitator);
       if ('error' in decision) {
@@ -127,8 +125,23 @@ export class MessageRouter {
         return;
       }
       yield { kind: 'facilitator-decision', agentId: decision.agent, reason: decision.reason };
+      if (!canDispatch(status[decision.agent])) {
+        yield { kind: 'routing-needed', text: unavailableAgentMessage(decision.agent, status[decision.agent]) };
+        return;
+      }
       dispatchTargets = [decision.agent];
       promptText = text;
+    } else {
+      const status = await this.refreshAgentStatuses();
+      const unavailable = dispatchTargets.filter((id) => !canDispatch(status[id]));
+      if (unavailable.length > 0) {
+        yield {
+          kind: 'routing-needed',
+          text: unavailable.map((id) => unavailableAgentMessage(id, status[id])).join('\n'),
+        };
+        dispatchTargets = dispatchTargets.filter((id) => canDispatch(status[id]));
+        if (dispatchTargets.length === 0) return;
+      }
     }
 
     const handlePromises = dispatchTargets.map((id) => this.floor.acquire(id));
@@ -178,4 +191,82 @@ export class MessageRouter {
       }
     }
   }
+
+  private async refreshAgentStatuses(): Promise<Record<AgentId, AgentStatus>> {
+    const entries = await Promise.all(AGENT_IDS.map(async (id): Promise<[AgentId, AgentStatus]> => {
+      try {
+        return [id, await this.agents[id].status()];
+      } catch {
+        return [id, this.lastStatus[id] ?? 'unauthenticated'];
+      }
+    }));
+
+    const statuses = Object.fromEntries(entries) as Record<AgentId, AgentStatus>;
+    for (const [id, status] of entries) {
+      this.notifyStatusChange(id, status);
+    }
+    return statuses;
+  }
+}
+
+function canDispatch(status: AgentStatus): boolean {
+  return status === 'ready';
+}
+
+function unavailableAgentMessage(agentId: AgentId, status: AgentStatus): string {
+  if (status === 'busy') {
+    return `${agentLabel(agentId)} is busy; wait for the current dispatch or cancel it before sending more work.`;
+  }
+  return setupMessage(agentId, status);
+}
+
+function setupMessage(agentId: AgentId, status: AgentStatus): string {
+  if (agentId === 'codex') {
+    if (status === 'not-installed') {
+      return 'Codex is not installed. Install it with `npm install -g @openai/codex`, then run `codex login`. You can also run Gambit: Configure Codex/Gemini CLI paths or Gambit: Show setup guide.';
+    }
+    if (status === 'inaccessible') {
+      return 'Codex files are inaccessible. Check filesystem permissions, rerun outside the current sandbox, or set GAMBIT_CODEX_CLI_PATH / gambit.codexCliPath to the Codex JS bundle, native executable, or Windows npm shim. You can also run Gambit: Configure Codex/Gemini CLI paths, Gambit: Show setup guide, or Gambit: Show live validation guide.';
+    }
+    if (status === 'misconfigured') {
+      return 'Codex CLI path is misconfigured. Set GAMBIT_CODEX_CLI_PATH / gambit.codexCliPath to codex.js, codex.exe, or codex. You can also run Gambit: Configure Codex/Gemini CLI paths or Gambit: Show setup guide.';
+    }
+    if (status === 'node-missing') {
+      return 'Codex needs Node.js on PATH to launch a JS bundle. Install Node.js, or set GAMBIT_CODEX_CLI_PATH / gambit.codexCliPath to a native codex executable. You can also run Gambit: Configure Codex/Gemini CLI paths or Gambit: Show setup guide.';
+    }
+    return 'Codex is unauthenticated. Run `codex login`. If `codex` is missing, install it with `npm install -g @openai/codex`. You can also run Gambit: Show setup guide.';
+  }
+
+  if (agentId === 'gemini') {
+    if (status === 'not-installed') {
+      return 'Gemini is not installed. Install it with `npm install -g @google/gemini-cli`, then run `gemini` once to sign in. You can also run Gambit: Configure Codex/Gemini CLI paths or Gambit: Show setup guide.';
+    }
+    if (status === 'inaccessible') {
+      return 'Gemini files are inaccessible. Check filesystem permissions, rerun outside the current sandbox, or set GAMBIT_GEMINI_CLI_PATH / gambit.geminiCliPath to the Gemini JS bundle, native executable, or Windows npm shim. You can also run Gambit: Configure Codex/Gemini CLI paths, Gambit: Show setup guide, or Gambit: Show live validation guide.';
+    }
+    if (status === 'misconfigured') {
+      return 'Gemini CLI path is misconfigured. Set GAMBIT_GEMINI_CLI_PATH / gambit.geminiCliPath to gemini.js, gemini.exe, or gemini. You can also run Gambit: Configure Codex/Gemini CLI paths or Gambit: Show setup guide.';
+    }
+    if (status === 'node-missing') {
+      return 'Gemini needs Node.js on PATH to launch a JS bundle. Install Node.js, or set GAMBIT_GEMINI_CLI_PATH / gambit.geminiCliPath to a native gemini executable. You can also run Gambit: Configure Codex/Gemini CLI paths or Gambit: Show setup guide.';
+    }
+    return 'Gemini is unauthenticated. Run `gemini` once to sign in. If `gemini` is missing, install it with `npm install -g @google/gemini-cli`. You can also run Gambit: Show setup guide.';
+  }
+
+  if (status === 'not-installed') {
+    return 'Claude is not installed. Install Claude Code, then run `claude` to sign in. You can also run Gambit: Show setup guide.';
+  }
+  if (status === 'inaccessible') {
+    return 'Claude files are inaccessible. Check filesystem permissions or rerun outside the current sandbox. You can also run Gambit: Show setup guide.';
+  }
+  if (status === 'node-missing') {
+    return 'Claude needs Node.js on PATH when running inside VS Code. Install Node.js, then retry. You can also run Gambit: Show setup guide.';
+  }
+  return 'Claude is unauthenticated. Run `claude` to sign in. You can also run Gambit: Show setup guide.';
+}
+
+function agentLabel(agentId: AgentId): string {
+  if (agentId === 'claude') return 'Claude';
+  if (agentId === 'codex') return 'Codex';
+  return 'Gemini';
 }

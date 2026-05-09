@@ -15,10 +15,10 @@ import { query } from '@anthropic-ai/claude-agent-sdk';
 
 const mockedQuery = query as unknown as ReturnType<typeof vi.fn>;
 
-// NOTE: the canned events below are AgentChunk-shaped for simplicity. The
-// real SDK emits `assistant` / `result` / `system` events with nested
+// Some fixtures below are AgentChunk-shaped pass-through events for legacy
+// compatibility. The final mapping test feeds realistic Claude SDK
 // `message.content[]` arrays — see the A5 findings doc for the real shape.
-// Replace these mock events with realistic SDK events when implementing.
+// assistant/user/result events to keep the production event adapter covered.
 async function* fromArray<T>(items: T[]): AsyncIterable<T> {
   for (const item of items) yield item;
 }
@@ -80,6 +80,19 @@ describe('ClaudeAgent', () => {
 
   it('exposes id "claude"', () => {
     expect(new ClaudeAgent().id).toBe('claude');
+  });
+
+  it('uses default permission mode for read-only sends even when auto-edit is enabled', async () => {
+    mockedQuery.mockReturnValueOnce(fromArray([{ type: 'done' }]));
+
+    const agent = new ClaudeAgent();
+    for await (const _chunk of agent.send('hi', { readOnly: true } as any)) {
+      // drain
+    }
+
+    expect(mockedQuery).toHaveBeenCalledWith(expect.objectContaining({
+      options: expect.objectContaining({ permissionMode: 'default' }),
+    }));
   });
 
   it('maps a realistic assistant + user(tool_result) pair into chunks with friendly names', async () => {

@@ -8,7 +8,7 @@ Always use pnpm.
 [Conversation so far]
 user: How do we handle auth?
 claude: Use OAuth2 with PKCE.
-user: @gpt implement the route handlers
+user: @codex implement the route handlers
 [/Conversation so far]
 
 [File: src/auth.ts]
@@ -17,5 +17,5 @@ export const greet = () => "hi";
 \`\`\`
 [/File]
 
-@gpt review please"
+@codex review please"
 `;

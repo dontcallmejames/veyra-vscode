@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
-import { Readable } from 'node:stream';
+import { Readable, Writable } from 'node:stream';
 import { CodexAgent } from '../../src/agents/codex.js';
 
 vi.mock('vscode', () => ({
@@ -14,6 +14,11 @@ vi.mock('node:child_process', () => ({
   execSync: vi.fn().mockReturnValue('/fake/npm/root\n'),
 }));
 
+vi.mock('node:fs', () => ({
+  accessSync: vi.fn(),
+  existsSync: vi.fn(() => true),
+}));
+
 import { spawn } from 'node:child_process';
 const mockedSpawn = spawn as unknown as ReturnType<typeof vi.fn>;
 
@@ -21,8 +26,32 @@ function fakeProcess(stdoutChunks: string[], exitCode = 0) {
   const proc: any = new EventEmitter();
   proc.stdout = Readable.from(stdoutChunks);
   proc.stderr = Readable.from([]);
+  proc.stdinText = '';
+  proc.stdin = new Writable({
+    write(chunk, _encoding, callback) {
+      proc.stdinText += String(chunk);
+      callback();
+    },
+  });
   proc.kill = vi.fn();
   setImmediate(() => proc.emit('close', exitCode));
+  return proc;
+}
+
+function fakeProcessError(message: string) {
+  const proc: any = new EventEmitter();
+  proc.stdout = Readable.from([]);
+  proc.stderr = Readable.from([]);
+  proc.stdin = new Writable({
+    write(_chunk, _encoding, callback) {
+      callback();
+    },
+  });
+  proc.kill = vi.fn();
+  setImmediate(() => {
+    proc.emit('error', new Error(message));
+    proc.emit('close', null);
+  });
   return proc;
 }
 
@@ -141,6 +170,66 @@ describe('CodexAgent', () => {
       message: expect.stringContaining('exit code 1'),
     });
     expect(chunks.at(-1)).toEqual({ type: 'done' });
+  });
+
+  it('emits an error chunk when the Codex process cannot be spawned', async () => {
+    mockedSpawn.mockImplementationOnce(() => {
+      throw new Error('spawn failed');
+    });
+
+    const agent = new CodexAgent();
+    const chunks = [];
+    for await (const c of agent.send('hi')) chunks.push(c);
+
+    expect(chunks).toEqual([
+      { type: 'error', message: 'Unable to start Codex CLI: spawn failed' },
+      { type: 'done' },
+    ]);
+  });
+
+  it('emits an error chunk when the Codex process emits an async startup error', async () => {
+    mockedSpawn.mockReturnValueOnce(fakeProcessError('ENOENT codex'));
+
+    const agent = new CodexAgent();
+    const chunks = [];
+    for await (const c of agent.send('hi')) chunks.push(c);
+
+    expect(chunks).toEqual([
+      { type: 'error', message: 'Codex process error: ENOENT codex' },
+      { type: 'done' },
+    ]);
+  });
+
+  it('omits workspace-write sandbox args for read-only sends', async () => {
+    mockedSpawn.mockReturnValueOnce(fakeProcess(['{"type":"turn.completed","usage":{}}\n']));
+
+    const agent = new CodexAgent();
+    for await (const _chunk of agent.send('review only', { readOnly: true } as any)) {
+      // drain
+    }
+
+    const args = mockedSpawn.mock.calls.at(-1)?.[1] as string[];
+    expect(args).toContain('exec');
+    expect(args).not.toContain('--sandbox');
+    expect(args).not.toContain('workspace-write');
+  });
+
+  it('passes prompts over stdin instead of argv to avoid command-line length limits', async () => {
+    const proc = fakeProcess(['{"type":"turn.completed","usage":{}}\n']);
+    mockedSpawn.mockReturnValueOnce(proc);
+    const prompt = `review this shared context\n${'x'.repeat(40_000)}`;
+
+    const agent = new CodexAgent();
+    for await (const _chunk of agent.send(prompt, { readOnly: true } as any)) {
+      // drain
+    }
+
+    const args = mockedSpawn.mock.calls.at(-1)?.[1] as string[];
+    const options = mockedSpawn.mock.calls.at(-1)?.[2] as { stdio: string[] };
+    expect(args).toContain('-');
+    expect(args).not.toContain(prompt);
+    expect(options.stdio[0]).toBe('pipe');
+    expect(proc.stdinText).toBe(prompt);
   });
 
   it('exposes id "codex"', () => {

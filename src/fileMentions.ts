@@ -3,6 +3,7 @@ import * as path from 'node:path';
 
 // Tokens that look like agent mentions, NOT files. Mirror src/mentions.ts.
 const AGENT_TOKENS = new Set(['claude', 'gpt', 'codex', 'chatgpt', 'gemini', 'all']);
+const PACKAGE_SCOPES = new Set(['anthropic-ai', 'google', 'openai', 'types', 'vscode']);
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const BINARY_DETECT_BYTES = 8 * 1024;
@@ -39,19 +40,58 @@ function looksLikeFile(token: string): boolean {
 }
 
 export function parseFileMentions(input: string): ParsedFileMentions {
-  const tokens = input.split(/\s+/);
   const filePaths: string[] = [];
-  const remaining: string[] = [];
+  const parts = input.split(/(\r?\n)/);
+  let activeFence: FenceMarker | null = null;
+  let remainingText = '';
 
-  for (const token of tokens) {
-    if (token.startsWith('@') && looksLikeFile(token.slice(1))) {
-      filePaths.push(token.slice(1));
-    } else if (token.length > 0) {
-      remaining.push(token);
+  for (const part of parts) {
+    if (part === '\n' || part === '\r\n') {
+      remainingText += part;
+      continue;
     }
+
+    const fenceMarker = detectFenceMarker(part);
+    if (fenceMarker && (activeFence === null || activeFence === fenceMarker)) {
+      activeFence = activeFence === null ? fenceMarker : null;
+      remainingText += part;
+      continue;
+    }
+
+    remainingText += activeFence ? part : removeFileMentionsFromLine(part, filePaths);
   }
 
-  return { filePaths, remainingText: remaining.join(' ').trim() };
+  return { filePaths, remainingText: remainingText.trim() };
+}
+
+function removeFileMentionsFromLine(line: string, filePaths: string[]): string {
+  return line.replace(/(^|\s[\([{<`]|\s|[\([{<`])(@\S+)/g, (match, _boundary: string, token: string) => {
+    const mention = normalizeFileMentionToken(token.slice(1));
+    if (!mention || !looksLikeFile(mention) || looksLikeScopedPackage(mention)) {
+      return match;
+    }
+
+    filePaths.push(mention);
+    return '';
+  });
+}
+
+function normalizeFileMentionToken(token: string): string {
+  return token.replace(/[)\]}>,:;.`]+$/, '');
+}
+
+type FenceMarker = '```' | '~~~';
+
+function detectFenceMarker(line: string): FenceMarker | null {
+  const trimmed = line.trimStart();
+  if (trimmed.startsWith('```')) return '```';
+  if (trimmed.startsWith('~~~')) return '~~~';
+  return null;
+}
+
+function looksLikeScopedPackage(token: string): boolean {
+  const parts = token.split('/');
+  return parts.length >= 2 && PACKAGE_SCOPES.has(parts[0].toLowerCase());
 }
 
 export function embedFiles(
@@ -154,10 +194,10 @@ function embedOne(
   const usedLines = truncated ? allLines.slice(0, maxLines) : allLines;
 
   const header = truncated
-    ? `[File: ${rawPath} — first ${maxLines} of ${allLines.length} lines]`
+    ? `[File: ${rawPath} - first ${maxLines} of ${allLines.length} lines]`
     : `[File: ${rawPath}]`;
   const footer = truncated
-    ? '[/File — truncated; use the Read tool to fetch the rest]'
+    ? '[/File - truncated; use the Read tool to fetch the rest]'
     : '[/File]';
   const lang = inferLang(rawPath);
   const fence = '```';

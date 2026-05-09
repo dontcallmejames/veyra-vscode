@@ -1,12 +1,13 @@
 import { h } from 'preact';
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import type { AgentMessage, InProgressMessage, Settings } from '../../shared/protocol.js';
+import type { AgentMessage, FromWebview, InProgressMessage, Settings } from '../../shared/protocol.js';
 import { ToolCallCard } from './ToolCallCard.js';
 
 interface Props {
   message: AgentMessage | InProgressMessage;
   streaming: boolean;
   settings: Settings;
+  send?: (message: FromWebview) => void;
 }
 
 const SPINNER_FRAMES: Record<string, string[]> = {
@@ -35,9 +36,35 @@ function BrailleSpinner({ agentId }: { agentId: string }) {
   return <span class="braille-spinner">{frames[frame]}</span>;
 }
 
-export function AgentBubble({ message, streaming, settings }: Props) {
+export function EditedFilesRow({
+  editedFiles,
+  send,
+}: {
+  editedFiles: string[];
+  send?: (message: FromWebview) => void;
+}) {
+  if (editedFiles.length === 0) return null;
+  return (
+    <div class="edited-files-row">
+      <span class="edited-files-label">Edited</span>
+      {editedFiles.map((file) => (
+        <button
+          key={file}
+          type="button"
+          class="file-chip edited-file-chip"
+          onClick={() => send?.({ kind: 'open-workspace-file', relativePath: file })}
+        >
+          {file}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function AgentBubble({ message, streaming, settings, send }: Props) {
   const status = 'status' in message ? message.status : null;
   const error = 'error' in message ? message.error : undefined;
+  const editedFiles = 'editedFiles' in message ? message.editedFiles ?? [] : [];
   const isThinking = streaming && message.text === '' && message.toolEvents.length === 0;
   const verb = useMemo(
     () => pickRandom(THINKING_VERBS[message.agentId] ?? THINKING_VERBS.claude),
@@ -64,6 +91,7 @@ export function AgentBubble({ message, streaming, settings }: Props) {
           ))}
         </div>
       )}
+      <EditedFilesRow editedFiles={editedFiles} send={send} />
       {status === 'cancelled' && <div style="font-style:italic;opacity:0.6;margin-top:4px">[Cancelled]</div>}
       {status === 'errored' && error && <div style="color:var(--error-color);margin-top:4px">{error}</div>}
     </div>

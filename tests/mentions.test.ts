@@ -16,6 +16,24 @@ describe('parseMentions', () => {
     });
   });
 
+  it('parses leading mentions after leading whitespace', () => {
+    expect(parseMentions('  \n @claude review this')).toEqual({
+      targets: ['claude'],
+      remainingText: 'review this',
+    });
+  });
+
+  it('parses leading mentions with trailing command punctuation', () => {
+    expect(parseMentions('@claude: review this')).toEqual({
+      targets: ['claude'],
+      remainingText: 'review this',
+    });
+    expect(parseMentions('@codex, @gemini: compare this')).toEqual({
+      targets: ['codex', 'gemini'],
+      remainingText: 'compare this',
+    });
+  });
+
   it('parses @gpt as codex', () => {
     expect(parseMentions('@gpt run the tests')).toEqual({
       targets: ['codex'],
@@ -69,6 +87,31 @@ describe('parseMentions', () => {
     expect(parseMentions('@claude    review')).toEqual({
       targets: ['claude'],
       remainingText: 'review',
+    });
+  });
+
+  it('preserves multiline formatting after leading routing mentions', () => {
+    expect(parseMentions([
+      '@claude @gemini',
+      '',
+      'Review this checklist:',
+      '  - keep indentation',
+      '  - keep blank lines',
+      '',
+      '```ts',
+      'const value = 1;',
+      '```',
+    ].join('\n'))).toEqual({
+      targets: ['claude', 'gemini'],
+      remainingText: [
+        'Review this checklist:',
+        '  - keep indentation',
+        '  - keep blank lines',
+        '',
+        '```ts',
+        'const value = 1;',
+        '```',
+      ].join('\n'),
     });
   });
 

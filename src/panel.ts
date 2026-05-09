@@ -3,50 +3,31 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { ulid } from './ulid.js';
 import { cspNonce } from './cspNonce.js';
-import { MessageRouter } from './messageRouter.js';
-import { chooseFacilitatorAgent } from './facilitator.js';
-import { ClaudeAgent } from './agents/claude.js';
-import { CodexAgent } from './agents/codex.js';
-import { GeminiAgent } from './agents/gemini.js';
-import { SessionStore } from './sessionStore.js';
-import { SentinelWriter } from './commitHook.js';
 import { checkClaude, checkCodex, checkGemini, clearStatusCache } from './statusChecks.js';
-import { buildSharedContext } from './sharedContext.js';
-import { readWorkspaceRules } from './workspaceRules.js';
-import { parseFileMentions, embedFiles } from './fileMentions.js';
-import { composePrompt } from './composePrompt.js';
+import { GambitSessionService } from './gambitService.js';
+import { createGambitSessionService, refreshGambitSessionOptions } from './gambitRuntime.js';
 import type {
-  FromExtension, FromWebview, Settings, AgentMessage, UserMessage, SystemMessage,
+  FromExtension, FromWebview, Settings, SystemMessage,
 } from './shared/protocol.js';
 import type { AgentId, AgentStatus } from './types.js';
 import type { AgentRegistry } from './messageRouter.js';
 import type { FileBadgesController } from './fileBadges.js';
-import { getEditedPath as getClaudeEditedPath } from './agents/claude.js';
-import { getEditedPath as getCodexEditedPath } from './agents/codex.js';
-import { getEditedPath as getGeminiEditedPath } from './agents/gemini.js';
-
-function getEditedPathForAgent(agentId: AgentId, toolName: string, input: unknown): string | null {
-  if (agentId === 'claude') return getClaudeEditedPath(toolName, input);
-  if (agentId === 'codex') return getCodexEditedPath(toolName, input);
-  if (agentId === 'gemini') return getGeminiEditedPath(toolName, input);
-  return null;
-}
+import type { GambitDispatchEvent } from './gambitService.js';
 
 export class ChatPanel {
   private static current: ChatPanel | undefined;
   private panel: vscode.WebviewPanel;
   private disposables: vscode.Disposable[] = [];
-  private router: MessageRouter;
-  private store: SessionStore;
+  private service: GambitSessionService;
   private extensionUri: vscode.Uri;
-  private currentDispatchInProgress: Map<AgentId, { cancelled?: boolean }> | null = null;
-  private hangSec: number = 60;
-  private sentinel: SentinelWriter;
+  private onboardingPromptsStarted = false;
 
   static async show(
     context: vscode.ExtensionContext,
     agentsOverride?: AgentRegistry,
     badgeController?: FileBadgesController,
+    serviceOverride?: GambitSessionService,
+    badgeControllerProvider?: () => FileBadgesController | undefined,
   ): Promise<void> {
     if (ChatPanel.current) {
       ChatPanel.current.panel.reveal();
@@ -67,12 +48,11 @@ export class ChatPanel {
         localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'dist')],
       }
     );
-    const agents = agentsOverride ?? {
-      claude: new ClaudeAgent(),
-      codex: new CodexAgent(),
-      gemini: new GeminiAgent(),
-    };
-    ChatPanel.current = new ChatPanel(panel, context, folder.uri.fsPath, agents, badgeController);
+    const activeBadgeController = badgeControllerProvider
+      ? badgeControllerProvider()
+      : fileBadgesEnabled() ? badgeController : undefined;
+    const service = serviceOverride ?? createGambitSessionService(folder.uri.fsPath, activeBadgeController, agentsOverride);
+    ChatPanel.current = new ChatPanel(panel, context, folder.uri.fsPath, service, badgeController, badgeControllerProvider);
     await ChatPanel.current.initialize();
   }
 
@@ -80,21 +60,13 @@ export class ChatPanel {
     panel: vscode.WebviewPanel,
     private context: vscode.ExtensionContext,
     private workspacePath: string,
-    agents: AgentRegistry,
+    service: GambitSessionService,
     private badgeController?: FileBadgesController,
+    private badgeControllerProvider?: () => FileBadgesController | undefined,
   ) {
     this.panel = panel;
     this.extensionUri = context.extensionUri;
-    const watchdogMinutes = vscode.workspace.getConfiguration('gambit').get<number>('watchdogMinutes', 5);
-    this.router = new MessageRouter(
-      agents,
-      chooseFacilitatorAgent,
-      { watchdogMs: watchdogMinutes * 60_000 },
-    );
-    this.store = new SessionStore(workspacePath);
-    this.sentinel = new SentinelWriter(workspacePath, {
-      enabled: vscode.workspace.getConfiguration('gambit').get<boolean>('commitSignature.enabled', true),
-    });
+    this.service = service;
 
     this.panel.webview.html = this.renderHtml();
     this.disposables.push(
@@ -104,8 +76,7 @@ export class ChatPanel {
   }
 
   private async initialize(): Promise<void> {
-    this.hangSec = this.readHangSeconds();
-    const session = await this.store.load();
+    const session = await this.service.loadSession();
     const status: Record<AgentId, AgentStatus> = {
       claude: await checkClaude(),
       codex: await checkCodex(),
@@ -116,10 +87,10 @@ export class ChatPanel {
     this.send({ kind: 'init', session, status, settings, gambitMdPresent });
 
     this.disposables.push(
-      { dispose: this.router.onFloorChange((holder) => this.send({ kind: 'floor-changed', holder })) },
-      { dispose: this.router.onStatusChange((agentId, s) => this.send({ kind: 'status-changed', agentId, status: s })) },
+      { dispose: this.service.onFloorChange((holder) => this.send({ kind: 'floor-changed', holder })) },
+      { dispose: this.service.onStatusChange((agentId, s) => this.send({ kind: 'status-changed', agentId, status: s })) },
       {
-        dispose: this.store.onWriteError((err) => {
+        dispose: this.service.onWriteError((err) => {
           const msg = err instanceof Error ? err.message : String(err);
           const sys: SystemMessage = {
             id: ulid(),
@@ -135,10 +106,7 @@ export class ChatPanel {
       },
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration('gambit')) {
-          this.hangSec = this.readHangSeconds();
-          this.sentinel = new SentinelWriter(this.workspacePath, {
-            enabled: vscode.workspace.getConfiguration('gambit').get<boolean>('commitSignature.enabled', true),
-          });
+          refreshGambitSessionOptions(this.service, this.currentBadgeController());
           this.send({ kind: 'settings-changed', settings: this.readSettings() });
         }
       }),
@@ -169,7 +137,7 @@ export class ChatPanel {
         for (const id of ['claude', 'codex', 'gemini'] as AgentId[]) {
           // notifyStatusChange dedupes; status-changed only fires when value differs.
           // ChatPanel already subscribes to onStatusChange and forwards to webview.
-          this.router.notifyStatusChange(id, fresh[id]);
+          this.service.notifyStatusChange(id, fresh[id]);
         }
       } catch {
         // ignore individual recheck failures
@@ -191,15 +159,18 @@ export class ChatPanel {
     this.panel.webview.postMessage(msg);
   }
 
+  private currentBadgeController(): FileBadgesController | undefined {
+    if (this.badgeControllerProvider) {
+      return this.badgeControllerProvider();
+    }
+    return fileBadgesEnabled() ? this.badgeController : undefined;
+  }
+
   private readSettings(): Settings {
     const config = vscode.workspace.getConfiguration('gambit');
     return {
       toolCallRenderStyle: config.get<Settings['toolCallRenderStyle']>('toolCallRenderStyle', 'compact'),
     };
-  }
-
-  private readHangSeconds(): number {
-    return vscode.workspace.getConfiguration('gambit').get<number>('hangDetectionSeconds', 60);
   }
 
   private async handleFromWebview(msg: FromWebview): Promise<void> {
@@ -208,12 +179,7 @@ export class ChatPanel {
         await this.dispatchUserMessage(msg.text);
         break;
       case 'cancel':
-        if (this.currentDispatchInProgress) {
-          for (const ip of this.currentDispatchInProgress.values()) {
-            ip.cancelled = true;
-          }
-        }
-        await this.router.cancelAll();
+        await this.service.cancelAll();
         break;
       case 'reload-status':
         clearStatusCache();
@@ -224,14 +190,28 @@ export class ChatPanel {
         };
         for (const id of ['claude', 'codex', 'gemini'] as AgentId[]) {
           this.send({ kind: 'status-changed', agentId: id, status: fresh[id] });
-          this.router.notifyStatusChange(id, fresh[id]);
+          this.service.notifyStatusChange(id, fresh[id]);
         }
         break;
+      case 'show-live-validation-guide':
+        await vscode.commands.executeCommand('gambit.showLiveValidationGuide');
+        break;
+      case 'show-setup-guide':
+        await vscode.commands.executeCommand('gambit.showSetupGuide');
+        break;
+      case 'configure-cli-paths':
+        await vscode.commands.executeCommand('gambit.configureCliPaths');
+        break;
       case 'open-external':
-        vscode.env.openExternal(vscode.Uri.parse(msg.url));
+        await this.openExternalUrl(msg.url);
         break;
       case 'open-workspace-file': {
-        const fileUri = vscode.Uri.file(path.join(this.workspacePath, msg.relativePath));
+        const filePath = this.resolveOpenWorkspaceFilePath(msg.relativePath);
+        if (!filePath) {
+          vscode.window.showWarningMessage(`Could not open ${msg.relativePath}`);
+          break;
+        }
+        const fileUri = vscode.Uri.file(filePath);
         try {
           const doc = await vscode.workspace.openTextDocument(fileUri);
           await vscode.window.showTextDocument(doc);
@@ -243,176 +223,94 @@ export class ChatPanel {
     }
   }
 
+  private resolveOpenWorkspaceFilePath(filePath: string): string | null {
+    const workspaceRoot = path.resolve(this.workspacePath);
+    const resolved = path.isAbsolute(filePath)
+      ? path.resolve(filePath)
+      : path.resolve(workspaceRoot, filePath);
+    const relative = path.relative(workspaceRoot, resolved);
+    if (relative.startsWith('..') || path.isAbsolute(relative)) return null;
+    return resolved;
+  }
+
+  private async openExternalUrl(rawUrl: string): Promise<void> {
+    let parsed: URL;
+    try {
+      parsed = new URL(rawUrl);
+    } catch {
+      vscode.window.showWarningMessage(`Could not open external URL: ${rawUrl}`);
+      return;
+    }
+
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      vscode.window.showWarningMessage(`Could not open external URL: ${rawUrl}`);
+      return;
+    }
+
+    await vscode.env.openExternal(vscode.Uri.parse(parsed.toString()));
+  }
+
   private async dispatchUserMessage(text: string): Promise<void> {
-    const fileEmbedMaxLines = vscode.workspace.getConfiguration('gambit').get<number>('fileEmbedMaxLines', 500);
-    const sharedContextWindow = vscode.workspace.getConfiguration('gambit').get<number>('sharedContextWindow', 25);
+    if (this.service.isFirstSession()) {
+      this.startOnboardingPrompts();
+    }
 
-    const { filePaths, remainingText } = parseFileMentions(text);
-    const embedResult = embedFiles(filePaths, this.workspacePath, { maxLines: fileEmbedMaxLines });
+    await this.service.dispatch(
+      {
+        text,
+        source: 'panel',
+        cwd: this.workspacePath,
+      },
+      (event) => this.handleDispatchEvent(event),
+    );
+  }
 
-    const userMsg: UserMessage = {
-      id: ulid(),
-      role: 'user',
-      text,
-      timestamp: Date.now(),
-      ...(embedResult.attached.length > 0 ? { attachedFiles: embedResult.attached } : {}),
-    };
-    if (this.store.isFirstSession()) {
+  private startOnboardingPrompts(): void {
+    if (this.onboardingPromptsStarted) return;
+    this.onboardingPromptsStarted = true;
+    void (async () => {
       await this.maybeShowGitignorePrompt(this.workspacePath);
       await this.maybeShowGambitMdTip();
       await this.maybeShowCommitHookPrompt();
-    }
-    this.store.appendUser(userMsg);
-    this.send({ kind: 'user-message-appended', message: userMsg });
+    })().catch((err) => {
+      console.error('Gambit onboarding prompts failed:', err);
+    });
+  }
 
-    for (const e of embedResult.errors) {
-      const sys: SystemMessage = {
-        id: ulid(),
-        role: 'system',
-        kind: 'error',
-        text: `${e.path}: ${e.reason}`,
-        timestamp: Date.now(),
-      };
-      this.store.appendSystem(sys);
-      this.send({ kind: 'system-message', message: sys });
-    }
-
-    const inProgressByAgent = new Map<AgentId, { id: string; text: string; toolEvents: any[]; agentId: AgentId; timestamp: number; error?: string; cancelled?: boolean }>();
-    this.currentDispatchInProgress = inProgressByAgent;
-
-    const hangSec = this.hangSec;
-    let lastChunkAt = Date.now();
-    let activeAgentForHang: AgentId | null = null;
-    const hangCheckTimer = hangSec > 0 ? setInterval(() => {
-      if (activeAgentForHang === null) return;
-      if (Date.now() - lastChunkAt >= hangSec * 1000) {
-        const sys: SystemMessage = {
-          id: ulid(),
-          role: 'system',
-          kind: 'error',
-          text: `${activeAgentForHang} hasn't responded for ${hangSec}s — keep waiting or cancel?`,
-          timestamp: Date.now(),
-        };
-        this.store.appendSystem(sys);
-        this.send({ kind: 'system-message', message: sys });
-        lastChunkAt = Date.now();
-      }
-    }, 1000) : null;
-
-    const composePromptForTarget = (_targetId: AgentId, baseText: string): string => {
-      const session = this.store.snapshot();
-      const sharedContext = buildSharedContext(session, { window: sharedContextWindow });
-      const rules = readWorkspaceRules(this.workspacePath);
-      return composePrompt({
-        rules,
-        sharedContext,
-        fileBlocks: embedResult.embedded,
-        userText: baseText,
-      });
-    };
-
-    const sharedContextForFacilitator = buildSharedContext(
-      this.store.snapshot(),
-      { window: sharedContextWindow },
-    );
-
-    try {
-      for await (const event of this.router.handle(
-        remainingText,
-        {
-          cwd: this.workspacePath,
-          composePromptForTarget,
-          sharedContextForFacilitator,
-        },
-      )) {
-        if (event.kind === 'facilitator-decision') {
-          const sys: SystemMessage = {
-            id: ulid(),
-            role: 'system',
-            kind: 'facilitator-decision',
-            text: '',
-            timestamp: Date.now(),
-            agentId: event.agentId,
-            reason: event.reason,
-          };
-          this.store.appendSystem(sys);
-          this.send({ kind: 'system-message', message: sys });
-          continue;
-        }
-        if (event.kind === 'routing-needed') {
-          const sys: SystemMessage = {
-            id: ulid(),
-            role: 'system',
-            kind: 'routing-needed',
-            text: 'Please prefix with @claude / @gpt / @gemini / @all to route this message.',
-            timestamp: Date.now(),
-          };
-          this.store.appendSystem(sys);
-          this.send({ kind: 'system-message', message: sys });
-          continue;
-        }
-        if (event.kind === 'dispatch-start') {
-          this.sentinel.dispatchStart(event.agentId);
-          const id = ulid();
-          const ts = Date.now();
-          inProgressByAgent.set(event.agentId, { id, text: '', toolEvents: [], agentId: event.agentId, timestamp: ts });
-          this.send({ kind: 'message-started', id, agentId: event.agentId, timestamp: ts });
-          activeAgentForHang = event.agentId;
-          lastChunkAt = Date.now();
-          continue;
-        }
-        if (event.kind === 'chunk') {
-          const ip = inProgressByAgent.get(event.agentId);
-          if (!ip) continue;
-          if (event.chunk.type === 'text') ip.text += event.chunk.text;
-          else if (event.chunk.type === 'tool-call') ip.toolEvents.push({ kind: 'call', name: event.chunk.name, input: event.chunk.input, timestamp: Date.now() });
-          else if (event.chunk.type === 'tool-result') {
-            const chunk = event.chunk;
-            ip.toolEvents.push({ kind: 'result', name: chunk.name, output: chunk.output, timestamp: Date.now() });
-            // Find the matching pending tool-call to recover input — we already pushed the call before the result arrived.
-            const matchingCall = [...ip.toolEvents].reverse().find(
-              (e: any) => e.kind === 'call' && e.name === chunk.name,
-            ) as { input: unknown } | undefined;
-            if (matchingCall && this.badgeController) {
-              const editedPath = getEditedPathForAgent(event.agentId, chunk.name, matchingCall.input);
-              if (editedPath) {
-                this.badgeController.registerEdit(editedPath, event.agentId);
-                this.send({ kind: 'file-edited', path: editedPath, agentId: event.agentId, timestamp: Date.now() });
-              }
-            }
-          }
-          else if (event.chunk.type === 'error') ip.error = event.chunk.message;
-          lastChunkAt = Date.now();
-          this.send({ kind: 'message-chunk', id: ip.id, chunk: event.chunk });
-          continue;
-        }
-        if (event.kind === 'dispatch-end') {
-          const ip = inProgressByAgent.get(event.agentId);
-          if (!ip) continue;
-          const status: AgentMessage['status'] =
-            ip.cancelled ? 'cancelled' : (ip.error ? 'errored' : 'complete');
-          const finalized: AgentMessage = {
-            id: ip.id,
-            role: 'agent',
-            agentId: ip.agentId,
-            text: ip.text,
-            toolEvents: ip.toolEvents,
-            timestamp: ip.timestamp,
-            status,
-            ...(ip.error ? { error: ip.error } : {}),
-          };
-          this.store.appendAgent(finalized);
-          this.send({ kind: 'message-finalized', message: finalized });
-          inProgressByAgent.delete(event.agentId);
-          activeAgentForHang = null;
-          this.sentinel.dispatchEnd(event.agentId);
-        }
-      }
-    } finally {
-      if (hangCheckTimer) clearInterval(hangCheckTimer);
-      this.currentDispatchInProgress = null;
+  private handleDispatchEvent(event: GambitDispatchEvent): void {
+    switch (event.kind) {
+      case 'user-message':
+        this.send({ kind: 'user-message-appended', message: event.message });
+        break;
+      case 'system-message':
+        this.send({ kind: 'system-message', message: event.message });
+        break;
+      case 'dispatch-start':
+        this.send({
+          kind: 'message-started',
+          id: event.messageId,
+          agentId: event.agentId,
+          timestamp: event.timestamp,
+        });
+        break;
+      case 'chunk':
+        this.send({ kind: 'message-chunk', id: event.messageId, chunk: event.chunk });
+        break;
+      case 'dispatch-end':
+        this.send({ kind: 'message-finalized', message: event.message });
+        break;
+      case 'file-edited':
+        this.send({
+          kind: 'file-edited',
+          path: event.path,
+          agentId: event.agentId,
+          timestamp: event.timestamp,
+          changeKind: event.changeKind,
+        });
+        break;
     }
   }
+
 
   private async maybeShowGitignorePrompt(workspacePath: string): Promise<void> {
     const stateKey = 'gambit.gitignorePromptDismissed';
@@ -503,9 +401,13 @@ export class ChatPanel {
   }
 
   dispose(): void {
-    this.store.flush().catch(() => { /* best-effort */ });
+    this.service.flush().catch(() => { /* best-effort */ });
     ChatPanel.current = undefined;
     this.disposables.forEach((d) => d.dispose());
     this.panel.dispose();
   }
+}
+
+function fileBadgesEnabled(): boolean {
+  return vscode.workspace.getConfiguration('gambit').get<boolean>('fileBadges.enabled', true);
 }

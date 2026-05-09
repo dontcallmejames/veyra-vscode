@@ -1,4 +1,4 @@
-// Tiny ULID-like ID generator — sortable by creation time, no external dep.
+// Tiny ULID-like ID generator - sortable by creation time, no external dep.
 const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 
 export function ulid(): string {

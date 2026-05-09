@@ -1,8 +1,10 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentId, AgentStatus } from './types.js';
+import { findNode } from './findNode.js';
 
-const ROUTING_ERROR = 'Routing unavailable; please prefix with @claude / @gpt / @gemini / @all';
-const NO_AGENTS_ERROR = 'No agents currently authenticated; check the health pills';
+const ROUTING_ERROR = 'Routing unavailable; please prefix with @claude / @codex / @gemini / @all or run Gambit: Check agent status.';
+const NO_AGENTS_ERROR = 'No agents currently authenticated; run Gambit: Check agent status or Gambit: Show setup guide.';
+const BUSY_AGENTS_ERROR = 'All ready agents are busy; wait for the current dispatch to finish or cancel it before sending more work.';
 
 export type FacilitatorDecision =
   | { agent: AgentId; reason: string }
@@ -16,9 +18,27 @@ export type FacilitatorFn = (
 
 const PROFILES: Record<AgentId, string> = {
   claude: 'code reasoning, refactors, code review, planning, design discussion',
-  codex: 'execution — running tests, scripts, terminal commands, file edits',
+  codex: 'execution - running tests, scripts, terminal commands, file edits',
   gemini: 'research, current events, large-context document reading',
 };
+
+const FALLBACK_RULES: Array<{ agent: AgentId; reason: string; pattern: RegExp }> = [
+  {
+    agent: 'gemini',
+    reason: 'fallback: research request',
+    pattern: /\b(research|latest|current|docs?|documentation|web|summari[sz]e|large[- ]context|compare)\b/i,
+  },
+  {
+    agent: 'claude',
+    reason: 'fallback: reasoning request',
+    pattern: /\b(review|refactor|design|plan|architecture|reason|explain|critique)\b/i,
+  },
+  {
+    agent: 'codex',
+    reason: 'fallback: execution request',
+    pattern: /\b(implement|fix|edit|write|create|run|test|build|lint|compile|debug|terminal|shell|command)\b/i,
+  },
+];
 
 export const chooseFacilitatorAgent: FacilitatorFn = async (
   userMessage,
@@ -26,10 +46,14 @@ export const chooseFacilitatorAgent: FacilitatorFn = async (
   sharedContext = '',
 ) => {
   const available = (Object.entries(availability) as Array<[AgentId, AgentStatus]>)
-    .filter(([, status]) => status === 'ready' || status === 'busy')
+    .filter(([, status]) => status === 'ready')
     .map(([id]) => id);
 
   if (available.length === 0) {
+    const hasBusyAgent = (Object.values(availability) as AgentStatus[]).some((status) => status === 'busy');
+    if (hasBusyAgent) {
+      return { error: BUSY_AGENTS_ERROR };
+    }
     return { error: NO_AGENTS_ERROR };
   }
 
@@ -55,7 +79,12 @@ export const chooseFacilitatorAgent: FacilitatorFn = async (
   const systemPrompt = systemPromptParts.join('\n');
 
   let responseText = '';
+  const origExecPath = process.execPath;
+  const overrideExecPath = process.versions.electron !== undefined;
   try {
+    if (overrideExecPath) {
+      process.execPath = findNode();
+    }
     const stream = query({
       prompt: userMessage,
       options: { systemPrompt },
@@ -71,7 +100,11 @@ export const chooseFacilitatorAgent: FacilitatorFn = async (
       }
     }
   } catch {
-    return { error: ROUTING_ERROR };
+    return fallbackDecision(userMessage, availability);
+  } finally {
+    if (overrideExecPath) {
+      process.execPath = origExecPath;
+    }
   }
 
   const cleaned = responseText
@@ -83,7 +116,7 @@ export const chooseFacilitatorAgent: FacilitatorFn = async (
   try {
     parsed = JSON.parse(cleaned);
   } catch {
-    return { error: ROUTING_ERROR };
+    return fallbackDecision(userMessage, availability);
   }
 
   if (
@@ -91,13 +124,40 @@ export const chooseFacilitatorAgent: FacilitatorFn = async (
     typeof (parsed as { agent?: unknown }).agent !== 'string' ||
     typeof (parsed as { reason?: unknown }).reason !== 'string'
   ) {
-    return { error: ROUTING_ERROR };
+    return fallbackDecision(userMessage, availability);
   }
 
   const decision = parsed as { agent: string; reason: string };
   if (!available.includes(decision.agent as AgentId)) {
-    return { error: ROUTING_ERROR };
+    return fallbackDecision(userMessage, availability);
   }
 
   return { agent: decision.agent as AgentId, reason: decision.reason };
 };
+
+function fallbackDecision(
+  userMessage: string,
+  availability: Record<AgentId, AgentStatus>,
+): FacilitatorDecision {
+  const readyAgents = (Object.entries(availability) as Array<[AgentId, AgentStatus]>)
+    .filter(([, status]) => status === 'ready')
+    .map(([id]) => id);
+
+  if (readyAgents.length === 0) {
+    return { error: ROUTING_ERROR };
+  }
+
+  for (const rule of FALLBACK_RULES) {
+    if (readyAgents.includes(rule.agent) && rule.pattern.test(userMessage)) {
+      return { agent: rule.agent, reason: rule.reason };
+    }
+  }
+
+  for (const agent of ['codex', 'claude', 'gemini'] as AgentId[]) {
+    if (readyAgents.includes(agent)) {
+      return { agent, reason: 'fallback: available agent' };
+    }
+  }
+
+  return { error: ROUTING_ERROR };
+}

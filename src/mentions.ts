@@ -17,13 +17,17 @@ export interface ParsedMentions {
 }
 
 export function parseMentions(input: string): ParsedMentions {
-  const tokens = input.split(/\s+/);
+  const normalizedInput = input.trim();
   const targets = new Set<AgentId>();
-  let consumedCount = 0;
+  let cursor = 0;
+  let consumedAny = false;
 
-  for (const token of tokens) {
-    if (!token.startsWith('@')) break;
-    const name = token.slice(1).toLowerCase();
+  while (cursor < normalizedInput.length) {
+    const tokenStart = skipWhitespace(normalizedInput, cursor);
+    if (normalizedInput[tokenStart] !== '@') break;
+    const tokenEnd = nextWhitespace(normalizedInput, tokenStart);
+    const token = normalizedInput.slice(tokenStart, tokenEnd);
+    const name = token.slice(1).replace(/[,:;]+$/, '').toLowerCase();
     const resolved = MENTION_TO_AGENT[name];
     if (resolved === undefined) break;
     if (resolved === 'all') {
@@ -31,11 +35,24 @@ export function parseMentions(input: string): ParsedMentions {
     } else {
       targets.add(resolved);
     }
-    consumedCount++;
+    cursor = tokenEnd;
+    consumedAny = true;
   }
 
-  const remainingText = tokens.slice(consumedCount).join(' ').trim();
+  const remainingText = consumedAny ? normalizedInput.slice(cursor).trim() : normalizedInput;
   return { targets: orderedTargets(targets), remainingText };
+}
+
+function skipWhitespace(input: string, start: number): number {
+  let i = start;
+  while (i < input.length && /\s/.test(input[i])) i++;
+  return i;
+}
+
+function nextWhitespace(input: string, start: number): number {
+  let i = start;
+  while (i < input.length && !/\s/.test(input[i])) i++;
+  return i;
 }
 
 function orderedTargets(targets: Set<AgentId>): AgentId[] {

@@ -23,7 +23,7 @@ export class ClaudeAgent implements Agent {
     }
 
     // The SDK spawns its native bridge using process.execPath. Inside the
-    // VSCode extension host that's Code.exe (Electron), not real node — the
+    // VSCode extension host that's Code.exe (Electron), not real node - the
     // bridge then crashes with "path argument undefined". Override execPath
     // to the real node binary for the duration of the SDK call.
     const origExecPath = process.execPath;
@@ -35,7 +35,7 @@ export class ClaudeAgent implements Agent {
     let stream: AsyncIterable<unknown>;
     try {
       const writeApproval = vscode.workspace.getConfiguration('gambit').get<string>('writeApproval', 'auto-edit');
-      const permissionMode = writeApproval === 'auto-edit' ? 'acceptEdits' : 'default';
+      const permissionMode = !opts.readOnly && writeApproval === 'auto-edit' ? 'acceptEdits' : 'default';
       stream = query({ prompt, options: { abortController, cwd: opts.cwd, permissionMode } });
     } catch (err) {
       yield { type: 'error', message: errorMessage(err) };

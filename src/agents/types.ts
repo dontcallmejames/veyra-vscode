@@ -5,6 +5,8 @@ export interface SendOptions {
   signal?: AbortSignal;
   /** Working directory for the agent's tool execution. */
   cwd?: string;
+  /** Prevent automatic file-edit approval for read-only workflows such as review/debate. */
+  readOnly?: boolean;
 }
 
 export interface Agent {

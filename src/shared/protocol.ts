@@ -1,5 +1,12 @@
 import type { AgentChunk, AgentId, AgentStatus } from '../types.js';
 
+export type FileChangeKind = 'created' | 'edited' | 'deleted';
+
+export type FileChange = {
+  path: string;
+  changeKind: FileChangeKind;
+};
+
 // === Persisted message types ===
 
 export type ToolEvent =
@@ -27,6 +34,8 @@ export type AgentMessage = {
   agentId: AgentId;
   text: string;
   toolEvents: ToolEvent[];
+  editedFiles?: string[];
+  fileChanges?: FileChange[];
   timestamp: number;
   status: 'complete' | 'cancelled' | 'errored';
   error?: string;
@@ -35,11 +44,13 @@ export type AgentMessage = {
 export type SystemMessage = {
   id: string;
   role: 'system';
-  kind: 'routing-needed' | 'error' | 'facilitator-decision';
+  kind: 'routing-needed' | 'error' | 'facilitator-decision' | 'edit-conflict' | 'file-edited';
   text: string;
   timestamp: number;
-  agentId?: AgentId;     // present only when kind === 'facilitator-decision'
+  agentId?: AgentId;     // present when a system notice is associated with a specific agent
   reason?: string;       // present only when kind === 'facilitator-decision' (separate from `text` for richer rendering)
+  filePath?: string;     // present when kind === 'file-edited' or kind === 'edit-conflict'
+  changeKind?: FileChangeKind;
 };
 
 export type SessionMessage = UserMessage | AgentMessage | SystemMessage;
@@ -83,11 +94,14 @@ export type FromExtension =
   | { kind: 'status-changed'; agentId: AgentId; status: AgentStatus }
   | { kind: 'settings-changed'; settings: Settings }
   | { kind: 'user-message-appended'; message: UserMessage }
-  | { kind: 'file-edited'; path: string; agentId: AgentId; timestamp: number };
+  | { kind: 'file-edited'; path: string; agentId: AgentId; timestamp: number; changeKind?: FileChangeKind };
 
 export type FromWebview =
   | { kind: 'send'; text: string }
   | { kind: 'cancel' }
   | { kind: 'reload-status' }
+  | { kind: 'configure-cli-paths' }
+  | { kind: 'show-setup-guide' }
+  | { kind: 'show-live-validation-guide' }
   | { kind: 'open-external'; url: string }
   | { kind: 'open-workspace-file'; relativePath: string };

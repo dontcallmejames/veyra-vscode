@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { guardLiveModelPrompts } from './liveReadinessGuard.js';
 
 vi.mock('vscode', () => ({
   workspace: {
@@ -8,7 +9,11 @@ vi.mock('vscode', () => ({
 
 import { ClaudeAgent } from '../../src/agents/claude.js';
 
-describe('ClaudeAgent — LIVE', () => {
+const describeLive = process.env.GAMBIT_RUN_LIVE === '1' ? describe : describe.skip;
+
+describeLive('ClaudeAgent - LIVE', () => {
+  guardLiveModelPrompts();
+
   it('responds to a minimal prompt', async () => {
     const agent = new ClaudeAgent();
     const chunks = [];
@@ -19,6 +24,11 @@ describe('ClaudeAgent — LIVE', () => {
       .filter((c): c is Extract<typeof c, { type: 'text' }> => c.type === 'text')
       .map((c) => c.text)
       .join('');
+    const errors = chunks
+      .filter((c): c is Extract<typeof c, { type: 'error' }> => c.type === 'error')
+      .map((c) => c.message)
+      .join('\n');
+    expect(errors).toBe('');
     expect(text.toLowerCase()).toContain('ok');
     expect(chunks.at(-1)).toEqual({ type: 'done' });
   }, 60_000);

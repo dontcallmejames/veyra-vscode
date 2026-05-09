@@ -2,7 +2,7 @@ import type { AgentId } from './types.js';
 
 export interface FloorHandle {
   release(): void;
-  /** True when the handle was issued by drainQueue — callers should skip dispatch. */
+/** True when the handle was issued by drainQueue - callers should skip dispatch. */
   readonly noop?: boolean;
 }
 

@@ -1,0 +1,14 @@
+.superpowers/
+.vscode/
+.vscode-test/
+.claude/
+.npm-cache/
+docs/superpowers/
+scripts/
+src/
+tests/
+foo.ts
+*.vsix
+*.tgz
+tsconfig.json
+esbuild.config.mjs

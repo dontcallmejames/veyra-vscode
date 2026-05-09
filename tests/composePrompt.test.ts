@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { composePrompt } from '../src/composePrompt.js';
+import { DEFAULT_AUTONOMY_POLICY, composePrompt } from '../src/composePrompt.js';
 
 describe('composePrompt', () => {
   it('returns just user text when all other inputs empty', () => {
@@ -10,19 +10,25 @@ describe('composePrompt', () => {
   it('orders blocks: rules → context → files → user text', () => {
     const out = composePrompt({
       rules: 'use pnpm',
+      autonomyPolicy: '[Autonomy policy]\nproceed without confirmation\n[/Autonomy policy]',
       sharedContext: '[Conversation so far]\nuser: hi\n[/Conversation so far]',
+      editAwareness: '[Edit coordination]\n- src/a.ts (claude)\n[/Edit coordination]',
       fileBlocks: '[File: a.ts]\nx\n[/File]',
       userText: 'review',
     });
 
     const idxRules = out.indexOf('use pnpm');
+    const idxAutonomy = out.indexOf('[Autonomy policy]');
     const idxCtx = out.indexOf('[Conversation so far]');
+    const idxEditAwareness = out.indexOf('[Edit coordination]');
     const idxFile = out.indexOf('[File: a.ts]');
     const idxUser = out.indexOf('review');
 
     expect(idxRules).toBeGreaterThan(-1);
-    expect(idxCtx).toBeGreaterThan(idxRules);
-    expect(idxFile).toBeGreaterThan(idxCtx);
+    expect(idxAutonomy).toBeGreaterThan(idxRules);
+    expect(idxCtx).toBeGreaterThan(idxAutonomy);
+    expect(idxEditAwareness).toBeGreaterThan(idxCtx);
+    expect(idxFile).toBeGreaterThan(idxEditAwareness);
     expect(idxUser).toBeGreaterThan(idxFile);
   });
 
@@ -31,6 +37,25 @@ describe('composePrompt', () => {
     expect(out).toContain('[Workspace rules from gambit.md]');
     expect(out).toContain('always pnpm');
     expect(out).toContain('[/Workspace rules]');
+  });
+
+  it('includes an autonomy policy block when provided', () => {
+    const out = composePrompt({
+      rules: '',
+      autonomyPolicy: '[Autonomy policy]\nUse reasonable assumptions.\n[/Autonomy policy]',
+      sharedContext: '',
+      fileBlocks: '',
+      userText: 'ship it',
+    });
+
+    expect(out).toContain('[Autonomy policy]');
+    expect(out).toContain('Use reasonable assumptions.');
+    expect(out).toContain('[/Autonomy policy]');
+    expect(out.trimEnd().endsWith('ship it')).toBe(true);
+  });
+
+  it('prevents broad actionable requests from becoming approval checkpoints', () => {
+    expect(DEFAULT_AUTONOMY_POLICY).toContain('Do not turn broad actionable requests into brainstorming or approval checkpoints.');
   });
 
   it('omits rules block when rules empty', () => {
@@ -43,9 +68,29 @@ describe('composePrompt', () => {
     expect(out).not.toContain('[Conversation so far');
   });
 
+  it('omits edit coordination block when edit awareness empty', () => {
+    const out = composePrompt({ rules: 'r', sharedContext: '', editAwareness: '', fileBlocks: '', userText: 'hi' });
+    expect(out).not.toContain('[Edit coordination]');
+  });
+
   it('omits file block when fileBlocks empty', () => {
     const out = composePrompt({ rules: '', sharedContext: '', fileBlocks: '', userText: 'hi' });
     expect(out).not.toContain('[File:');
+  });
+
+  it('includes file attachment errors before the user text', () => {
+    const out = composePrompt({
+      rules: '',
+      sharedContext: '',
+      fileBlocks: '',
+      attachmentErrors: [{ path: 'missing.ts', reason: 'File not found' }],
+      userText: 'review this',
+    });
+
+    expect(out).toContain('[File attachment problems]');
+    expect(out).toContain('- missing.ts: File not found');
+    expect(out).toContain('[/File attachment problems]');
+    expect(out.indexOf('[File attachment problems]')).toBeLessThan(out.indexOf('review this'));
   });
 
   it('separates each present block with a blank line', () => {

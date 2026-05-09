@@ -1,10 +1,13 @@
 import { spawn, execSync } from 'node:child_process';
+import { accessSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ChildProcess } from 'node:child_process';
 import type { Agent, SendOptions } from './types.js';
 import type { AgentChunk, AgentStatus } from '../types.js';
 import { checkCodex } from '../statusChecks.js';
 import { findNode } from '../findNode.js';
+import { getCodexCliPathOverride } from '../cliPathOverrides.js';
+import { cliPathMisconfiguration, normalizeCliPathOverride, windowsNpmShimNames } from '../cliPathValidation.js';
 import * as vscode from 'vscode';
 
 // Spike A3: invoke `codex exec --json '<prompt>'` for non-interactive JSONL.
@@ -14,24 +17,132 @@ import * as vscode from 'vscode';
 // to DEP0190 (refusal to spawn .cmd files without shell:true, and
 // shell:true introduces unsafe arg concatenation). Reliable fix: resolve
 // the bundle's JS entrypoint via `npm root -g` and invoke node directly.
-const CODEX_CMD = resolveCodexCommand();
-
 function resolveCodexCommand(): { command: string; args: string[] } {
+  const override = getCodexCliPathOverride();
+  if (override) {
+    assertCliPathAccessible(
+      override,
+      `Codex CLI path override not found at ${override}. Update GAMBIT_CODEX_CLI_PATH or gambit.codexCliPath, or install it with \`npm install -g @openai/codex\`, then run \`codex login\`.`,
+    );
+    return cliPathCommand(override);
+  }
+
   if (process.platform !== 'win32') {
     return { command: 'codex', args: [] };
   }
+  const nativeCommand = resolveWindowsNativeExecutable('codex');
+  if (nativeCommand) return nativeCommand;
+  const shimCommand = resolveWindowsNpmShim('codex');
+  if (shimCommand) return shimCommand;
+
   const npmRoot = execSync('npm root -g', { encoding: 'utf8' }).trim();
   const bundle = join(npmRoot, '@openai', 'codex', 'bin', 'codex.js');
+  assertCliPathAccessible(
+    bundle,
+    `Codex CLI bundle not found at ${bundle}. Install it with \`npm install -g @openai/codex\`, then run \`codex login\`.`,
+  );
   return { command: findNode(), args: [bundle] };
+}
+
+function resolveWindowsNpmShim(baseName: 'codex'): { command: string; args: string[] } | null {
+  for (const shimName of windowsNpmShimNames(baseName)) {
+    let output: string;
+    try {
+      output = execSync(`where.exe ${shimName}`, {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      });
+    } catch {
+      continue;
+    }
+
+    const shimPath = output
+      .split(/\r?\n/u)
+      .map((line) => line.trim())
+      .find((line) => line.toLowerCase().endsWith(shimName));
+    if (!shimPath) continue;
+
+    const bundle = normalizeCliPathOverride(baseName, shimPath);
+    const bundleStatus = inspectCliPath(bundle);
+    if (bundleStatus === 'missing') continue;
+    if (bundleStatus === 'inaccessible') {
+      throw new Error(`Cannot inspect ${bundle}. Check filesystem permissions or rerun outside the current sandbox.`);
+    }
+    return { command: findNode(), args: [bundle] };
+  }
+
+  return null;
+}
+
+function resolveWindowsNativeExecutable(baseName: string): { command: string; args: string[] } | null {
+  let output: string;
+  try {
+    output = execSync(`where.exe ${baseName}.exe`, {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+  } catch {
+    return null;
+  }
+
+  const expectedName = `${baseName}.exe`.toLowerCase();
+  const command = output
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .find((line) => line.toLowerCase().endsWith(expectedName));
+  if (!command) return null;
+  assertCliPathAccessible(command, `${baseName}.exe not found at ${command}.`);
+  return { command, args: [] };
+}
+
+function cliPathCommand(cliPath: string): { command: string; args: string[] } {
+  if (/\.js$/i.test(cliPath)) {
+    return { command: findNode(), args: [cliPath] };
+  }
+  return { command: cliPath, args: [] };
+}
+
+function assertCliPathAccessible(filePath: string, missingMessage: string): void {
+  if (isUnsupportedWindowsCommandShim(filePath)) {
+    throw new Error('Windows npm command shim overrides are not supported; set GAMBIT_CODEX_CLI_PATH or gambit.codexCliPath to the Codex JS bundle or native executable instead.');
+  }
+  const misconfiguration = cliPathMisconfiguration('codex', filePath);
+  if (misconfiguration) {
+    throw new Error(misconfiguration);
+  }
+  try {
+    accessSync(filePath);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === 'EACCES' || code === 'EPERM') {
+      throw new Error(`Cannot inspect ${filePath}. Check filesystem permissions or rerun outside the current sandbox.`);
+    }
+    throw new Error(missingMessage);
+  }
+}
+
+function inspectCliPath(filePath: string): 'exists' | 'missing' | 'inaccessible' {
+  try {
+    accessSync(filePath);
+    return 'exists';
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === 'EACCES' || code === 'EPERM') return 'inaccessible';
+    return 'missing';
+  }
+}
+
+function isUnsupportedWindowsCommandShim(filePath: string): boolean {
+  return process.platform === 'win32' && /\.(cmd|bat|ps1)$/i.test(filePath);
 }
 
 const CODEX_BASE_ARGS = ['exec', '--json', '--skip-git-repo-check'];
 const CODEX_AUTO_EDIT_ARGS = ['--sandbox', 'workspace-write'];
 
-function codexArgs(prompt: string): string[] {
+function codexArgs(readOnly = false): string[] {
   const writeApproval = vscode.workspace.getConfiguration('gambit').get<string>('writeApproval', 'auto-edit');
-  const extra = writeApproval === 'auto-edit' ? CODEX_AUTO_EDIT_ARGS : [];
-  return [...CODEX_BASE_ARGS, ...extra, prompt];
+  const extra = !readOnly && writeApproval === 'auto-edit' ? CODEX_AUTO_EDIT_ARGS : [];
+  return [...CODEX_BASE_ARGS, ...extra, '-'];
 }
 
 export class CodexAgent implements Agent {
@@ -43,11 +154,28 @@ export class CodexAgent implements Agent {
   }
 
   async *send(prompt: string, opts: SendOptions = {}): AsyncIterable<AgentChunk> {
-    const child = spawn(
-      CODEX_CMD.command,
-      [...CODEX_CMD.args, ...codexArgs(prompt)],
-      { cwd: opts.cwd, stdio: ['ignore', 'pipe', 'pipe'] }
-    );
+    let codexCommand: { command: string; args: string[] };
+    try {
+      codexCommand = resolveCodexCommand();
+    } catch (err) {
+      yield { type: 'error', message: `Unable to start Codex CLI: ${errorMessage(err)}` };
+      yield { type: 'done' };
+      return;
+    }
+
+    let child: ChildProcess;
+    try {
+      child = spawn(
+        codexCommand.command,
+        [...codexCommand.args, ...codexArgs(opts.readOnly)],
+        { cwd: opts.cwd, stdio: ['pipe', 'pipe', 'pipe'] }
+      );
+      child.stdin?.end(prompt);
+    } catch (err) {
+      yield { type: 'error', message: `Unable to start Codex CLI: ${errorMessage(err)}` };
+      yield { type: 'done' };
+      return;
+    }
     this.active = child;
 
     const onAbort = () => child.kill('SIGTERM');
@@ -56,10 +184,17 @@ export class CodexAgent implements Agent {
       else opts.signal.addEventListener('abort', onAbort, { once: true });
     }
 
-    const exitPromise = new Promise<{ code: number | null; stderr: string }>((resolve) => {
+    const exitPromise = new Promise<{ code: number | null; stderr: string; processError?: string }>((resolve) => {
       let stderr = '';
+      let settled = false;
+      const finish = (code: number | null, processError?: string) => {
+        if (settled) return;
+        settled = true;
+        resolve({ code, stderr, processError });
+      };
       child.stderr?.on('data', (d) => (stderr += String(d)));
-      child.on('close', (code) => resolve({ code, stderr }));
+      child.on('error', (err) => finish(null, errorMessage(err)));
+      child.on('close', (code) => finish(code));
     });
 
     let buffer = '';
@@ -88,8 +223,10 @@ export class CodexAgent implements Agent {
       opts.signal?.removeEventListener('abort', onAbort);
     }
 
-    const { code, stderr } = await exitPromise;
-    if (code !== 0) {
+    const { code, stderr, processError } = await exitPromise;
+    if (processError) {
+      yield { type: 'error', message: `Codex process error: ${processError}` };
+    } else if (code !== 0) {
       yield { type: 'error', message: `Codex exited with exit code ${code}${stderr ? `: ${stderr.trim()}` : ''}` };
     }
     if (!sawDone) yield { type: 'done' };
@@ -108,7 +245,7 @@ export class CodexAgent implements Agent {
 //   { type: 'item.completed', item: { type: 'file_change', changes: [{ path, kind }], status } }
 //     -> tool-call chunk per change (name: 'apply_patch', input: { path })
 //   { type: 'item.completed', item: { type: 'command_execution', command, exit_code, status } }
-//     -> tool-call chunk (name: 'shell', input: { command }) — badge skipped (not a write tool)
+//     -> tool-call chunk (name: 'shell', input: { command }) - badge skipped (not a write tool)
 //   { type: 'item.completed', item: { type: 'mcp_tool_call', server, tool, arguments, result } }
 //     -> tool-call chunk (name: tool, input: arguments)
 //   { type: 'turn.completed', usage: {...} } -> done

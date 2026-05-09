@@ -13,12 +13,10 @@ let cached: string | null = null;
  */
 export function findNode(): string {
   if (cached) return cached;
-  const cmd = process.platform === 'win32' ? 'where node' : 'which node';
   try {
-    const out = execSync(cmd, { encoding: 'utf8' });
-    const first = out.split(/\r?\n/).find((line) => line.trim().length > 0);
-    if (!first) throw new Error('node not found on PATH');
-    cached = first.trim();
+    cached = process.platform === 'win32'
+      ? findWindowsCommand('node')
+      : findUnixCommand('node');
     return cached;
   } catch (err) {
     throw new Error(
@@ -26,4 +24,28 @@ export function findNode(): string {
         (err instanceof Error ? err.message : String(err)),
     );
   }
+}
+
+function findUnixCommand(command: string): string {
+  return firstCommandPath(execSync(`which ${command}`, { encoding: 'utf8' }));
+}
+
+function findWindowsCommand(command: string): string {
+  try {
+    return firstCommandPath(execSync(`where ${command}`, { encoding: 'utf8' }));
+  } catch (whereError) {
+    if (!/^[A-Za-z0-9_.-]+$/.test(command)) {
+      throw whereError;
+    }
+    return firstCommandPath(execSync(
+      `powershell.exe -NoProfile -Command "Get-Command ${command} -ErrorAction Stop | Select-Object -ExpandProperty Source"`,
+      { encoding: 'utf8' },
+    ));
+  }
+}
+
+function firstCommandPath(output: string): string {
+  const first = output.split(/\r?\n/).find((line) => line.trim().length > 0);
+  if (!first) throw new Error('node not found on PATH');
+  return first.trim();
 }

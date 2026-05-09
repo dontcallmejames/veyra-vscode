@@ -13,16 +13,60 @@ interface Props {
 }
 
 const AGENT_TOKENS = new Set(['@claude', '@gpt', '@codex', '@chatgpt', '@gemini', '@all']);
+const PACKAGE_SCOPES = new Set(['anthropic-ai', 'google', 'openai', 'types', 'vscode']);
 
 function detectFileMentions(text: string): string[] {
   const out: string[] = [];
-  for (const t of text.split(/\s+/)) {
-    if (!t.startsWith('@')) continue;
-    if (AGENT_TOKENS.has(t.toLowerCase())) continue;
-    const path = t.slice(1);
-    if (path.includes('/') || path.includes('.')) out.push(path);
+  const parts = text.split(/(\r?\n)/);
+  let activeFence: FenceMarker | null = null;
+
+  for (const part of parts) {
+    if (part === '\n' || part === '\r\n') continue;
+
+    const fenceMarker = detectFenceMarker(part);
+    if (fenceMarker && (activeFence === null || activeFence === fenceMarker)) {
+      activeFence = activeFence === null ? fenceMarker : null;
+      continue;
+    }
+    if (activeFence) continue;
+
+    for (const t of part.split(/\s+/)) {
+      const mention = normalizeMentionToken(t);
+      if (!mention) continue;
+      if (AGENT_TOKENS.has(`@${mention.toLowerCase()}`)) continue;
+      const path = mention;
+      if (looksLikeScopedPackage(path)) continue;
+      if (path.includes('/') || path.includes('.')) out.push(path);
+    }
   }
   return out;
+}
+
+type FenceMarker = '```' | '~~~';
+
+function detectFenceMarker(line: string): FenceMarker | null {
+  const trimmed = line.trimStart();
+  if (trimmed.startsWith('```')) return '```';
+  if (trimmed.startsWith('~~~')) return '~~~';
+  return null;
+}
+
+function normalizeMentionToken(token: string): string | null {
+  const mentionStart = token.indexOf('@');
+  if (mentionStart === -1) return null;
+  if (mentionStart > 0 && !isMentionBoundary(token[mentionStart - 1])) return null;
+  return token
+    .slice(mentionStart + 1)
+    .replace(/[)\]}>,:;.`]+$/, '');
+}
+
+function isMentionBoundary(char: string): boolean {
+  return char === '(' || char === '[' || char === '{' || char === '<' || char === '`';
+}
+
+function looksLikeScopedPackage(token: string): boolean {
+  const parts = token.split('/');
+  return parts.length >= 2 && PACKAGE_SCOPES.has(parts[0].toLowerCase());
 }
 
 export function Composer({ send, floorHolder, status, gambitMdPresent }: Props) {
@@ -85,14 +129,14 @@ export function Composer({ send, floorHolder, status, gambitMdPresent }: Props) 
       <textarea
         ref={textareaRef}
         value={text}
-        placeholder="Type @ to mention an agent or @path/to/file to attach…"
+        placeholder="Type @ to mention an agent or @path/to/file to attach..."
         onInput={(e) => setText((e.target as HTMLTextAreaElement).value)}
         onKeyDown={handleKeyDown}
       />
       {filePaths.length > 0 && (
         <div class="file-chip-row">
           {filePaths.map((p) => (
-            <span class="file-chip" key={p}>📎 {p}</span>
+            <span class="file-chip" key={p}>Attached: {p}</span>
           ))}
         </div>
       )}

@@ -1,10 +1,13 @@
 import { spawn, execSync } from 'node:child_process';
+import { accessSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ChildProcess } from 'node:child_process';
 import type { Agent, SendOptions } from './types.js';
 import type { AgentChunk, AgentStatus } from '../types.js';
 import { checkGemini } from '../statusChecks.js';
 import { findNode } from '../findNode.js';
+import { getGeminiCliPathOverride } from '../cliPathOverrides.js';
+import { cliPathMisconfiguration, normalizeCliPathOverride, windowsNpmShimNames } from '../cliPathValidation.js';
 import * as vscode from 'vscode';
 
 // Spike A4: invoke `gemini -p '<prompt>' -o stream-json` for non-interactive JSONL.
@@ -13,26 +16,134 @@ import * as vscode from 'vscode';
 // spawned cleanly on Node 20+ -- Node's DEP0190 mitigation rejects raw
 // .cmd spawning, and shell:true introduces unsafe arg concatenation.
 // The reliable approach is to invoke the bundle's JS entrypoint directly
-// via the running Node executable. Resolve the bundle path once at module
-// load using `npm root -g`.
-const GEMINI_CMD = resolveGeminiCommand();
-
+// via the running Node executable, resolving the bundle path when a request
+// starts so a missing CLI cannot break extension activation.
 function resolveGeminiCommand(): { command: string; args: string[] } {
+  const override = getGeminiCliPathOverride();
+  if (override) {
+    assertCliPathAccessible(
+      override,
+      `Gemini CLI path override not found at ${override}. Update GAMBIT_GEMINI_CLI_PATH or gambit.geminiCliPath, or install it with \`npm install -g @google/gemini-cli\`, then run \`gemini\` once to sign in.`,
+    );
+    return cliPathCommand(override);
+  }
+
   if (process.platform !== 'win32') {
     return { command: 'gemini', args: [] };
   }
+  const nativeCommand = resolveWindowsNativeExecutable('gemini');
+  if (nativeCommand) return nativeCommand;
+  const shimCommand = resolveWindowsNpmShim('gemini');
+  if (shimCommand) return shimCommand;
+
   const npmRoot = execSync('npm root -g', { encoding: 'utf8' }).trim();
   const bundle = join(npmRoot, '@google', 'gemini-cli', 'bundle', 'gemini.js');
+  assertCliPathAccessible(
+    bundle,
+    `Gemini CLI bundle not found at ${bundle}. Install it with \`npm install -g @google/gemini-cli\`, then run \`gemini\` once to sign in.`,
+  );
   return { command: findNode(), args: [bundle] };
+}
+
+function resolveWindowsNpmShim(baseName: 'gemini'): { command: string; args: string[] } | null {
+  for (const shimName of windowsNpmShimNames(baseName)) {
+    let output: string;
+    try {
+      output = execSync(`where.exe ${shimName}`, {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      });
+    } catch {
+      continue;
+    }
+
+    const shimPath = output
+      .split(/\r?\n/u)
+      .map((line) => line.trim())
+      .find((line) => line.toLowerCase().endsWith(shimName));
+    if (!shimPath) continue;
+
+    const bundle = normalizeCliPathOverride(baseName, shimPath);
+    const bundleStatus = inspectCliPath(bundle);
+    if (bundleStatus === 'missing') continue;
+    if (bundleStatus === 'inaccessible') {
+      throw new Error(`Cannot inspect ${bundle}. Check filesystem permissions or rerun outside the current sandbox.`);
+    }
+    return { command: findNode(), args: [bundle] };
+  }
+
+  return null;
+}
+
+function resolveWindowsNativeExecutable(baseName: string): { command: string; args: string[] } | null {
+  let output: string;
+  try {
+    output = execSync(`where.exe ${baseName}.exe`, {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+  } catch {
+    return null;
+  }
+
+  const expectedName = `${baseName}.exe`.toLowerCase();
+  const command = output
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .find((line) => line.toLowerCase().endsWith(expectedName));
+  if (!command) return null;
+  assertCliPathAccessible(command, `${baseName}.exe not found at ${command}.`);
+  return { command, args: [] };
+}
+
+function cliPathCommand(cliPath: string): { command: string; args: string[] } {
+  if (/\.js$/i.test(cliPath)) {
+    return { command: findNode(), args: [cliPath] };
+  }
+  return { command: cliPath, args: [] };
+}
+
+function assertCliPathAccessible(filePath: string, missingMessage: string): void {
+  if (isUnsupportedWindowsCommandShim(filePath)) {
+    throw new Error('Windows npm command shim overrides are not supported; set GAMBIT_GEMINI_CLI_PATH or gambit.geminiCliPath to the Gemini JS bundle or native executable instead.');
+  }
+  const misconfiguration = cliPathMisconfiguration('gemini', filePath);
+  if (misconfiguration) {
+    throw new Error(misconfiguration);
+  }
+  try {
+    accessSync(filePath);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === 'EACCES' || code === 'EPERM') {
+      throw new Error(`Cannot inspect ${filePath}. Check filesystem permissions or rerun outside the current sandbox.`);
+    }
+    throw new Error(missingMessage);
+  }
+}
+
+function inspectCliPath(filePath: string): 'exists' | 'missing' | 'inaccessible' {
+  try {
+    accessSync(filePath);
+    return 'exists';
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === 'EACCES' || code === 'EPERM') return 'inaccessible';
+    return 'missing';
+  }
+}
+
+function isUnsupportedWindowsCommandShim(filePath: string): boolean {
+  return process.platform === 'win32' && /\.(cmd|bat|ps1)$/i.test(filePath);
 }
 
 const GEMINI_BASE_ARGS = ['-o', 'stream-json'];
 const GEMINI_AUTO_EDIT_ARGS = ['--approval-mode', 'auto_edit'];
 
-function geminiArgs(prompt: string): string[] {
+function geminiArgs(readOnly = false): string[] {
   const writeApproval = vscode.workspace.getConfiguration('gambit').get<string>('writeApproval', 'auto-edit');
-  const extra = writeApproval === 'auto-edit' ? GEMINI_AUTO_EDIT_ARGS : [];
-  return ['-p', prompt, ...extra, ...GEMINI_BASE_ARGS];
+  const extra = !readOnly && writeApproval === 'auto-edit' ? GEMINI_AUTO_EDIT_ARGS : [];
+  return [...extra, ...GEMINI_BASE_ARGS];
 }
 
 export class GeminiAgent implements Agent {
@@ -44,11 +155,28 @@ export class GeminiAgent implements Agent {
   }
 
   async *send(prompt: string, opts: SendOptions = {}): AsyncIterable<AgentChunk> {
-    const child = spawn(
-      GEMINI_CMD.command,
-      [...GEMINI_CMD.args, ...geminiArgs(prompt)],
-      { cwd: opts.cwd, stdio: ['ignore', 'pipe', 'pipe'] }
-    );
+    let geminiCommand: { command: string; args: string[] };
+    try {
+      geminiCommand = resolveGeminiCommand();
+    } catch (err) {
+      yield { type: 'error', message: `Unable to start Gemini CLI: ${errorMessage(err)}` };
+      yield { type: 'done' };
+      return;
+    }
+
+    let child: ChildProcess;
+    try {
+      child = spawn(
+        geminiCommand.command,
+        [...geminiCommand.args, ...geminiArgs(opts.readOnly)],
+        { cwd: opts.cwd, stdio: ['pipe', 'pipe', 'pipe'] }
+      );
+      child.stdin?.end(prompt);
+    } catch (err) {
+      yield { type: 'error', message: `Unable to start Gemini CLI: ${errorMessage(err)}` };
+      yield { type: 'done' };
+      return;
+    }
     this.active = child;
 
     const onAbort = () => child.kill('SIGTERM');
@@ -57,10 +185,17 @@ export class GeminiAgent implements Agent {
       else opts.signal.addEventListener('abort', onAbort, { once: true });
     }
 
-    const exitPromise = new Promise<{ code: number | null; stderr: string }>((resolve) => {
+    const exitPromise = new Promise<{ code: number | null; stderr: string; processError?: string }>((resolve) => {
       let stderr = '';
+      let settled = false;
+      const finish = (code: number | null, processError?: string) => {
+        if (settled) return;
+        settled = true;
+        resolve({ code, stderr, processError });
+      };
       child.stderr?.on('data', (d) => (stderr += String(d)));
-      child.on('close', (code) => resolve({ code, stderr }));
+      child.on('error', (err) => finish(null, errorMessage(err)));
+      child.on('close', (code) => finish(code));
     });
 
     let buffer = '';
@@ -92,8 +227,10 @@ export class GeminiAgent implements Agent {
       opts.signal?.removeEventListener('abort', onAbort);
     }
 
-    const { code, stderr } = await exitPromise;
-    if (code !== 0) {
+    const { code, stderr, processError } = await exitPromise;
+    if (processError) {
+      yield { type: 'error', message: `Gemini process error: ${processError}` };
+    } else if (code !== 0) {
       yield { type: 'error', message: `Gemini exited with exit code ${code}${stderr ? `: ${stderr.trim()}` : ''}` };
     }
     if (!sawDone) yield { type: 'done' };

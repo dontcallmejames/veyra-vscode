@@ -49,6 +49,24 @@ describe('parseFileMentions', () => {
     expect(r.remainingText).toBe('compare and');
   });
 
+  it('strips trailing sentence punctuation from file mention tokens', () => {
+    const r = parseFileMentions('compare @a/foo.ts, then @b/bar.ts:');
+    expect(r.filePaths).toEqual(['a/foo.ts', 'b/bar.ts']);
+    expect(r.remainingText).toBe('compare then');
+  });
+
+  it('extracts parenthesized file mentions without leaving empty wrappers', () => {
+    const r = parseFileMentions('review (@src/auth.ts) before editing');
+    expect(r.filePaths).toEqual(['src/auth.ts']);
+    expect(r.remainingText).toBe('review before editing');
+  });
+
+  it('extracts parenthesized file mentions adjacent to prompt words', () => {
+    const r = parseFileMentions('review(@src/auth.ts) before editing');
+    expect(r.filePaths).toEqual(['src/auth.ts']);
+    expect(r.remainingText).toBe('review before editing');
+  });
+
   it('mid-sentence @path is still parsed (file mentions are not position-restricted)', () => {
     const r = parseFileMentions('please review @src/auth.ts thanks');
     expect(r.filePaths).toEqual(['src/auth.ts']);
@@ -58,6 +76,108 @@ describe('parseFileMentions', () => {
     const r = parseFileMentions('@claude review @src/auth.ts');
     expect(r.filePaths).toEqual(['src/auth.ts']);
     expect(r.remainingText).toBe('@claude review');
+  });
+
+  it('preserves multiline prompt formatting while removing file mentions', () => {
+    const r = parseFileMentions([
+      '@claude review @src/auth.ts',
+      '',
+      'Keep this checklist shape:',
+      '  - first item',
+      '  - second item',
+      '',
+      '```ts',
+      'const value = 1;',
+      '```',
+    ].join('\n'));
+
+    expect(r.filePaths).toEqual(['src/auth.ts']);
+    expect(r.remainingText).toBe([
+      '@claude review',
+      '',
+      'Keep this checklist shape:',
+      '  - first item',
+      '  - second item',
+      '',
+      '```ts',
+      'const value = 1;',
+      '```',
+    ].join('\n'));
+  });
+
+  it('does not treat scoped package names as file attachments', () => {
+    const r = parseFileMentions('upgrade @anthropic-ai/claude-agent-sdk and @openai/codex');
+
+    expect(r.filePaths).toEqual([]);
+    expect(r.remainingText).toBe('upgrade @anthropic-ai/claude-agent-sdk and @openai/codex');
+  });
+
+  it('extracts extensionless workspace paths with slashes', () => {
+    const r = parseFileMentions('review @src/schema and @config/app');
+
+    expect(r.filePaths).toEqual(['src/schema', 'config/app']);
+    expect(r.remainingText).toBe('review and');
+  });
+
+  it('does not remove file-looking tokens inside fenced code blocks', () => {
+    const r = parseFileMentions([
+      'review @src/auth.ts and this snippet:',
+      '',
+      '```ts',
+      '@fixtures/not-an-attachment.ts',
+      '```',
+    ].join('\n'));
+
+    expect(r.filePaths).toEqual(['src/auth.ts']);
+    expect(r.remainingText).toBe([
+      'review and this snippet:',
+      '',
+      '```ts',
+      '@fixtures/not-an-attachment.ts',
+      '```',
+    ].join('\n'));
+  });
+
+  it('does not remove file-looking tokens inside tilde fenced code blocks', () => {
+    const r = parseFileMentions([
+      'review @src/auth.ts and this snippet:',
+      '',
+      '~~~text',
+      '@fixtures/not-an-attachment.ts',
+      '~~~',
+    ].join('\n'));
+
+    expect(r.filePaths).toEqual(['src/auth.ts']);
+    expect(r.remainingText).toBe([
+      'review and this snippet:',
+      '',
+      '~~~text',
+      '@fixtures/not-an-attachment.ts',
+      '~~~',
+    ].join('\n'));
+  });
+
+  it('keeps scanning disabled until the matching fence marker closes', () => {
+    const r = parseFileMentions([
+      'review @src/auth.ts and this snippet:',
+      '',
+      '```md',
+      '~~~',
+      '@fixtures/not-an-attachment.ts',
+      '~~~',
+      '```',
+    ].join('\n'));
+
+    expect(r.filePaths).toEqual(['src/auth.ts']);
+    expect(r.remainingText).toBe([
+      'review and this snippet:',
+      '',
+      '```md',
+      '~~~',
+      '@fixtures/not-an-attachment.ts',
+      '~~~',
+      '```',
+    ].join('\n'));
   });
 });
 
@@ -79,8 +199,8 @@ describe('embedFiles', () => {
     fsState.set('/fake/ws/big.ts', lines);
     const r = embedFiles(['big.ts'], ws, { maxLines: 100 });
     expect(r.attached[0]).toEqual({ path: 'big.ts', lines: 100, truncated: true });
-    expect(r.embedded).toContain('[File: big.ts — first 100 of 1000 lines]');
-    expect(r.embedded).toContain('[/File — truncated; use the Read tool to fetch the rest]');
+    expect(r.embedded).toContain('[File: big.ts - first 100 of 1000 lines]');
+    expect(r.embedded).toContain('[/File - truncated; use the Read tool to fetch the rest]');
     expect(r.embedded).toContain('line 0');
     expect(r.embedded).toContain('line 99');
     expect(r.embedded).not.toContain('line 100');

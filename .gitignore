@@ -1,8 +1,10 @@
 # Brainstorming / scratch
 .superpowers/
+.claude/
 
 # Node / VSCode extension
 node_modules/
+.npm-cache/
 out/
 dist/
 *.vsix

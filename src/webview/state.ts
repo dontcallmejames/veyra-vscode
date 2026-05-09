@@ -105,8 +105,38 @@ export function reduce(state: WebviewState, event: FromExtension): WebviewState 
       };
 
     case 'file-edited':
-      return state;
+      const changeKind = event.changeKind ?? 'edited';
+      return {
+        ...state,
+        session: {
+          ...state.session,
+          messages: [
+            ...state.session.messages,
+            {
+              id: `file-edited-${event.timestamp}-${event.agentId}-${event.path}`,
+              role: 'system',
+              kind: 'file-edited',
+              text: `${agentLabel(event.agentId)} ${fileChangeVerb(changeKind)} ${event.path}`,
+              timestamp: event.timestamp,
+              agentId: event.agentId,
+              filePath: event.path,
+              changeKind,
+            },
+          ],
+        },
+      };
   }
+}
+
+function agentLabel(agentId: AgentId): string {
+  if (agentId === 'claude') return 'Claude';
+  if (agentId === 'codex') return 'Codex';
+  return 'Gemini';
+}
+
+function fileChangeVerb(changeKind: 'created' | 'edited' | 'deleted'): string {
+  if (changeKind === 'created') return 'created';
+  return changeKind === 'deleted' ? 'deleted' : 'edited';
 }
 
 function applyChunk(msg: InProgressMessage, chunk: import('../types.js').AgentChunk): InProgressMessage {

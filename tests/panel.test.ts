@@ -12,6 +12,7 @@ vi.mock('vscode', () => {
   const messages: any[] = [];
   const onDidReceive = { handler: undefined as any };
   const onDidDispose = { handler: undefined as any };
+  const onDidChangeConfiguration = { handler: undefined as any };
   const fakePanel = {
     webview: {
       postMessage: vi.fn((m: any) => messages.push(m)),
@@ -37,7 +38,7 @@ vi.mock('vscode', () => {
     workspace: {
       workspaceFolders: [{ uri: { fsPath: '/fake/workspace' } }],
       getConfiguration: vi.fn(() => ({ get: (_k: string, dflt: any) => dflt })),
-      onDidChangeConfiguration: vi.fn(() => ({ dispose: vi.fn() })),
+      onDidChangeConfiguration: vi.fn((h: any) => { onDidChangeConfiguration.handler = h; return { dispose: vi.fn() }; }),
       createFileSystemWatcher: vi.fn(() => ({
         onDidCreate: vi.fn(() => ({ dispose: vi.fn() })),
         onDidDelete: vi.fn(() => ({ dispose: vi.fn() })),
@@ -46,7 +47,8 @@ vi.mock('vscode', () => {
       openTextDocument: vi.fn().mockResolvedValue({}),
     },
     env: { openExternal: vi.fn() },
-    __test: { messages, onDidReceive, fakePanel },
+    commands: { executeCommand: vi.fn() },
+    __test: { messages, onDidReceive, onDidChangeConfiguration, fakePanel },
   };
 });
 
@@ -72,7 +74,14 @@ vi.mock('node:fs', () => ({
 
 // Mock the agent SDK and child_process so adapters don't try to run anything
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({ query: vi.fn() }));
-vi.mock('node:child_process', () => ({ spawn: vi.fn(), execSync: vi.fn(() => '/fake/npm/root\n') }));
+vi.mock('node:child_process', () => ({
+  spawn: vi.fn(),
+  execFile: vi.fn((_cmd: string, _args: string[], _opts: unknown, cb: (err: Error | null, stdout?: string, stderr?: string) => void) => {
+    cb(null, '', '');
+    return { on: vi.fn() };
+  }),
+  execSync: vi.fn(() => '/fake/npm/root\n'),
+}));
 
 import { ChatPanel } from '../src/panel.js';
 import * as vscode from 'vscode';
@@ -89,6 +98,13 @@ const ctx = {
 describe('ChatPanel', () => {
   beforeEach(() => {
     (vscode as any).__test.messages.length = 0;
+    vi.mocked((vscode as any).workspace.openTextDocument).mockClear();
+    vi.mocked((vscode as any).window.showTextDocument).mockClear();
+    vi.mocked((vscode as any).window.showWarningMessage).mockClear();
+    vi.mocked((vscode as any).env.openExternal).mockClear();
+    vi.mocked((vscode as any).commands.executeCommand).mockClear();
+    (vscode as any).workspace.getConfiguration = vi.fn(() => ({ get: (_k: string, dflt: any) => dflt }));
+    (vscode as any).__test.onDidChangeConfiguration.handler = undefined;
     // Reset singleton so each test gets a fresh panel
     (ChatPanel as any).current = undefined;
   });
@@ -110,6 +126,102 @@ describe('ChatPanel', () => {
     const after = (vscode as any).__test.messages.slice(before);
     const statusChanged = after.filter((m: any) => m.kind === 'status-changed');
     expect(statusChanged.length).toBeGreaterThan(0);
+  });
+
+  it('show-live-validation-guide from webview opens the command-palette guide', async () => {
+    await ChatPanel.show(ctx);
+    const onDidReceive = (vscode as any).__test.onDidReceive.handler;
+
+    await onDidReceive({ kind: 'show-live-validation-guide' });
+
+    expect((vscode as any).commands.executeCommand).toHaveBeenCalledWith('gambit.showLiveValidationGuide');
+  });
+
+  it('show-setup-guide from webview opens the setup guide command', async () => {
+    await ChatPanel.show(ctx);
+    const onDidReceive = (vscode as any).__test.onDidReceive.handler;
+
+    await onDidReceive({ kind: 'show-setup-guide' });
+
+    expect((vscode as any).commands.executeCommand).toHaveBeenCalledWith('gambit.showSetupGuide');
+  });
+
+  it('configure-cli-paths from webview opens the CLI path configuration command', async () => {
+    await ChatPanel.show(ctx);
+    const onDidReceive = (vscode as any).__test.onDidReceive.handler;
+
+    await onDidReceive({ kind: 'configure-cli-paths' });
+
+    expect((vscode as any).commands.executeCommand).toHaveBeenCalledWith('gambit.configureCliPaths');
+  });
+
+  it('open-external from webview opens https URLs', async () => {
+    await ChatPanel.show(ctx);
+    const onDidReceive = (vscode as any).__test.onDidReceive.handler;
+
+    await onDidReceive({ kind: 'open-external', url: 'https://example.com/setup' });
+
+    const opened = vi.mocked((vscode as any).env.openExternal).mock.calls[0][0];
+    expect(opened.toString()).toBe('https://example.com/setup');
+    expect((vscode as any).window.showWarningMessage).not.toHaveBeenCalled();
+  });
+
+  it('open-external from webview refuses non-http URLs', async () => {
+    await ChatPanel.show(ctx);
+    const onDidReceive = (vscode as any).__test.onDidReceive.handler;
+
+    await onDidReceive({ kind: 'open-external', url: 'javascript:alert(1)' });
+
+    expect((vscode as any).env.openExternal).not.toHaveBeenCalled();
+    expect((vscode as any).window.showWarningMessage).toHaveBeenCalledWith('Could not open external URL: javascript:alert(1)');
+  });
+
+  it('does not refresh the service with a badge controller when file badges are disabled', async () => {
+    const getMock = vi.fn((key: string, dflt: any) => key === 'fileBadges.enabled' ? false : dflt);
+    (vscode as any).workspace.getConfiguration = vi.fn(() => ({ get: getMock }));
+    const badgeController = { registerEdit: vi.fn() };
+    const service = {
+      loadSession: vi.fn().mockResolvedValue({ messages: [] }),
+      onFloorChange: vi.fn(() => vi.fn()),
+      onStatusChange: vi.fn(() => vi.fn()),
+      onWriteError: vi.fn(() => vi.fn()),
+      updateOptions: vi.fn(),
+    };
+
+    await ChatPanel.show(ctx, undefined, badgeController as any, service as any);
+    const listener = (vscode as any).__test.onDidChangeConfiguration.handler;
+    expect(listener).toBeTypeOf('function');
+    listener({ affectsConfiguration: (key: string) => key === 'gambit' });
+
+    expect(service.updateOptions).toHaveBeenCalledWith(expect.objectContaining({
+      badgeController: undefined,
+    }));
+  });
+
+  it('refreshes the service with a later badge controller from the extension provider', async () => {
+    const getMock = vi.fn((key: string, dflt: any) => key === 'fileBadges.enabled' ? true : dflt);
+    (vscode as any).workspace.getConfiguration = vi.fn(() => ({ get: getMock }));
+    const badgeController = { registerEdit: vi.fn() };
+    const badgeControllerProvider = vi.fn(() => badgeController);
+    const service = {
+      loadSession: vi.fn().mockResolvedValue({ messages: [] }),
+      onFloorChange: vi.fn(() => vi.fn()),
+      onStatusChange: vi.fn(() => vi.fn()),
+      onWriteError: vi.fn(() => vi.fn()),
+      updateOptions: vi.fn(),
+    };
+
+    await (ChatPanel.show as any)(ctx, undefined, undefined, service, badgeControllerProvider);
+    const listener = (vscode as any).__test.onDidChangeConfiguration.handler;
+    expect(listener).toBeTypeOf('function');
+    service.updateOptions.mockClear();
+
+    listener({ affectsConfiguration: (key: string) => key === 'gambit' });
+
+    expect(badgeControllerProvider).toHaveBeenCalled();
+    expect(service.updateOptions).toHaveBeenCalledWith(expect.objectContaining({
+      badgeController,
+    }));
   });
 
   it('reads gambit.hangDetectionSeconds setting on init', async () => {
@@ -171,6 +283,37 @@ describe('ChatPanel', () => {
     expect(kinds.indexOf('message-started')).toBeLessThan(kinds.indexOf('message-finalized'));
   });
 
+  it('does not block first-session dispatch behind optional onboarding prompts', async () => {
+    let resolvePrompt!: (value: unknown) => void;
+    vi.mocked((vscode as any).window.showInformationMessage).mockReturnValueOnce(new Promise((resolve) => {
+      resolvePrompt = resolve;
+    }));
+    const service = {
+      loadSession: vi.fn().mockResolvedValue({ messages: [] }),
+      onFloorChange: vi.fn(() => vi.fn()),
+      onStatusChange: vi.fn(() => vi.fn()),
+      onWriteError: vi.fn(() => vi.fn()),
+      isFirstSession: vi.fn(() => true),
+      dispatch: vi.fn().mockResolvedValue(undefined),
+      cancelAll: vi.fn().mockResolvedValue(undefined),
+      notifyStatusChange: vi.fn(),
+      flush: vi.fn().mockResolvedValue(undefined),
+    };
+
+    await ChatPanel.show(ctx, undefined, undefined, service as any);
+    const onDidReceive = (vscode as any).__test.onDidReceive.handler;
+    const sendPromise = onDidReceive({ kind: 'send', text: '@claude continue autonomously' });
+    await Promise.resolve();
+
+    expect(service.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ text: '@claude continue autonomously' }),
+      expect.any(Function),
+    );
+
+    resolvePrompt('Not now');
+    await sendPromise;
+  });
+
   it('emits file-edited and calls badgeController.registerEdit when an agent successfully writes a file', async () => {
     (ChatPanel as any).current = undefined;
     (vscode as any).__test.messages.length = 0;
@@ -211,12 +354,48 @@ describe('ChatPanel', () => {
     await new Promise((r) => setImmediate(r));
 
     expect(badgeController.registerEdit).toHaveBeenCalledTimes(1);
-    expect(badgeController.registerEdit).toHaveBeenCalledWith('/abs/foo.ts', 'claude');
+    expect(badgeController.registerEdit).toHaveBeenCalledWith('/abs/foo.ts', 'claude', 'edited');
 
     const msgs = (vscode as any).__test.messages;
     const fileEdited = msgs.find((m: any) => m.kind === 'file-edited');
     expect(fileEdited).toMatchObject({ kind: 'file-edited', path: '/abs/foo.ts', agentId: 'claude' });
     expect(typeof fileEdited.timestamp).toBe('number');
+  });
+
+  it('opens absolute edited file paths inside the workspace without nesting them', async () => {
+    (ChatPanel as any).current = undefined;
+
+    await ChatPanel.show(ctx);
+
+    const onDidReceive = (vscode as any).__test.onDidReceive.handler;
+    await onDidReceive({ kind: 'open-workspace-file', relativePath: '/fake/workspace/src/foo.ts' });
+
+    const opened = vi.mocked((vscode as any).workspace.openTextDocument).mock.calls[0][0];
+    expect(fsNorm(opened.fsPath)).toMatch(/\/fake\/workspace\/src\/foo\.ts$/);
+  });
+
+  it('refuses absolute file paths outside the workspace', async () => {
+    (ChatPanel as any).current = undefined;
+
+    await ChatPanel.show(ctx);
+
+    const onDidReceive = (vscode as any).__test.onDidReceive.handler;
+    await onDidReceive({ kind: 'open-workspace-file', relativePath: '/outside/foo.ts' });
+
+    expect((vscode as any).workspace.openTextDocument).not.toHaveBeenCalled();
+    expect((vscode as any).window.showWarningMessage).toHaveBeenCalledWith('Could not open /outside/foo.ts');
+  });
+
+  it('refuses relative workspace file paths that escape the workspace', async () => {
+    (ChatPanel as any).current = undefined;
+
+    await ChatPanel.show(ctx);
+
+    const onDidReceive = (vscode as any).__test.onDidReceive.handler;
+    await onDidReceive({ kind: 'open-workspace-file', relativePath: '../outside.ts' });
+
+    expect((vscode as any).workspace.openTextDocument).not.toHaveBeenCalled();
+    expect((vscode as any).window.showWarningMessage).toHaveBeenCalledWith('Could not open ../outside.ts');
   });
 
   it('persists attachedFiles + surfaces embed errors when @file used', async () => {

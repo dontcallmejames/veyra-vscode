@@ -40,11 +40,11 @@ describe('integration: full prompt composition', () => {
           id: 'a1', role: 'agent', agentId: 'claude', text: 'Use OAuth2 with PKCE.',
           toolEvents: [], timestamp: 200, status: 'complete',
         },
-        { id: 'u2', role: 'user', text: '@gpt implement the route handlers', timestamp: 300 },
+        { id: 'u2', role: 'user', text: '@codex implement the route handlers', timestamp: 300 },
       ],
     };
 
-    const userInput = '@gpt review @src/auth.ts please';
+    const userInput = '@codex review @src/auth.ts please';
     const { filePaths, remainingText } = parseFileMentions(userInput);
     const embed = embedFiles(filePaths, '/fake/ws', { maxLines: 500 });
     const sharedCtx = buildSharedContext(session, { window: 25 });
@@ -65,18 +65,18 @@ describe('integration: full prompt composition', () => {
     expect(prompt).toContain('[Conversation so far]');
     expect(prompt).toContain('user: How do we handle auth?');
     expect(prompt).toContain('claude: Use OAuth2 with PKCE.');
-    expect(prompt).toContain('user: @gpt implement the route handlers');
+    expect(prompt).toContain('user: @codex implement the route handlers');
     expect(prompt).toContain('[/Conversation so far]');
     expect(prompt).toContain('[File: src/auth.ts]');
     expect(prompt).toContain('export const greet = () => "hi";');
     expect(prompt).toContain('[/File]');
-    expect(prompt).toContain('@gpt review please');
+    expect(prompt).toContain('@codex review please');
 
     // Order verification:
     const idxRules = prompt.indexOf('[Workspace rules');
     const idxConv = prompt.indexOf('[Conversation so far');
     const idxFile = prompt.indexOf('[File: src/auth.ts]');
-    const idxUser = prompt.indexOf('@gpt review please');
+    const idxUser = prompt.indexOf('@codex review please');
     expect(idxRules).toBeLessThan(idxConv);
     expect(idxConv).toBeLessThan(idxFile);
     expect(idxFile).toBeLessThan(idxUser);

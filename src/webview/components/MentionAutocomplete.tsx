@@ -2,7 +2,7 @@ import { h } from 'preact';
 
 const ITEMS = [
   { token: '@claude', desc: 'code reasoning' },
-  { token: '@gpt', desc: 'execution & tests' },
+  { token: '@codex', desc: 'execution & tests' },
   { token: '@gemini', desc: 'research' },
   { token: '@all', desc: 'broadcast to all three' },
 ];

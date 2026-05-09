@@ -1,29 +1,65 @@
 {
   "name": "gambit",
   "displayName": "Gambit",
-  "description": "Gambit — Claude, GPT, and Gemini playing your move in one VS Code chat panel.",
+  "description": "Gambit routes Claude, Codex, and Gemini through VS Code Chat and the Language Model provider.",
   "version": "0.0.1",
   "private": true,
   "publisher": "dontcallmejames",
   "engines": {
-    "vscode": "^1.95.0",
+    "vscode": "^1.118.0",
     "node": ">=20"
   },
   "main": "./dist/extension.js",
+  "files": [
+    ".vscodeignore",
+    "README.md",
+    "dist/extension.js",
+    "dist/extension.js.map",
+    "dist/index.html",
+    "dist/webview.js",
+    "dist/webview.js.map",
+    "docs/goal-completion-audit.md",
+    "docs/vscode-smoke-test.md"
+  ],
   "categories": [
     "Other"
   ],
   "activationEvents": [
     "onCommand:gambit.openPanel",
+    "onCommand:gambit.checkStatus",
+    "onCommand:gambit.showSetupGuide",
+    "onCommand:gambit.showLiveValidationGuide",
+    "onCommand:gambit.configureCliPaths",
     "onCommand:gambit.installCommitHook",
     "onCommand:gambit.uninstallCommitHook",
-    "onCommand:gambit.showCommitHookSnippet"
+    "onCommand:gambit.showCommitHookSnippet",
+    "onChatParticipant:gambit.gambit",
+    "onChatParticipant:gambit.claude",
+    "onChatParticipant:gambit.codex",
+    "onChatParticipant:gambit.gemini",
+    "onLanguageModelChatProvider:gambit"
   ],
   "contributes": {
     "commands": [
       {
         "command": "gambit.openPanel",
         "title": "Gambit: Open Panel"
+      },
+      {
+        "command": "gambit.checkStatus",
+        "title": "Gambit: Check agent status"
+      },
+      {
+        "command": "gambit.showSetupGuide",
+        "title": "Gambit: Show setup guide"
+      },
+      {
+        "command": "gambit.showLiveValidationGuide",
+        "title": "Gambit: Show live validation guide"
+      },
+      {
+        "command": "gambit.configureCliPaths",
+        "title": "Gambit: Configure Codex/Gemini CLI paths"
       },
       {
         "command": "gambit.installCommitHook",
@@ -36,6 +72,56 @@
       {
         "command": "gambit.showCommitHookSnippet",
         "title": "Gambit: Show commit hook snippet"
+      }
+    ],
+    "chatParticipants": [
+      {
+        "id": "gambit.gambit",
+        "name": "gambit",
+        "fullName": "Gambit",
+        "description": "Route work across Claude, Codex, and Gemini.",
+        "isSticky": true,
+        "commands": [
+          {
+            "name": "review",
+            "description": "Have Claude, Codex, and Gemini run a read-only review in sequence."
+          },
+          {
+            "name": "debate",
+            "description": "Have Claude, Codex, and Gemini run a read-only debate on the best approach."
+          },
+          {
+            "name": "implement",
+            "description": "Run Claude, Codex, and Gemini as a serial implementation team."
+          }
+        ]
+      },
+      {
+        "id": "gambit.claude",
+        "name": "claude",
+        "fullName": "Claude",
+        "description": "Send this request directly to Claude through Gambit.",
+        "isSticky": true
+      },
+      {
+        "id": "gambit.codex",
+        "name": "codex",
+        "fullName": "Codex",
+        "description": "Send this request directly to Codex through Gambit.",
+        "isSticky": true
+      },
+      {
+        "id": "gambit.gemini",
+        "name": "gemini",
+        "fullName": "Gemini",
+        "description": "Send this request directly to Gemini through Gambit.",
+        "isSticky": true
+      }
+    ],
+    "languageModelChatProviders": [
+      {
+        "vendor": "gambit",
+        "displayName": "Gambit"
       }
     ],
     "configuration": {
@@ -68,6 +154,20 @@
           "maximum": 10000,
           "description": "Maximum lines embedded per @file mention before truncating."
         },
+        "gambit.codexCliPath": {
+          "type": "string",
+          "default": "",
+          "pattern": "^$|(^|[\\\\/])([cC][oO][dD][eE][xX]\\.([jJ][sS]|[eE][xX][eE]|[cC][mM][dD]|[bB][aA][tT]|[pP][sS]1)|[cC][oO][dD][eE][xX])$",
+          "patternErrorMessage": "Use a path ending in codex.js, codex.exe, codex, codex.cmd, codex.bat, or codex.ps1.",
+          "description": "Optional absolute path to the Codex CLI JS bundle, native executable such as codex.exe, or Windows npm shim. Shim paths such as codex.cmd are resolved to the underlying JS bundle before launch. Environment variable GAMBIT_CODEX_CLI_PATH takes precedence."
+        },
+        "gambit.geminiCliPath": {
+          "type": "string",
+          "default": "",
+          "pattern": "^$|(^|[\\\\/])([gG][eE][mM][iI][nN][iI]\\.([jJ][sS]|[eE][xX][eE]|[cC][mM][dD]|[bB][aA][tT]|[pP][sS]1)|[gG][eE][mM][iI][nN][iI])$",
+          "patternErrorMessage": "Use a path ending in gemini.js, gemini.exe, gemini, gemini.cmd, gemini.bat, or gemini.ps1.",
+          "description": "Optional absolute path to the Gemini CLI JS bundle, native executable such as gemini.exe, or Windows npm shim. Shim paths such as gemini.cmd are resolved to the underlying JS bundle before launch. Environment variable GAMBIT_GEMINI_CLI_PATH takes precedence."
+        },
         "gambit.sharedContextWindow": {
           "type": "number",
           "default": 25,
@@ -89,7 +189,7 @@
           "type": "string",
           "enum": ["auto-edit", "ask"],
           "default": "auto-edit",
-          "description": "How agent file-edit requests are handled. 'auto-edit' grants write access automatically; 'ask' will defer to each CLI's interactive prompt (which currently means writes silently fail in non-interactive mode — switch back to 'auto-edit' if edits stop working)."
+          "description": "How agent file-edit requests are handled. 'auto-edit' grants write access automatically; 'ask' will defer to each CLI's interactive prompt (which currently means writes silently fail in non-interactive mode - switch back to 'auto-edit' if edits stop working)."
         }
       }
     },
@@ -127,13 +227,25 @@
     "build": "node esbuild.config.mjs",
     "watch": "node esbuild.config.mjs --watch",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run --passWithNoTests --environment node --exclude \"tests/integration/**\" --exclude \".vscode-test/**\" tests",
     "test:watch": "vitest",
-    "test:integration": "vitest run --config vitest.integration.config.ts --passWithNoTests"
+    "verify": "npm run typecheck && npm test && npm run build && npm run verify:package && npm run test:integration && git diff --check",
+    "verify:package": "node scripts/verify-package.mjs",
+    "verify:live-ready": "node scripts/verify-live-ready.mjs",
+    "verify:completion": "npm run verify && npm run test:vscode-smoke && npm run verify:live-ready",
+    "preverify:goal": "node scripts/require-live-opt-in.mjs",
+    "verify:goal": "npm run verify:completion && npm run test:integration:live",
+    "package:vsix": "npm run build && npm run verify:package && node scripts/package-vsix.mjs",
+    "test:vscode-smoke": "npm run build && node scripts/run-vscode-smoke.mjs",
+    "test:integration": "vitest run --passWithNoTests --environment node --testTimeout 60000 --exclude \"tests/integration/**/*.live.test.ts\" --exclude \".vscode-test/**\" tests/integration",
+    "pretest:integration:live": "node scripts/require-live-opt-in.mjs && npm run verify:live-ready",
+    "test:integration:live": "vitest run --environment node --testTimeout 180000 --exclude \".vscode-test/**\" tests/integration/claude.live.test.ts tests/integration/codex.live.test.ts tests/integration/gemini.live.test.ts tests/integration/gambit.live.test.ts",
+    "posttest:integration:live": "node scripts/print-extension-host-check.mjs --after-live",
+    "manual:extension-host-check": "node scripts/print-extension-host-check.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "@types/vscode": "^1.95.0",
+    "@types/vscode": "^1.118.0",
     "esbuild": "^0.24.0",
     "typescript": "^5.5.0",
     "vitest": "^2.1.0"

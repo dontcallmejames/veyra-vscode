@@ -122,4 +122,42 @@ describe('webview state reducer', () => {
     });
     expect(state.session.messages).toEqual([{ id: 'u1', role: 'user', text: 'hi', timestamp: 1 }]);
   });
+
+  it('file-edited appends a visible system notice', () => {
+    const state = reduce(initialState(), {
+      kind: 'file-edited',
+      path: 'src/parser.ts',
+      agentId: 'codex',
+      timestamp: 100,
+    });
+
+    expect(state.session.messages).toContainEqual(expect.objectContaining({
+      role: 'system',
+      kind: 'file-edited',
+      text: 'Codex edited src/parser.ts',
+      agentId: 'codex',
+      filePath: 'src/parser.ts',
+      timestamp: 100,
+    }));
+  });
+
+  it('file-edited labels deleted files as deleted', () => {
+    const state = reduce(initialState(), {
+      kind: 'file-edited',
+      path: 'src/removed.ts',
+      agentId: 'claude',
+      timestamp: 100,
+      changeKind: 'deleted',
+    });
+
+    expect(state.session.messages).toContainEqual(expect.objectContaining({
+      role: 'system',
+      kind: 'file-edited',
+      text: 'Claude deleted src/removed.ts',
+      agentId: 'claude',
+      filePath: 'src/removed.ts',
+      changeKind: 'deleted',
+      timestamp: 100,
+    }));
+  });
 });
