@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
-import { rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { existsSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 async function packageVerifierModule() {
   // @ts-expect-error The verifier is a plain Node .mjs script; this test asserts its exported runtime contract.
@@ -39,6 +39,16 @@ async function vsixPackagerModule() {
 }
 
 describe('verify-package script', () => {
+  beforeAll(() => {
+    const npmCommand = resolveNpmRunBuildCommand();
+    const result = spawnSync(npmCommand.command, npmCommand.args, {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+    });
+
+    expect(result.status, result.stderr || result.stdout || String(result.error)).toBe(0);
+  });
+
   it('runs direct invocation without Node child-process deprecation warnings', () => {
     const env = { ...process.env };
     delete env.npm_execpath;
@@ -139,3 +149,18 @@ describe('verify-package script', () => {
     expect(contentTypesXml()).toContain('Extension="vsixmanifest"');
   });
 });
+
+function resolveNpmRunBuildCommand(): { command: string; args: string[] } {
+  if (process.env.npm_execpath) {
+    return { command: process.execPath, args: [process.env.npm_execpath, 'run', 'build'] };
+  }
+
+  if (process.platform === 'win32') {
+    const npmCli = join(dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js');
+    if (existsSync(npmCli)) {
+      return { command: process.execPath, args: [npmCli, 'run', 'build'] };
+    }
+  }
+
+  return { command: 'npm', args: ['run', 'build'] };
+}

@@ -20,6 +20,12 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
 
 import { createGambitSessionService, createSmokeAgents, shouldUseSmokeAgents } from '../src/gambitRuntime.js';
 
+function makeSmokeWorkspace(prefix: string): string {
+  const smokeRoot = join(process.cwd(), '.vscode-test');
+  mkdirSync(smokeRoot, { recursive: true });
+  return mkdtempSync(join(smokeRoot, prefix));
+}
+
 describe('Gambit runtime smoke agents', () => {
   it('enables smoke agents only for the Extension Host smoke sentinel', () => {
     expect(shouldUseSmokeAgents({ VSCODE_GAMBIT_SMOKE: '1' })).toBe(true);
@@ -48,7 +54,7 @@ describe('Gambit runtime smoke agents', () => {
   });
 
   it('uses a shared smoke edit path for deterministic conflict validation requests', async () => {
-    const workspace = mkdtempSync(join(process.cwd(), '.vscode-test', 'gambit-smoke-conflict-'));
+    const workspace = makeSmokeWorkspace('gambit-smoke-conflict-');
     const agents = createSmokeAgents();
 
     try {
@@ -67,7 +73,7 @@ describe('Gambit runtime smoke agents', () => {
   });
 
   it('surfaces shared-context relay markers when later smoke agents see prior replies', async () => {
-    const workspace = mkdtempSync(join(process.cwd(), '.vscode-test', 'gambit-smoke-shared-context-'));
+    const workspace = makeSmokeWorkspace('gambit-smoke-shared-context-');
     const service = createGambitSessionService(workspace, undefined, createSmokeAgents());
     const chunks: string[] = [];
 
