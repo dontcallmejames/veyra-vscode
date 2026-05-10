@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.2
+
+- Replaces the preview icon with the Veyra cyber-sigil app icon.
+
 ## 0.0.1
 
 - Initial preview release candidate for Veyra.
