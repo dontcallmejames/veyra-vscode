@@ -9,6 +9,8 @@ const contentTypeByExtension = new Map([
   ['map', 'application/json'],
   ['html', 'text/html'],
   ['md', 'text/markdown'],
+  ['png', 'image/png'],
+  ['txt', 'text/plain'],
   ['vscodeignore', 'text/plain'],
   ['vsixmanifest', 'text/xml'],
 ]);
@@ -37,6 +39,15 @@ export function contentTypesXml() {
 
 export function createVsixManifest(manifest) {
   const categories = (manifest.categories ?? ['Other']).join(',');
+  const galleryFlags = manifest.preview ? 'Public,Preview' : 'Public';
+  const iconAsset = manifest.icon
+    ? `    <Asset Type="Microsoft.VisualStudio.Services.Icons.Default" Path="extension/${escapeXml(toZipPath(manifest.icon))}" Addressable="true" />`
+    : undefined;
+  const optionalAssets = [
+    iconAsset,
+    '    <Asset Type="Microsoft.VisualStudio.Services.Content.License" Path="extension/LICENSE.txt" Addressable="true" />',
+    '    <Asset Type="Microsoft.VisualStudio.Services.Content.Changelog" Path="extension/CHANGELOG.md" Addressable="true" />',
+  ].filter(Boolean);
   return [
     '<?xml version="1.0" encoding="utf-8"?>',
     '<PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011">',
@@ -45,7 +56,7 @@ export function createVsixManifest(manifest) {
     `    <DisplayName>${escapeXml(manifest.displayName ?? manifest.name)}</DisplayName>`,
     `    <Description xml:space="preserve">${escapeXml(manifest.description ?? '')}</Description>`,
     `    <Categories>${escapeXml(categories)}</Categories>`,
-    '    <GalleryFlags>Public</GalleryFlags>',
+    `    <GalleryFlags>${galleryFlags}</GalleryFlags>`,
     '    <Properties>',
     `      <Property Id="Microsoft.VisualStudio.Code.Engine" Value="${escapeXml(manifest.engines?.vscode ?? '*')}" />`,
     '    </Properties>',
@@ -57,6 +68,7 @@ export function createVsixManifest(manifest) {
     '  <Assets>',
     '    <Asset Type="Microsoft.VisualStudio.Code.Manifest" Path="extension/package.json" Addressable="true" />',
     '    <Asset Type="Microsoft.VisualStudio.Services.Content.Details" Path="extension/README.md" Addressable="true" />',
+    ...optionalAssets,
     '  </Assets>',
     '</PackageManifest>',
     '',

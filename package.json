@@ -3,8 +3,32 @@
   "displayName": "Gambit",
   "description": "Gambit routes Claude, Codex, and Gemini through VS Code Chat and the Language Model provider.",
   "version": "0.0.1",
-  "private": true,
   "publisher": "dontcallmejames",
+  "preview": true,
+  "license": "SEE LICENSE IN LICENSE.txt",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dontcallmejames/gambit-vscode.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dontcallmejames/gambit-vscode/issues"
+  },
+  "homepage": "https://github.com/dontcallmejames/gambit-vscode#readme",
+  "icon": "resources/icon.png",
+  "galleryBanner": {
+    "color": "#15171a",
+    "theme": "dark"
+  },
+  "keywords": [
+    "ai",
+    "agents",
+    "chat",
+    "claude",
+    "codex",
+    "gemini",
+    "workflow",
+    "vscode"
+  ],
   "engines": {
     "vscode": "^1.118.0",
     "node": ">=20"
@@ -13,6 +37,9 @@
   "files": [
     ".vscodeignore",
     "README.md",
+    "LICENSE.txt",
+    "CHANGELOG.md",
+    "resources/icon.png",
     "dist/extension.js",
     "dist/extension.js.map",
     "dist/index.html",

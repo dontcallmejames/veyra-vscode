@@ -31,6 +31,8 @@ async function vsixPackagerModule() {
       description?: string;
       publisher: string;
       version: string;
+      preview?: boolean;
+      icon?: string;
       categories?: string[];
       engines?: { vscode?: string };
     }): string;
@@ -75,7 +77,7 @@ describe('verify-package script', () => {
       });
 
       expect(result.status, result.stderr || result.stdout || String(result.error)).toBe(0);
-      expect(result.stdout).toContain('Package dry-run verified 10 files.');
+      expect(result.stdout).toContain('Package dry-run verified 13 files.');
     } finally {
       rmSync(unexpectedFile, { force: true });
     }
@@ -136,6 +138,8 @@ describe('verify-package script', () => {
       description: 'Routes agents through VS Code.',
       publisher: 'dontcallmejames',
       version: '0.0.1',
+      preview: true,
+      icon: 'resources/icon.png',
       categories: ['Other'],
       engines: { vscode: '^1.118.0' },
     });
@@ -143,10 +147,16 @@ describe('verify-package script', () => {
     expect(manifest).toContain('Version="0.0.1"');
     expect(manifest).toContain('Publisher="dontcallmejames"');
     expect(manifest).toContain('Path="extension/package.json"');
+    expect(manifest).toContain('Path="extension/resources/icon.png"');
+    expect(manifest).toContain('Path="extension/LICENSE.txt"');
+    expect(manifest).toContain('Path="extension/CHANGELOG.md"');
+    expect(manifest).toContain('<GalleryFlags>Public,Preview</GalleryFlags>');
     expect(manifest).toContain('Microsoft.VisualStudio.Code.Engine');
     expect(manifest).toContain('^1.118.0');
 
     expect(contentTypesXml()).toContain('Extension="vsixmanifest"');
+    expect(contentTypesXml()).toContain('Extension="png"');
+    expect(contentTypesXml()).toContain('Extension="txt"');
   });
 });
 

@@ -50,6 +50,43 @@ describe('extension manifest', () => {
     expect(rawManifest).not.toMatch(/[^\x00-\x7F]/);
   });
 
+  it('declares Marketplace preview listing metadata and assets', () => {
+    const manifestRecord = manifest as Record<string, unknown>;
+    const icon = readFileSync(join(process.cwd(), 'resources', 'icon.png'));
+
+    expect(manifestRecord.private).toBeUndefined();
+    expect(manifest.preview).toBe(true);
+    expect(manifest.license).toBe('SEE LICENSE IN LICENSE.txt');
+    expect(manifest.repository).toEqual({
+      type: 'git',
+      url: 'https://github.com/dontcallmejames/gambit-vscode.git',
+    });
+    expect(manifest.bugs).toEqual({
+      url: 'https://github.com/dontcallmejames/gambit-vscode/issues',
+    });
+    expect(manifest.homepage).toBe('https://github.com/dontcallmejames/gambit-vscode#readme');
+    expect(manifest.icon).toBe('resources/icon.png');
+    expect(manifest.galleryBanner).toEqual({
+      color: '#15171a',
+      theme: 'dark',
+    });
+    expect(manifest.keywords).toEqual([
+      'ai',
+      'agents',
+      'chat',
+      'claude',
+      'codex',
+      'gemini',
+      'workflow',
+      'vscode',
+    ]);
+    expect(existsSync(join(process.cwd(), 'LICENSE.txt'))).toBe(true);
+    expect(existsSync(join(process.cwd(), 'CHANGELOG.md'))).toBe(true);
+    expect(icon.subarray(0, 8)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    expect(icon.readUInt32BE(16)).toBe(128);
+    expect(icon.readUInt32BE(20)).toBe(128);
+  });
+
   it('keeps VSIX packaging focused on bundled runtime artifacts', () => {
     const vscodeIgnore = readFileSync(join(process.cwd(), '.vscodeignore'), 'utf8');
 
@@ -373,6 +410,9 @@ describe('extension manifest', () => {
     expect(manifest.files).toEqual([
       '.vscodeignore',
       'README.md',
+      'LICENSE.txt',
+      'CHANGELOG.md',
+      'resources/icon.png',
       'dist/extension.js',
       'dist/extension.js.map',
       'dist/index.html',
@@ -381,6 +421,9 @@ describe('extension manifest', () => {
       'docs/goal-completion-audit.md',
       'docs/vscode-smoke-test.md',
     ]);
+    expect(packageVerifier).toContain("'LICENSE.txt'");
+    expect(packageVerifier).toContain("'CHANGELOG.md'");
+    expect(packageVerifier).toContain("'resources/icon.png'");
     expect(packageVerifier).toContain("'docs/vscode-smoke-test.md'");
     expect(packageVerifier).toContain("'docs/goal-completion-audit.md'");
     expect(packageVerifier).toContain("'.vscode/'");
