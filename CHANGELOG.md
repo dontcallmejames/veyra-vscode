@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.3
+
+- Makes the Veyra icon corners transparent for cleaner Marketplace display.
+
 ## 0.0.2
 
 - Replaces the preview icon with the Veyra cyber-sigil app icon.
