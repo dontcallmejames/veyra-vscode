@@ -87,14 +87,10 @@ describe('extension manifest', () => {
     expect(icon.readUInt32BE(20)).toBe(128);
   });
 
-  it('keeps VSIX packaging focused on bundled runtime artifacts', () => {
-    const vscodeIgnore = readFileSync(join(process.cwd(), '.vscodeignore'), 'utf8');
-
-    expect(vscodeIgnore).toMatch(/^node_modules\/$/m);
-    expect(vscodeIgnore).toMatch(/^src\/$/m);
-    expect(vscodeIgnore).toMatch(/^tests\/$/m);
-    expect(vscodeIgnore).toMatch(/^scripts\/$/m);
-    expect(vscodeIgnore).toMatch(/^docs\/superpowers\/$/m);
+  it('uses the package files allowlist as the single VSIX inclusion strategy', () => {
+    expect(existsSync(join(process.cwd(), '.vscodeignore'))).toBe(false);
+    expect(manifest.files).toContain('package.json');
+    expect(manifest.files).not.toContain('.vscodeignore');
   });
 
   it('backs the Run Extension launch config with an explicit build task', () => {
@@ -408,7 +404,7 @@ describe('extension manifest', () => {
   it('keeps packaged artifacts focused on runtime extension files', () => {
     const packageVerifier = readFileSync(join(process.cwd(), 'scripts', 'verify-package.mjs'), 'utf8');
     expect(manifest.files).toEqual([
-      '.vscodeignore',
+      'package.json',
       'README.md',
       'LICENSE.txt',
       'CHANGELOG.md',
@@ -429,22 +425,18 @@ describe('extension manifest', () => {
     expect(packageVerifier).toContain("'.vscode/'");
     expect(packageVerifier).toContain("'.vscode-test/'");
 
-    for (const ignoreFile of ['.vscodeignore', '.npmignore']) {
-      const filePath = join(process.cwd(), ignoreFile);
-      expect(existsSync(filePath)).toBe(true);
-      const ignored = readFileSync(filePath, 'utf8');
-      for (const pattern of [
-        '.superpowers/',
-        '.claude/',
-        '.npm-cache/',
-        'docs/superpowers/',
-        'src/',
-        'tests/',
-        'foo.ts',
-        'scripts/',
-      ]) {
-        expect(ignored).toContain(pattern);
-      }
+    const npmIgnore = readFileSync(join(process.cwd(), '.npmignore'), 'utf8');
+    for (const pattern of [
+      '.superpowers/',
+      '.claude/',
+      '.npm-cache/',
+      'docs/superpowers/',
+      'src/',
+      'tests/',
+      'foo.ts',
+      'scripts/',
+    ]) {
+      expect(npmIgnore).toContain(pattern);
     }
   });
 });

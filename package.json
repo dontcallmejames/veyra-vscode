@@ -35,7 +35,7 @@
   },
   "main": "./dist/extension.js",
   "files": [
-    ".vscodeignore",
+    "package.json",
     "README.md",
     "LICENSE.txt",
     "CHANGELOG.md",

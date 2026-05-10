@@ -77,7 +77,7 @@ describe('verify-package script', () => {
       });
 
       expect(result.status, result.stderr || result.stdout || String(result.error)).toBe(0);
-      expect(result.stdout).toContain('Package dry-run verified 13 files.');
+      expect(result.stdout).toContain('Package dry-run verified 12 files.');
     } finally {
       rmSync(unexpectedFile, { force: true });
     }

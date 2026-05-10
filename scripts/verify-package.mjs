@@ -5,7 +5,6 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const allowedPackageFiles = [
-  '.vscodeignore',
   'package.json',
   'README.md',
   'LICENSE.txt',
