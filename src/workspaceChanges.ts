@@ -3,7 +3,7 @@ import * as path from 'node:path';
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import type { WorkspaceChangeTracker } from './gambitService.js';
+import type { WorkspaceChangeTracker } from './veyraService.js';
 import type { FileChange } from './shared/protocol.js';
 
 const execFileAsync = promisify(execFile);
@@ -23,7 +23,7 @@ const DEFAULT_EXCLUDED_DIR_NAMES = new Set([
   'node_modules',
   'dist',
 ]);
-const DEFAULT_EXCLUDED_DIR_PATHS = new Set(['.vscode/gambit']);
+const DEFAULT_EXCLUDED_DIR_PATHS = new Set(['.vscode/veyra']);
 
 export function createWorkspaceChangeTracker(workspacePath: string): WorkspaceChangeTracker {
   return new GitAwareWorkspaceChangeTracker(workspacePath);

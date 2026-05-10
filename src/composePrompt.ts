@@ -21,7 +21,7 @@ export function composePrompt(input: ComposePromptInput): string {
   const parts: string[] = [];
 
   if (input.rules.trim().length > 0) {
-    parts.push(['[Workspace rules from gambit.md]', input.rules.trimEnd(), '[/Workspace rules]'].join('\n'));
+    parts.push(['[Workspace rules from veyra.md]', input.rules.trimEnd(), '[/Workspace rules]'].join('\n'));
   }
   if (input.autonomyPolicy?.trim().length) {
     parts.push(input.autonomyPolicy.trimEnd());

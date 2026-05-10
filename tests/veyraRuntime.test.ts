@@ -18,7 +18,7 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
   query: claudeSdkMocks.query,
 }));
 
-import { createGambitSessionService, createSmokeAgents, shouldUseSmokeAgents } from '../src/gambitRuntime.js';
+import { createVeyraSessionService, createSmokeAgents, shouldUseSmokeAgents } from '../src/veyraRuntime.js';
 
 function makeSmokeWorkspace(prefix: string): string {
   const smokeRoot = join(process.cwd(), '.vscode-test');
@@ -26,10 +26,10 @@ function makeSmokeWorkspace(prefix: string): string {
   return mkdtempSync(join(smokeRoot, prefix));
 }
 
-describe('Gambit runtime smoke agents', () => {
+describe('Veyra runtime smoke agents', () => {
   it('enables smoke agents only for the Extension Host smoke sentinel', () => {
-    expect(shouldUseSmokeAgents({ VSCODE_GAMBIT_SMOKE: '1' })).toBe(true);
-    expect(shouldUseSmokeAgents({ VSCODE_GAMBIT_SMOKE: 'true' })).toBe(false);
+    expect(shouldUseSmokeAgents({ VSCODE_VEYRA_SMOKE: '1' })).toBe(true);
+    expect(shouldUseSmokeAgents({ VSCODE_VEYRA_SMOKE: 'true' })).toBe(false);
     expect(shouldUseSmokeAgents({})).toBe(false);
   });
 
@@ -47,43 +47,43 @@ describe('Gambit runtime smoke agents', () => {
     expect(chunks).toEqual([
       {
         type: 'text',
-        text: '[smoke:codex] read-only request reached Gambit provider.',
+        text: '[smoke:codex] read-only request reached Veyra provider.',
       },
       { type: 'done' },
     ]);
   });
 
   it('uses a shared smoke edit path for deterministic conflict validation requests', async () => {
-    const workspace = makeSmokeWorkspace('gambit-smoke-conflict-');
+    const workspace = makeSmokeWorkspace('veyra-smoke-conflict-');
     const agents = createSmokeAgents();
 
     try {
       for await (const _chunk of agents.claude.send(
-        'Gambit conflict validation request. [gambit-smoke-conflict]',
+        'Veyra conflict validation request. [veyra-smoke-conflict]',
         { cwd: workspace },
       )) {
         // Drain the smoke agent stream so its deterministic write runs.
       }
 
-      expect(existsSync(join(workspace, 'src', 'gambit-smoke-conflict.ts'))).toBe(true);
-      expect(existsSync(join(workspace, 'src', 'gambit-smoke-claude.ts'))).toBe(false);
+      expect(existsSync(join(workspace, 'src', 'veyra-smoke-conflict.ts'))).toBe(true);
+      expect(existsSync(join(workspace, 'src', 'veyra-smoke-claude.ts'))).toBe(false);
     } finally {
       rmSync(workspace, { recursive: true, force: true });
     }
   });
 
   it('surfaces shared-context relay markers when later smoke agents see prior replies', async () => {
-    const workspace = makeSmokeWorkspace('gambit-smoke-shared-context-');
-    const service = createGambitSessionService(workspace, undefined, createSmokeAgents());
+    const workspace = makeSmokeWorkspace('veyra-smoke-shared-context-');
+    const service = createVeyraSessionService(workspace, undefined, createSmokeAgents());
     const chunks: string[] = [];
 
     try {
       await service.dispatch(
         {
-          text: '@all Gambit shared context smoke request. [gambit-smoke-shared-context]',
+          text: '@all Veyra shared context smoke request. [veyra-smoke-shared-context]',
           source: 'language-model',
           cwd: workspace,
-          forcedTarget: 'gambit',
+          forcedTarget: 'veyra',
         },
         (event) => {
           if (event.kind === 'chunk' && event.chunk.type === 'text') {
@@ -106,8 +106,8 @@ describe('Gambit runtime smoke agents', () => {
 
     for await (const chunk of agents.codex.send([
       '[Conversation so far]',
-      'user: Gambit shared context smoke request. [gambit-smoke-shared-context]',
-      'claude: [smoke:claude] write-capable request reached Gambit provider.',
+      'user: Veyra shared context smoke request. [veyra-smoke-shared-context]',
+      'claude: [smoke:claude] write-capable request reached Veyra provider.',
       '[/Conversation so far]',
       'Current direct smoke request without the marker.',
     ].join('\n'))) {
@@ -134,7 +134,7 @@ describe('Gambit runtime smoke agents', () => {
       '- workspaceSearch: Search indexed workspace symbols.',
       '[/VS Code request tools]',
       '',
-      'Gambit tool context smoke request. [gambit-smoke-tool-context]',
+      'Veyra tool context smoke request. [veyra-smoke-tool-context]',
     ].join('\n'))) {
       chunks.push(chunk);
     }
@@ -150,14 +150,14 @@ describe('Gambit runtime smoke agents', () => {
   });
 
   it('routes smoke-mode orchestrator requests without calling the paid facilitator backend', async () => {
-    const originalSmoke = process.env.VSCODE_GAMBIT_SMOKE;
+    const originalSmoke = process.env.VSCODE_VEYRA_SMOKE;
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-    process.env.VSCODE_GAMBIT_SMOKE = '1';
+    process.env.VSCODE_VEYRA_SMOKE = '1';
     claudeSdkMocks.query.mockClear();
     const tempRoot = join(process.cwd(), '.vscode-test');
     mkdirSync(tempRoot, { recursive: true });
-    const workspace = mkdtempSync(join(tempRoot, 'gambit-runtime-smoke-'));
-    const service = createGambitSessionService(workspace, undefined, createSmokeAgents());
+    const workspace = mkdtempSync(join(tempRoot, 'veyra-runtime-smoke-'));
+    const service = createVeyraSessionService(workspace, undefined, createSmokeAgents());
     const chunks: string[] = [];
     const visibleEdits: string[] = [];
     let smokeEditFileExists = false;
@@ -165,10 +165,10 @@ describe('Gambit runtime smoke agents', () => {
     try {
       await service.dispatch(
         {
-          text: 'Gambit Extension Host smoke request for gambit-orchestrator.',
+          text: 'Veyra Extension Host smoke request for veyra-orchestrator.',
           source: 'language-model',
           cwd: workspace,
-          forcedTarget: 'gambit',
+          forcedTarget: 'veyra',
         },
         (event) => {
           if (event.kind === 'chunk' && event.chunk.type === 'text') {
@@ -179,13 +179,13 @@ describe('Gambit runtime smoke agents', () => {
           }
         },
       );
-      smokeEditFileExists = existsSync(join(workspace, 'src', 'gambit-smoke-codex.ts'));
+      smokeEditFileExists = existsSync(join(workspace, 'src', 'veyra-smoke-codex.ts'));
     } finally {
       await service.flush();
       if (originalSmoke === undefined) {
-        delete process.env.VSCODE_GAMBIT_SMOKE;
+        delete process.env.VSCODE_VEYRA_SMOKE;
       } else {
-        process.env.VSCODE_GAMBIT_SMOKE = originalSmoke;
+        process.env.VSCODE_VEYRA_SMOKE = originalSmoke;
       }
       rmSync(workspace, { recursive: true, force: true });
     }
@@ -193,8 +193,8 @@ describe('Gambit runtime smoke agents', () => {
     await new Promise((resolve) => setTimeout(resolve, 250));
 
     expect(claudeSdkMocks.query).not.toHaveBeenCalled();
-    expect(chunks).toContain('[smoke:codex] write-capable request reached Gambit provider.');
-    expect(visibleEdits).toContain('codex:created:src/gambit-smoke-codex.ts');
+    expect(chunks).toContain('[smoke:codex] write-capable request reached Veyra provider.');
+    expect(visibleEdits).toContain('codex:created:src/veyra-smoke-codex.ts');
     expect(smokeEditFileExists).toBe(true);
     expect(consoleError).not.toHaveBeenCalledWith('SessionStore write failed:', expect.anything());
     consoleError.mockRestore();

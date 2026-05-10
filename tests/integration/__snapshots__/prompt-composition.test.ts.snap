@@ -1,7 +1,7 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`integration: full prompt composition > produces the expected prompt for rules + 3-turn history + @file mention 1`] = `
-"[Workspace rules from gambit.md]
+"[Workspace rules from veyra.md]
 Always use pnpm.
 [/Workspace rules]
 

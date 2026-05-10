@@ -134,7 +134,7 @@ describe('ChatPanel', () => {
 
     await onDidReceive({ kind: 'show-live-validation-guide' });
 
-    expect((vscode as any).commands.executeCommand).toHaveBeenCalledWith('gambit.showLiveValidationGuide');
+    expect((vscode as any).commands.executeCommand).toHaveBeenCalledWith('veyra.showLiveValidationGuide');
   });
 
   it('show-setup-guide from webview opens the setup guide command', async () => {
@@ -143,7 +143,7 @@ describe('ChatPanel', () => {
 
     await onDidReceive({ kind: 'show-setup-guide' });
 
-    expect((vscode as any).commands.executeCommand).toHaveBeenCalledWith('gambit.showSetupGuide');
+    expect((vscode as any).commands.executeCommand).toHaveBeenCalledWith('veyra.showSetupGuide');
   });
 
   it('configure-cli-paths from webview opens the CLI path configuration command', async () => {
@@ -152,7 +152,7 @@ describe('ChatPanel', () => {
 
     await onDidReceive({ kind: 'configure-cli-paths' });
 
-    expect((vscode as any).commands.executeCommand).toHaveBeenCalledWith('gambit.configureCliPaths');
+    expect((vscode as any).commands.executeCommand).toHaveBeenCalledWith('veyra.configureCliPaths');
   });
 
   it('open-external from webview opens https URLs', async () => {
@@ -191,7 +191,7 @@ describe('ChatPanel', () => {
     await ChatPanel.show(ctx, undefined, badgeController as any, service as any);
     const listener = (vscode as any).__test.onDidChangeConfiguration.handler;
     expect(listener).toBeTypeOf('function');
-    listener({ affectsConfiguration: (key: string) => key === 'gambit' });
+    listener({ affectsConfiguration: (key: string) => key === 'veyra' });
 
     expect(service.updateOptions).toHaveBeenCalledWith(expect.objectContaining({
       badgeController: undefined,
@@ -216,7 +216,7 @@ describe('ChatPanel', () => {
     expect(listener).toBeTypeOf('function');
     service.updateOptions.mockClear();
 
-    listener({ affectsConfiguration: (key: string) => key === 'gambit' });
+    listener({ affectsConfiguration: (key: string) => key === 'veyra' });
 
     expect(badgeControllerProvider).toHaveBeenCalled();
     expect(service.updateOptions).toHaveBeenCalledWith(expect.objectContaining({
@@ -224,7 +224,7 @@ describe('ChatPanel', () => {
     }));
   });
 
-  it('reads gambit.hangDetectionSeconds setting on init', async () => {
+  it('reads veyra.hangDetectionSeconds setting on init', async () => {
     const getMock = vi.fn((key: string, dflt: any) => key === 'hangDetectionSeconds' ? 30 : dflt);
     (vscode as any).workspace.getConfiguration = vi.fn(() => ({ get: getMock }));
 

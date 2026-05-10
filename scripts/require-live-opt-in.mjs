@@ -1,27 +1,27 @@
 import { fileURLToPath } from 'node:url';
 
 export function requireLiveOptIn(env = process.env) {
-  if (env.GAMBIT_RUN_LIVE === '1') {
+  if (env.VEYRA_RUN_LIVE === '1') {
     return { ok: true };
   }
   return {
     ok: false,
     message: [
-      'Gambit live integration tests require explicit paid-prompt opt-in.',
+      'Veyra live integration tests require explicit paid-prompt opt-in.',
       '',
       'PowerShell:',
-      "  $env:GAMBIT_RUN_LIVE = '1'",
+      "  $env:VEYRA_RUN_LIVE = '1'",
       '  npm run verify:goal',
       '',
       'Or run only the live integration suite:',
       '  npm run test:integration:live',
-      '  Remove-Item Env:\\GAMBIT_RUN_LIVE -ErrorAction SilentlyContinue',
+      '  Remove-Item Env:\\VEYRA_RUN_LIVE -ErrorAction SilentlyContinue',
       '',
       'Bash-compatible shells:',
-      '  GAMBIT_RUN_LIVE=1 npm run verify:goal',
+      '  VEYRA_RUN_LIVE=1 npm run verify:goal',
       '',
       'Or run only the live integration suite:',
-      '  GAMBIT_RUN_LIVE=1 npm run test:integration:live',
+      '  VEYRA_RUN_LIVE=1 npm run test:integration:live',
     ].join('\n'),
   };
 }

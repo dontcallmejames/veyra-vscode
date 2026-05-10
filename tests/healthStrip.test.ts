@@ -26,13 +26,13 @@ describe('HealthStrip', () => {
         gemini: 'ready',
       },
       send: vi.fn(),
-      gambitMdPresent: true,
+      veyraMdPresent: true,
     });
 
     const text = collectText(vnode);
     expect(text).toContain('Codex');
     expect(text).not.toContain('GPT');
-    expect(findTitle(vnode, 'gambit.md present')).toBe('gambit.md present - rules pinned to all agent prompts');
+    expect(findTitle(vnode, 'veyra.md present')).toBe('veyra.md present - rules pinned to all agent prompts');
   });
 
   it('uses current Claude setup guidance in the not-installed popover', () => {
@@ -46,7 +46,7 @@ describe('HealthStrip', () => {
         gemini: 'ready',
       },
       send,
-      gambitMdPresent: false,
+      veyraMdPresent: false,
     });
 
     const text = collectText(vnode);
@@ -73,7 +73,7 @@ describe('HealthStrip', () => {
         gemini: 'ready',
       },
       send,
-      gambitMdPresent: false,
+      veyraMdPresent: false,
     });
 
     const action = findClickableNodeByText(vnode, 'Open setup guide');
@@ -95,11 +95,11 @@ describe('HealthStrip', () => {
         gemini: 'ready',
       },
       send,
-      gambitMdPresent: false,
+      veyraMdPresent: false,
     });
 
-    expect(collectText(vnode)).toContain('Check filesystem permissions, rerun outside the current sandbox, or set `GAMBIT_CODEX_CLI_PATH` / `gambit.codexCliPath` to a JS bundle, native executable, or npm shim.');
-    expect(collectText(vnode)).toContain('Run Gambit: Show live validation guide before paid prompts.');
+    expect(collectText(vnode)).toContain('Check filesystem permissions, rerun outside the current sandbox, or set `VEYRA_CODEX_CLI_PATH` / `veyra.codexCliPath` to a JS bundle, native executable, or npm shim.');
+    expect(collectText(vnode)).toContain('Run Veyra: Show live validation guide before paid prompts.');
     expect(collectText(vnode)).toContain('Configure CLI paths');
     expect(collectText(vnode)).toContain('Open live validation guide');
 
@@ -124,11 +124,11 @@ describe('HealthStrip', () => {
         gemini: 'inaccessible',
       },
       send: vi.fn(),
-      gambitMdPresent: false,
+      veyraMdPresent: false,
     });
 
-    expect(collectText(vnode)).toContain('Check filesystem permissions, rerun outside the current sandbox, or set `GAMBIT_GEMINI_CLI_PATH` / `gambit.geminiCliPath` to a JS bundle, native executable, or npm shim.');
-    expect(collectText(vnode)).toContain('Run Gambit: Show live validation guide before paid prompts.');
+    expect(collectText(vnode)).toContain('Check filesystem permissions, rerun outside the current sandbox, or set `VEYRA_GEMINI_CLI_PATH` / `veyra.geminiCliPath` to a JS bundle, native executable, or npm shim.');
+    expect(collectText(vnode)).toContain('Run Veyra: Show live validation guide before paid prompts.');
   });
 
   it('offers CLI path configuration for misconfigured Codex status', () => {
@@ -142,7 +142,7 @@ describe('HealthStrip', () => {
         gemini: 'ready',
       },
       send,
-      gambitMdPresent: false,
+      veyraMdPresent: false,
     });
 
     const action = findClickableNodeByText(vnode, 'Configure CLI paths');
@@ -170,10 +170,10 @@ describe('HealthStrip', () => {
         gemini: 'ready',
       },
       send: vi.fn(),
-      gambitMdPresent: false,
+      veyraMdPresent: false,
     });
 
-    expect(collectText(vnode)).toContain('Install Node.js on PATH, or set `GAMBIT_CODEX_CLI_PATH` / `gambit.codexCliPath` to a native codex executable.');
+    expect(collectText(vnode)).toContain('Install Node.js on PATH, or set `VEYRA_CODEX_CLI_PATH` / `veyra.codexCliPath` to a native codex executable.');
     expect(collectText(vnode)).toContain('Configure CLI paths');
   });
 });

@@ -4,13 +4,13 @@ import * as vscode from 'vscode';
 import { ClaudeAgent, getEditedPath as getClaudeEditedPath } from './agents/claude.js';
 import { CodexAgent, getEditedPath as getCodexEditedPath } from './agents/codex.js';
 import { GeminiAgent, getEditedPath as getGeminiEditedPath } from './agents/gemini.js';
-import { GambitSessionService } from './gambitService.js';
+import { VeyraSessionService } from './veyraService.js';
 import { createWorkspaceChangeTracker } from './workspaceChanges.js';
 import type { FacilitatorDecision, FacilitatorFn } from './facilitator.js';
 import type { AgentRegistry } from './messageRouter.js';
 import type { Agent, SendOptions } from './agents/types.js';
 import type { FileBadgesController } from './fileBadges.js';
-import type { GambitSessionOptions } from './gambitService.js';
+import type { VeyraSessionOptions } from './veyraService.js';
 import type { AgentChunk, AgentId, AgentStatus } from './types.js';
 
 export function createDefaultAgents(): AgentRegistry {
@@ -22,7 +22,7 @@ export function createDefaultAgents(): AgentRegistry {
 }
 
 export function shouldUseSmokeAgents(env: Record<string, string | undefined> = process.env): boolean {
-  return env.VSCODE_GAMBIT_SMOKE === '1';
+  return env.VSCODE_VEYRA_SMOKE === '1';
 }
 
 export function createSmokeAgents(): AgentRegistry {
@@ -51,7 +51,7 @@ class SmokeAgent implements Agent {
     const mode = opts?.readOnly ? 'read-only' : 'write-capable';
     yield {
       type: 'text',
-      text: `[smoke:${this.id}] ${mode} request reached Gambit provider.`,
+      text: `[smoke:${this.id}] ${mode} request reached Veyra provider.`,
     };
     const relayMarker = smokeSharedContextRelayMarker(this.id, prompt);
     if (relayMarker) {
@@ -92,16 +92,16 @@ class SmokeAgent implements Agent {
 }
 
 const SMOKE_EDIT_FILES: Record<AgentId, string> = {
-  claude: 'src/gambit-smoke-claude.ts',
-  codex: 'src/gambit-smoke-codex.ts',
-  gemini: 'src/gambit-smoke-gemini.ts',
+  claude: 'src/veyra-smoke-claude.ts',
+  codex: 'src/veyra-smoke-codex.ts',
+  gemini: 'src/veyra-smoke-gemini.ts',
 };
-const SMOKE_CONFLICT_MARKER = '[gambit-smoke-conflict]';
-const SMOKE_CONFLICT_EDIT_FILE = 'src/gambit-smoke-conflict.ts';
-const SMOKE_SHARED_CONTEXT_MARKER = '[gambit-smoke-shared-context]';
-const SMOKE_TOOL_CONTEXT_MARKER = '[gambit-smoke-tool-context]';
-const SMOKE_CLAUDE_WRITE_MARKER = '[smoke:claude] write-capable request reached Gambit provider.';
-const SMOKE_CODEX_WRITE_MARKER = '[smoke:codex] write-capable request reached Gambit provider.';
+const SMOKE_CONFLICT_MARKER = '[veyra-smoke-conflict]';
+const SMOKE_CONFLICT_EDIT_FILE = 'src/veyra-smoke-conflict.ts';
+const SMOKE_SHARED_CONTEXT_MARKER = '[veyra-smoke-shared-context]';
+const SMOKE_TOOL_CONTEXT_MARKER = '[veyra-smoke-tool-context]';
+const SMOKE_CLAUDE_WRITE_MARKER = '[smoke:claude] write-capable request reached Veyra provider.';
+const SMOKE_CODEX_WRITE_MARKER = '[smoke:codex] write-capable request reached Veyra provider.';
 
 function smokeEditFileForPrompt(agentId: AgentId, prompt: string): string {
   return prompt.trimEnd().endsWith(SMOKE_CONFLICT_MARKER)
@@ -154,8 +154,8 @@ function writeSmokeEditFile(workspacePath: string, agentId: AgentId, relativePat
   fs.writeFileSync(
     absolutePath,
     [
-      `export const gambitSmokeAgent = '${agentId}';`,
-      `export const gambitSmokeTouchedAt = ${Date.now()};`,
+      `export const veyraSmokeAgent = '${agentId}';`,
+      `export const veyraSmokeTouchedAt = ${Date.now()};`,
       '',
     ].join('\n'),
     'utf8',
@@ -202,10 +202,10 @@ const smokeFacilitator: FacilitatorFn = async (
   return { error: 'Smoke routing unavailable; no ready agents.' };
 };
 
-export function readGambitSessionOptions(
+export function readVeyraSessionOptions(
   badgeController?: FileBadgesController,
-): GambitSessionOptions {
-  const config = vscode.workspace.getConfiguration('gambit');
+): VeyraSessionOptions {
+  const config = vscode.workspace.getConfiguration('veyra');
   return {
     watchdogMs: config.get<number>('watchdogMinutes', 5) * 60_000,
     hangSeconds: config.get<number>('hangDetectionSeconds', 60),
@@ -217,25 +217,25 @@ export function readGambitSessionOptions(
   };
 }
 
-export function createGambitSessionService(
+export function createVeyraSessionService(
   workspacePath: string,
   badgeController?: FileBadgesController,
   agents: AgentRegistry = createDefaultAgents(),
-): GambitSessionService {
-  return new GambitSessionService(
+): VeyraSessionService {
+  return new VeyraSessionService(
     workspacePath,
     agents,
     {
-      ...readGambitSessionOptions(badgeController),
+      ...readVeyraSessionOptions(badgeController),
       facilitator: shouldUseSmokeAgents() ? smokeFacilitator : undefined,
       workspaceChangeTracker: createWorkspaceChangeTracker(workspacePath),
     },
   );
 }
 
-export function refreshGambitSessionOptions(
-  service: GambitSessionService,
+export function refreshVeyraSessionOptions(
+  service: VeyraSessionService,
   badgeController?: FileBadgesController,
 ): void {
-  service.updateOptions(readGambitSessionOptions(badgeController));
+  service.updateOptions(readVeyraSessionOptions(badgeController));
 }

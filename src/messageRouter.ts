@@ -223,46 +223,46 @@ function unavailableAgentMessage(agentId: AgentId, status: AgentStatus): string 
 function setupMessage(agentId: AgentId, status: AgentStatus): string {
   if (agentId === 'codex') {
     if (status === 'not-installed') {
-      return 'Codex is not installed. Install it with `npm install -g @openai/codex`, then run `codex login`. You can also run Gambit: Configure Codex/Gemini CLI paths or Gambit: Show setup guide.';
+      return 'Codex is not installed. Install it with `npm install -g @openai/codex`, then run `codex login`. You can also run Veyra: Configure Codex/Gemini CLI paths or Veyra: Show setup guide.';
     }
     if (status === 'inaccessible') {
-      return 'Codex files are inaccessible. Check filesystem permissions, rerun outside the current sandbox, or set GAMBIT_CODEX_CLI_PATH / gambit.codexCliPath to the Codex JS bundle, native executable, or Windows npm shim. You can also run Gambit: Configure Codex/Gemini CLI paths, Gambit: Show setup guide, or Gambit: Show live validation guide.';
+      return 'Codex files are inaccessible. Check filesystem permissions, rerun outside the current sandbox, or set VEYRA_CODEX_CLI_PATH / veyra.codexCliPath to the Codex JS bundle, native executable, or Windows npm shim. You can also run Veyra: Configure Codex/Gemini CLI paths, Veyra: Show setup guide, or Veyra: Show live validation guide.';
     }
     if (status === 'misconfigured') {
-      return 'Codex CLI path is misconfigured. Set GAMBIT_CODEX_CLI_PATH / gambit.codexCliPath to codex.js, codex.exe, or codex. You can also run Gambit: Configure Codex/Gemini CLI paths or Gambit: Show setup guide.';
+      return 'Codex CLI path is misconfigured. Set VEYRA_CODEX_CLI_PATH / veyra.codexCliPath to codex.js, codex.exe, or codex. You can also run Veyra: Configure Codex/Gemini CLI paths or Veyra: Show setup guide.';
     }
     if (status === 'node-missing') {
-      return 'Codex needs Node.js on PATH to launch a JS bundle. Install Node.js, or set GAMBIT_CODEX_CLI_PATH / gambit.codexCliPath to a native codex executable. You can also run Gambit: Configure Codex/Gemini CLI paths or Gambit: Show setup guide.';
+      return 'Codex needs Node.js on PATH to launch a JS bundle. Install Node.js, or set VEYRA_CODEX_CLI_PATH / veyra.codexCliPath to a native codex executable. You can also run Veyra: Configure Codex/Gemini CLI paths or Veyra: Show setup guide.';
     }
-    return 'Codex is unauthenticated. Run `codex login`. If `codex` is missing, install it with `npm install -g @openai/codex`. You can also run Gambit: Show setup guide.';
+    return 'Codex is unauthenticated. Run `codex login`. If `codex` is missing, install it with `npm install -g @openai/codex`. You can also run Veyra: Show setup guide.';
   }
 
   if (agentId === 'gemini') {
     if (status === 'not-installed') {
-      return 'Gemini is not installed. Install it with `npm install -g @google/gemini-cli`, then run `gemini` once to sign in. You can also run Gambit: Configure Codex/Gemini CLI paths or Gambit: Show setup guide.';
+      return 'Gemini is not installed. Install it with `npm install -g @google/gemini-cli`, then run `gemini` once to sign in. You can also run Veyra: Configure Codex/Gemini CLI paths or Veyra: Show setup guide.';
     }
     if (status === 'inaccessible') {
-      return 'Gemini files are inaccessible. Check filesystem permissions, rerun outside the current sandbox, or set GAMBIT_GEMINI_CLI_PATH / gambit.geminiCliPath to the Gemini JS bundle, native executable, or Windows npm shim. You can also run Gambit: Configure Codex/Gemini CLI paths, Gambit: Show setup guide, or Gambit: Show live validation guide.';
+      return 'Gemini files are inaccessible. Check filesystem permissions, rerun outside the current sandbox, or set VEYRA_GEMINI_CLI_PATH / veyra.geminiCliPath to the Gemini JS bundle, native executable, or Windows npm shim. You can also run Veyra: Configure Codex/Gemini CLI paths, Veyra: Show setup guide, or Veyra: Show live validation guide.';
     }
     if (status === 'misconfigured') {
-      return 'Gemini CLI path is misconfigured. Set GAMBIT_GEMINI_CLI_PATH / gambit.geminiCliPath to gemini.js, gemini.exe, or gemini. You can also run Gambit: Configure Codex/Gemini CLI paths or Gambit: Show setup guide.';
+      return 'Gemini CLI path is misconfigured. Set VEYRA_GEMINI_CLI_PATH / veyra.geminiCliPath to gemini.js, gemini.exe, or gemini. You can also run Veyra: Configure Codex/Gemini CLI paths or Veyra: Show setup guide.';
     }
     if (status === 'node-missing') {
-      return 'Gemini needs Node.js on PATH to launch a JS bundle. Install Node.js, or set GAMBIT_GEMINI_CLI_PATH / gambit.geminiCliPath to a native gemini executable. You can also run Gambit: Configure Codex/Gemini CLI paths or Gambit: Show setup guide.';
+      return 'Gemini needs Node.js on PATH to launch a JS bundle. Install Node.js, or set VEYRA_GEMINI_CLI_PATH / veyra.geminiCliPath to a native gemini executable. You can also run Veyra: Configure Codex/Gemini CLI paths or Veyra: Show setup guide.';
     }
-    return 'Gemini is unauthenticated. Run `gemini` once to sign in. If `gemini` is missing, install it with `npm install -g @google/gemini-cli`. You can also run Gambit: Show setup guide.';
+    return 'Gemini is unauthenticated. Run `gemini` once to sign in. If `gemini` is missing, install it with `npm install -g @google/gemini-cli`. You can also run Veyra: Show setup guide.';
   }
 
   if (status === 'not-installed') {
-    return 'Claude is not installed. Install Claude Code, then run `claude` to sign in. You can also run Gambit: Show setup guide.';
+    return 'Claude is not installed. Install Claude Code, then run `claude` to sign in. You can also run Veyra: Show setup guide.';
   }
   if (status === 'inaccessible') {
-    return 'Claude files are inaccessible. Check filesystem permissions or rerun outside the current sandbox. You can also run Gambit: Show setup guide.';
+    return 'Claude files are inaccessible. Check filesystem permissions or rerun outside the current sandbox. You can also run Veyra: Show setup guide.';
   }
   if (status === 'node-missing') {
-    return 'Claude needs Node.js on PATH when running inside VS Code. Install Node.js, then retry. You can also run Gambit: Show setup guide.';
+    return 'Claude needs Node.js on PATH when running inside VS Code. Install Node.js, then retry. You can also run Veyra: Show setup guide.';
   }
-  return 'Claude is unauthenticated. Run `claude` to sign in. You can also run Gambit: Show setup guide.';
+  return 'Claude is unauthenticated. Run `claude` to sign in. You can also run Veyra: Show setup guide.';
 }
 
 function agentLabel(agentId: AgentId): string {

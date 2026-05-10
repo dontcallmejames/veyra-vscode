@@ -1,4 +1,4 @@
-# Gambit Native Chat Bridge Design
+# Veyra Native Chat Bridge Design
 
 **Date:** 2026-05-09
 **Status:** Draft, implementation-ready under the current goal decision policy
@@ -6,16 +6,16 @@
 
 ## 1. Summary
 
-Gambit should move from a custom-panel-only extension to a hybrid VS Code extension. The current Gambit panel remains the command center for session history, health, settings, file badges, commit attribution, and future autonomy controls. Native VS Code Chat gains first-class participants for daily use:
+Veyra should move from a custom-panel-only extension to a hybrid VS Code extension. The current Veyra panel remains the command center for session history, health, settings, file badges, commit attribution, and future autonomy controls. Native VS Code Chat gains first-class participants for daily use:
 
-- `@gambit` as the orchestrator
+- `@veyra` as the orchestrator
 - `@claude` as the Claude specialist
 - `@codex` as the Codex/GPT execution specialist
 - `@gemini` as the Gemini specialist
 
-The implementation should not duplicate routing, prompt composition, session persistence, file mention embedding, workspace rules, badges, or commit attribution. Instead, extract the panel's dispatch pipeline into a reusable extension-host service, tentatively `GambitSessionService`, and have both the webview panel and native chat participants call that service.
+The implementation should not duplicate routing, prompt composition, session persistence, file mention embedding, workspace rules, badges, or commit attribution. Instead, extract the panel's dispatch pipeline into a reusable extension-host service, tentatively `VeyraSessionService`, and have both the webview panel and native chat participants call that service.
 
-This phase prioritizes the Chat Participant API. Language Model Chat Provider support is deferred behind a feature flag because it requires a provider manifest contribution, model metadata, token counting, and conversion between VS Code language model messages and Gambit's existing agent streams. It is valuable, but it should not block the first native chat bridge.
+This phase prioritizes the Chat Participant API. Language Model Chat Provider support is deferred behind a feature flag because it requires a provider manifest contribution, model metadata, token counting, and conversion between VS Code language model messages and Veyra's existing agent streams. It is valuable, but it should not block the first native chat bridge.
 
 ## 2. Problem
 
@@ -25,29 +25,29 @@ The current codebase already has a useful multi-agent core:
 - a `MessageRouter` with facilitator support and sequential `@all`
 - shared context via `buildSharedContext`
 - `@file` embedding via `fileMentions`
-- workspace rules via `gambit.md`
+- workspace rules via `veyra.md`
 - visible file edit badges via `FileBadgesController`
-- commit attribution through `.vscode/gambit/active-dispatch`
+- commit attribution through `.vscode/veyra/active-dispatch`
 - a custom Preact webview panel
 
-The limitation is that the user must work inside Gambit's custom panel. That prevents Gambit from feeling native in VS Code's chat workflow and makes it harder to use the standard Chat UI affordances that VS Code already provides.
+The limitation is that the user must work inside Veyra's custom panel. That prevents Veyra from feeling native in VS Code's chat workflow and makes it harder to use the standard Chat UI affordances that VS Code already provides.
 
 The project mantra is:
 
 > agents can work together without losing context, stomping each other's edits, or making invisible changes.
 
-The native bridge should preserve that mantra. Native chat must not become a bypass around Gambit's shared session context, edit visibility, or dispatch attribution.
+The native bridge should preserve that mantra. Native chat must not become a bypass around Veyra's shared session context, edit visibility, or dispatch attribution.
 
 ## 3. Goals
 
 ### In scope
 
-1. Add native VS Code Chat participants for `@gambit`, `@claude`, `@codex`, and `@gemini`.
-2. Keep the current Gambit panel as a command center rather than deleting or replacing it.
+1. Add native VS Code Chat participants for `@veyra`, `@claude`, `@codex`, and `@gemini`.
+2. Keep the current Veyra panel as a command center rather than deleting or replacing it.
 3. Extract a reusable service from panel dispatch logic so panel and native chat use the same behavior.
 4. Persist native chat messages into the same workspace `SessionStore` used by the panel.
 5. Preserve prompt composition order:
-   - `gambit.md` workspace rules
+   - `veyra.md` workspace rules
    - shared conversation context
    - embedded `@file` blocks
    - current user prompt
@@ -60,7 +60,7 @@ The native bridge should preserve that mantra. Native chat must not become a byp
 ### Out of scope for this phase
 
 1. Full Language Model Chat Provider support.
-2. Registering Gambit as a provider for arbitrary VS Code `lm.selectChatModels` consumers.
+2. Registering Veyra as a provider for arbitrary VS Code `lm.selectChatModels` consumers.
 3. Parallel autonomous worktrees.
 4. Long-term memory or summarizing compaction.
 5. Full planner/debate/review autonomy loops.
@@ -73,10 +73,10 @@ These are next-phase features after the native Chat Participant bridge is stable
 The goal explicitly asks not to block on questions. The design therefore assumes:
 
 1. Hybrid architecture is correct.
-2. `@gambit` plus direct specialists is the preferred native chat surface.
+2. `@veyra` plus direct specialists is the preferred native chat surface.
 3. Autonomy defaults to "plan, edit, test, then ask before commit" rather than asking before every edit or committing fully autonomously.
 4. Native chat and panel messages should share one workspace session history by default.
-5. `gambit.md` remains the workspace rules file name.
+5. `veyra.md` remains the workspace rules file name.
 6. Language Model Chat Provider support is important but should be feature-flagged and implemented after the Chat Participant bridge.
 
 ## 5. Architecture
@@ -105,14 +105,14 @@ That makes the webview the only practical entry point.
 Introduce a reusable extension-host service:
 
 ```ts
-export interface GambitDispatchRequest {
+export interface VeyraDispatchRequest {
   text: string;
   source: 'panel' | 'chat';
-  forcedTarget?: AgentId | 'gambit';
+  forcedTarget?: AgentId | 'veyra';
   cwd: string;
 }
 
-export type GambitDispatchEvent =
+export type VeyraDispatchEvent =
   | { kind: 'user-message'; message: UserMessage }
   | { kind: 'system-message'; message: SystemMessage }
   | { kind: 'dispatch-start'; agentId: AgentId; messageId: string; timestamp: number }
@@ -123,7 +123,7 @@ export type GambitDispatchEvent =
   | { kind: 'dispatch-end'; agentId: AgentId; message: AgentMessage };
 ```
 
-`GambitSessionService.dispatch(request)` returns `AsyncIterable<GambitDispatchEvent>`.
+`VeyraSessionService.dispatch(request)` returns `AsyncIterable<VeyraDispatchEvent>`.
 
 Both surfaces consume this event stream:
 
@@ -145,13 +145,13 @@ The panel should become thinner. It should still own webview rendering, webview 
 
 ## 6. Native Participants
 
-### `@gambit`
+### `@veyra`
 
-`@gambit` is the orchestrator. It should accept prompts like:
+`@veyra` is the orchestrator. It should accept prompts like:
 
-- `@gambit review this change with all agents`
-- `@gambit have Claude design it, Codex implement it, and Gemini review edge cases`
-- `@gambit continue from the prior Codex result`
+- `@veyra review this change with all agents`
+- `@veyra have Claude design it, Codex implement it, and Gemini review edge cases`
+- `@veyra continue from the prior Codex result`
 
 Initial implementation can route through the existing facilitator and explicit mention parser. It does not need a full planning loop on day one. The main requirement is that it runs through the same shared context and persisted session as the panel.
 
@@ -182,43 +182,43 @@ Expected package changes:
 ```json
 {
   "activationEvents": [
-    "onCommand:gambit.openPanel",
-    "onCommand:gambit.installCommitHook",
-    "onCommand:gambit.uninstallCommitHook",
-    "onCommand:gambit.showCommitHookSnippet",
-    "onChatParticipant:gambit",
-    "onChatParticipant:gambit.claude",
-    "onChatParticipant:gambit.codex",
-    "onChatParticipant:gambit.gemini"
+    "onCommand:veyra.openPanel",
+    "onCommand:veyra.installCommitHook",
+    "onCommand:veyra.uninstallCommitHook",
+    "onCommand:veyra.showCommitHookSnippet",
+    "onChatParticipant:veyra",
+    "onChatParticipant:veyra.claude",
+    "onChatParticipant:veyra.codex",
+    "onChatParticipant:veyra.gemini"
   ],
   "contributes": {
     "chatParticipants": [
       {
-        "id": "gambit",
-        "name": "gambit",
-        "fullName": "Gambit",
+        "id": "veyra",
+        "name": "veyra",
+        "fullName": "Veyra",
         "description": "Coordinate Claude, Codex, and Gemini with shared context and visible edits.",
         "isSticky": true
       },
       {
-        "id": "gambit.claude",
+        "id": "veyra.claude",
         "name": "claude",
-        "fullName": "Gambit: Claude",
-        "description": "Ask Claude through Gambit's shared context and edit tracking.",
+        "fullName": "Veyra: Claude",
+        "description": "Ask Claude through Veyra's shared context and edit tracking.",
         "isSticky": true
       },
       {
-        "id": "gambit.codex",
+        "id": "veyra.codex",
         "name": "codex",
-        "fullName": "Gambit: Codex",
-        "description": "Ask Codex through Gambit's shared context and edit tracking.",
+        "fullName": "Veyra: Codex",
+        "description": "Ask Codex through Veyra's shared context and edit tracking.",
         "isSticky": true
       },
       {
-        "id": "gambit.gemini",
+        "id": "veyra.gemini",
         "name": "gemini",
-        "fullName": "Gambit: Gemini",
-        "description": "Ask Gemini through Gambit's shared context and edit tracking.",
+        "fullName": "Veyra: Gemini",
+        "description": "Ask Gemini through Veyra's shared context and edit tracking.",
         "isSticky": true
       }
     ]
@@ -243,7 +243,7 @@ The service emits model-neutral dispatch events. Native chat rendering maps them
 | `error` | markdown error line and `ChatResult.errorDetails` when fatal |
 | `dispatch-end` | final metadata containing agent id, message id, and status |
 
-The current `gambit.toolCallRenderStyle` setting should apply to native chat too:
+The current `veyra.toolCallRenderStyle` setting should apply to native chat too:
 
 - `verbose`: show tool name, input, and output summary
 - `compact`: show tool name and affected path when available
@@ -274,7 +274,7 @@ Current protections retained:
 - tool-call visibility
 - commit sentinel attribution
 - shared conversation context
-- `gambit.md` rules
+- `veyra.md` rules
 
 New service-level invariants:
 
@@ -301,18 +301,18 @@ Reasons:
 1. It requires the `languageModelChatProviders` contribution point.
 2. It needs model identity and metadata for Claude, Codex, and Gemini.
 3. It needs token counting implementation.
-4. It needs conversion between `LanguageModelChatRequestMessage[]` and Gambit's simpler prompt string.
-5. Provider consumers may expect behavior unlike Gambit's autonomous tool-running agents.
+4. It needs conversion between `LanguageModelChatRequestMessage[]` and Veyra's simpler prompt string.
+5. Provider consumers may expect behavior unlike Veyra's autonomous tool-running agents.
 
 Recommended later shape:
 
-- setting: `gambit.languageModelProvider.enabled`
-- vendor id: `gambit`
+- setting: `veyra.languageModelProvider.enabled`
+- vendor id: `veyra`
 - models:
-  - `gambit-claude`
-  - `gambit-codex`
-  - `gambit-gemini`
-  - `gambit-orchestrator`
+  - `veyra-claude`
+  - `veyra-codex`
+  - `veyra-gemini`
+  - `veyra-orchestrator`
 - provider implementation should reuse the same lower-level agent adapters, but not expose full autonomous edit behavior unless the calling context explicitly permits tools.
 
 ## 12. Test Strategy
@@ -321,9 +321,9 @@ Recommended later shape:
 
 New tests should cover:
 
-1. `GambitSessionService` composes prompts using rules, shared context, file blocks, and user text in the documented order.
+1. `VeyraSessionService` composes prompts using rules, shared context, file blocks, and user text in the documented order.
 2. `forcedTarget: 'codex'` dispatches to Codex without requiring a visible `@codex` prompt.
-3. `forcedTarget: 'gambit'` uses facilitator routing when no explicit target is present.
+3. `forcedTarget: 'veyra'` uses facilitator routing when no explicit target is present.
 4. native chat dispatch events persist user and agent messages to `SessionStore`.
 5. native chat dispatches register file badges on successful write-class tool results.
 6. native chat dispatches start and end commit sentinels.
@@ -335,7 +335,7 @@ New tests should cover:
 
 1. registers four participants
 2. maps participant ids to the correct forced target
-3. forwards prompt text to `GambitSessionService`
+3. forwards prompt text to `VeyraSessionService`
 4. renders text chunks to `ChatResponseStream.markdown`
 5. renders progress/tool events according to `toolCallRenderStyle`
 
@@ -358,7 +358,7 @@ The bridge is only acceptable if it reduces duplication. If the tests need large
 
 Detailed implementation planning should be written separately, but the expected slices are:
 
-1. Extract `GambitSessionService` from `ChatPanel.dispatchUserMessage` without changing behavior.
+1. Extract `VeyraSessionService` from `ChatPanel.dispatchUserMessage` without changing behavior.
 2. Update `ChatPanel` to consume the service event stream and keep existing webview protocol behavior.
 3. Add `src/nativeChat.ts` with participant registration and event rendering.
 4. Update `extension.ts` to create shared agents, shared badge controller, shared service, panel command, and chat participants.
@@ -370,14 +370,14 @@ Detailed implementation planning should be written separately, but the expected 
 
 This phase is complete when:
 
-1. `@gambit` appears in native VS Code Chat and can route a prompt through the existing facilitator.
+1. `@veyra` appears in native VS Code Chat and can route a prompt through the existing facilitator.
 2. `@claude`, `@codex`, and `@gemini` appear in native VS Code Chat and dispatch directly to the matching agent.
 3. Native chat responses stream text as the agent produces it.
-4. Native chat dispatches append to the same persisted `.vscode/gambit/sessions.json` history used by the panel.
+4. Native chat dispatches append to the same persisted `.vscode/veyra/sessions.json` history used by the panel.
 5. A native chat follow-up can see prior panel messages through shared context.
 6. A panel follow-up can see prior native chat messages through shared context.
 7. `@file` mentions in native chat are embedded with the existing file mention logic.
-8. `gambit.md` rules apply to native chat prompts.
+8. `veyra.md` rules apply to native chat prompts.
 9. Agent edits made from native chat trigger file badges.
 10. Agent dispatches from native chat write and clear the commit sentinel.
 11. Cancellation from the native chat UI cancels the active dispatch.
@@ -392,8 +392,8 @@ This phase is complete when:
 | agents work together without losing context | shared `SessionStore`, `buildSharedContext`, panel/native cross-context success criteria |
 | avoid stomping edits | sequential floor retained; stronger reservations deferred but named |
 | avoid invisible changes | file badges, tool-call rendering, commit sentinel retained for native chat |
-| use three paid models | direct `@claude`, `@codex`, `@gemini` participants plus `@gambit` orchestrator |
-| collaborate, debate, review | `@gambit` orchestrator is first bridge; full debate/review loops are next phase |
+| use three paid models | direct `@claude`, `@codex`, `@gemini` participants plus `@veyra` orchestrator |
+| collaborate, debate, review | `@veyra` orchestrator is first bridge; full debate/review loops are next phase |
 | pretty autonomous | default assumes plan/edit/test/ask-before-commit; deeper autonomy follows bridge |
 | VS Code Chat Participant API | primary implementation phase |
 | Language Model Chat Provider API | deferred behind feature flag with explicit rationale |
@@ -402,7 +402,7 @@ This phase is complete when:
 ## 16. Risks
 
 1. The local VS Code engine may reject a manifest field if the extension target changes. Keep the implementation pinned to the official Chat Participant guide and the local package schema.
-2. Sharing one session between panel and native chat may surprise users who expect separate histories. The default should be shared because context preservation is central to Gambit.
+2. Sharing one session between panel and native chat may surprise users who expect separate histories. The default should be shared because context preservation is central to Veyra.
 3. Native chat rendering may be noisier than the webview for tool calls. Reuse `toolCallRenderStyle` to control this.
 4. Extracting `ChatPanel.dispatchUserMessage` into a service can regress panel behavior if done as a big rewrite. Implement it in small slices with tests.
 5. Language Model Provider semantics may not fit autonomous tool-running agents. Keep it separate and feature-flagged.

@@ -64,7 +64,7 @@ describe('native chat workflow prompts', () => {
     });
   });
 
-  it('rewrites VS Code file references into Gambit file attachments', () => {
+  it('rewrites VS Code file references into Veyra file attachments', () => {
     const claude = NATIVE_CHAT_PARTICIPANTS.find((participant) => participant.name === 'claude')!;
 
     expect(nativeChatPromptForRequest(
@@ -228,47 +228,47 @@ describe('native chat workflow prompts', () => {
     });
   });
 
-  it('turns @gambit /review into an all-agent review request', () => {
-    const gambit = NATIVE_CHAT_PARTICIPANTS.find((participant) => participant.name === 'gambit')!;
-    const routed = nativeChatPromptForRequest(gambit, { prompt: 'check this diff', command: 'review' } as any);
+  it('turns @veyra /review into an all-agent review request', () => {
+    const veyra = NATIVE_CHAT_PARTICIPANTS.find((participant) => participant.name === 'veyra')!;
+    const routed = nativeChatPromptForRequest(veyra, { prompt: 'check this diff', command: 'review' } as any);
 
-    expect(routed.forcedTarget).toBe('gambit');
+    expect(routed.forcedTarget).toBe('veyra');
     expect(routed.text).toContain('@all');
     expect(routed.text).toContain('check this diff');
     expect(routed.text).toContain('review');
   });
 
-  it('keeps @gambit /review read-only so review passes do not make invisible edits', () => {
-    const gambit = NATIVE_CHAT_PARTICIPANTS.find((participant) => participant.name === 'gambit')!;
-    const routed = nativeChatPromptForRequest(gambit, { prompt: 'check this diff', command: 'review' } as any);
+  it('keeps @veyra /review read-only so review passes do not make invisible edits', () => {
+    const veyra = NATIVE_CHAT_PARTICIPANTS.find((participant) => participant.name === 'veyra')!;
+    const routed = nativeChatPromptForRequest(veyra, { prompt: 'check this diff', command: 'review' } as any);
 
     expect(routed.text).toContain('Read-only workflow');
     expect(routed.text).toContain('Do not create, edit, rename, or delete files');
   });
 
-  it('turns @gambit /debate into an all-agent debate request', () => {
-    const gambit = NATIVE_CHAT_PARTICIPANTS.find((participant) => participant.name === 'gambit')!;
-    const routed = nativeChatPromptForRequest(gambit, { prompt: 'which design should we use?', command: 'debate' } as any);
+  it('turns @veyra /debate into an all-agent debate request', () => {
+    const veyra = NATIVE_CHAT_PARTICIPANTS.find((participant) => participant.name === 'veyra')!;
+    const routed = nativeChatPromptForRequest(veyra, { prompt: 'which design should we use?', command: 'debate' } as any);
 
-    expect(routed.forcedTarget).toBe('gambit');
+    expect(routed.forcedTarget).toBe('veyra');
     expect(routed.text).toContain('@all');
     expect(routed.text).toContain('which design should we use?');
     expect(routed.text).toContain('debate');
   });
 
-  it('keeps @gambit /debate read-only until the user chooses implementation', () => {
-    const gambit = NATIVE_CHAT_PARTICIPANTS.find((participant) => participant.name === 'gambit')!;
-    const routed = nativeChatPromptForRequest(gambit, { prompt: 'which design should we use?', command: 'debate' } as any);
+  it('keeps @veyra /debate read-only until the user chooses implementation', () => {
+    const veyra = NATIVE_CHAT_PARTICIPANTS.find((participant) => participant.name === 'veyra')!;
+    const routed = nativeChatPromptForRequest(veyra, { prompt: 'which design should we use?', command: 'debate' } as any);
 
     expect(routed.text).toContain('Read-only workflow');
     expect(routed.text).toContain('Do not create, edit, rename, or delete files');
   });
 
-  it('turns @gambit /implement into an all-agent autonomous implementation request', () => {
-    const gambit = NATIVE_CHAT_PARTICIPANTS.find((participant) => participant.name === 'gambit')!;
-    const routed = nativeChatPromptForRequest(gambit, { prompt: 'fix the parser bug', command: 'implement' } as any);
+  it('turns @veyra /implement into an all-agent autonomous implementation request', () => {
+    const veyra = NATIVE_CHAT_PARTICIPANTS.find((participant) => participant.name === 'veyra')!;
+    const routed = nativeChatPromptForRequest(veyra, { prompt: 'fix the parser bug', command: 'implement' } as any);
 
-    expect(routed.forcedTarget).toBe('gambit');
+    expect(routed.forcedTarget).toBe('veyra');
     expect(routed.text).toContain('@all');
     expect(routed.text).toContain('Workflow: implement');
     expect(routed.text).toContain('fix the parser bug');
@@ -287,7 +287,7 @@ describe('native chat workflow prompts', () => {
       () => ({ service, workspacePath: '/workspace' } as any),
     );
 
-    const handler = vscodeMocks.participantHandlers.get('gambit.gambit');
+    const handler = vscodeMocks.participantHandlers.get('veyra.veyra');
     expect(handler).toBeTypeOf('function');
     await handler!(
       { prompt: 'run this', command: undefined },
@@ -315,7 +315,7 @@ describe('native chat workflow prompts', () => {
       () => ({ service, workspacePath: '/workspace' } as any),
     );
 
-    const handler = vscodeMocks.participantHandlers.get('gambit.gambit');
+    const handler = vscodeMocks.participantHandlers.get('veyra.veyra');
     expect(handler).toBeTypeOf('function');
     const response = { markdown: vi.fn(), progress: vi.fn(), reference: vi.fn() };
     await handler!(
@@ -326,7 +326,7 @@ describe('native chat workflow prompts', () => {
     );
 
     expect(service.dispatch).not.toHaveBeenCalled();
-    expect(response.markdown).toHaveBeenCalledWith('Provide a prompt before using Gambit chat participants.');
+    expect(response.markdown).toHaveBeenCalledWith('Provide a prompt before using Veyra chat participants.');
   });
 
   it('does not dispatch empty native chat workflow prompts', async () => {
@@ -341,7 +341,7 @@ describe('native chat workflow prompts', () => {
       () => ({ service, workspacePath: '/workspace' } as any),
     );
 
-    const handler = vscodeMocks.participantHandlers.get('gambit.gambit');
+    const handler = vscodeMocks.participantHandlers.get('veyra.veyra');
     expect(handler).toBeTypeOf('function');
     const response = { markdown: vi.fn(), progress: vi.fn(), reference: vi.fn() };
     await handler!(
@@ -352,7 +352,7 @@ describe('native chat workflow prompts', () => {
     );
 
     expect(service.dispatch).not.toHaveBeenCalled();
-    expect(response.markdown).toHaveBeenCalledWith('Provide a prompt before using Gambit chat participants.');
+    expect(response.markdown).toHaveBeenCalledWith('Provide a prompt before using Veyra chat participants.');
   });
 
   it('passes VS Code chat history into dispatched prompts', async () => {
@@ -367,7 +367,7 @@ describe('native chat workflow prompts', () => {
       () => ({ service, workspacePath: '/workspace' } as any),
     );
 
-    const handler = vscodeMocks.participantHandlers.get('gambit.gambit');
+    const handler = vscodeMocks.participantHandlers.get('veyra.veyra');
     expect(handler).toBeTypeOf('function');
     await handler!(
       { prompt: 'continue from there', command: undefined, references: [], toolReferences: [] },
@@ -375,12 +375,12 @@ describe('native chat workflow prompts', () => {
         history: [
           {
             prompt: 'what changed?',
-            participant: 'gambit.gambit',
+            participant: 'veyra.veyra',
             references: [],
             toolReferences: [],
           },
           {
-            participant: 'gambit.gambit',
+            participant: 'veyra.veyra',
             response: [
               { value: { value: 'Changed the parser and tests.' } },
             ],
@@ -396,8 +396,8 @@ describe('native chat workflow prompts', () => {
       expect.objectContaining({
         text: [
           '[VS Code chat history]',
-          'User (gambit.gambit): what changed?',
-          'Assistant (gambit.gambit): Changed the parser and tests.',
+          'User (veyra.veyra): what changed?',
+          'Assistant (veyra.veyra): Changed the parser and tests.',
           '[/VS Code chat history]',
           '',
           'continue from there',
@@ -419,7 +419,7 @@ describe('native chat workflow prompts', () => {
       () => ({ service, workspacePath: '/workspace' } as any),
     );
 
-    const handler = vscodeMocks.participantHandlers.get('gambit.gambit');
+    const handler = vscodeMocks.participantHandlers.get('veyra.veyra');
     expect(handler).toBeTypeOf('function');
     await handler!(
       { prompt: 'check this diff', command: 'review', references: [], toolReferences: [] },
@@ -462,7 +462,7 @@ describe('native chat workflow prompts', () => {
       () => ({ service, workspacePath: '/workspace' } as any),
     );
 
-    const handler = vscodeMocks.participantHandlers.get('gambit.gambit');
+    const handler = vscodeMocks.participantHandlers.get('veyra.veyra');
     const response = { markdown: vi.fn(), progress: vi.fn(), reference: vi.fn() };
     await handler!(
       { prompt: 'run this', command: undefined },
@@ -504,7 +504,7 @@ describe('native chat workflow prompts', () => {
       () => ({ service, workspacePath: '/workspace' } as any),
     );
 
-    const handler = vscodeMocks.participantHandlers.get('gambit.gambit');
+    const handler = vscodeMocks.participantHandlers.get('veyra.veyra');
     const response = { markdown: vi.fn(), progress: vi.fn(), reference: vi.fn() };
     await handler!(
       { prompt: 'review this', command: undefined },
@@ -548,7 +548,7 @@ describe('native chat workflow prompts', () => {
       () => ({ service, workspacePath: '/workspace' } as any),
     );
 
-    const handler = vscodeMocks.participantHandlers.get('gambit.gambit');
+    const handler = vscodeMocks.participantHandlers.get('veyra.veyra');
     const response = { markdown: vi.fn(), progress: vi.fn(), reference: vi.fn() };
     const result = await handler!(
       { prompt: 'debate this', command: 'debate', references: [], toolReferences: [] },
@@ -572,7 +572,7 @@ describe('native chat workflow prompts', () => {
             id: 'sys1',
             role: 'system',
             kind: 'routing-needed',
-            text: 'Codex is unauthenticated. Run `codex login`. You can also run Gambit: Show setup guide.',
+            text: 'Codex is unauthenticated. Run `codex login`. You can also run Veyra: Show setup guide.',
             timestamp: 1,
           },
         });
@@ -585,7 +585,7 @@ describe('native chat workflow prompts', () => {
       () => ({ service, workspacePath: '/workspace' } as any),
     );
 
-    const handler = vscodeMocks.participantHandlers.get('gambit.gambit');
+    const handler = vscodeMocks.participantHandlers.get('veyra.veyra');
     const response = { markdown: vi.fn(), progress: vi.fn(), reference: vi.fn(), button: vi.fn() };
     await handler!(
       { prompt: 'implement this', command: undefined },
@@ -594,13 +594,13 @@ describe('native chat workflow prompts', () => {
       cancellationToken(),
     );
 
-    expect(response.markdown).toHaveBeenCalledWith('Codex is unauthenticated. Run `codex login`. You can also run Gambit: Show setup guide.');
+    expect(response.markdown).toHaveBeenCalledWith('Codex is unauthenticated. Run `codex login`. You can also run Veyra: Show setup guide.');
     expect(response.button).toHaveBeenCalledWith({
-      command: 'gambit.showSetupGuide',
+      command: 'veyra.showSetupGuide',
       title: 'Open setup guide',
     });
     expect(response.button).toHaveBeenCalledWith({
-      command: 'gambit.showLiveValidationGuide',
+      command: 'veyra.showLiveValidationGuide',
       title: 'Open live validation guide',
     });
   });
@@ -615,7 +615,7 @@ describe('native chat workflow prompts', () => {
             id: 'sys1',
             role: 'system',
             kind: 'routing-needed',
-            text: 'Codex files are inaccessible. You can also run Gambit: Configure Codex/Gemini CLI paths, Gambit: Show setup guide, or Gambit: Show live validation guide.',
+            text: 'Codex files are inaccessible. You can also run Veyra: Configure Codex/Gemini CLI paths, Veyra: Show setup guide, or Veyra: Show live validation guide.',
             timestamp: 1,
           },
         });
@@ -628,7 +628,7 @@ describe('native chat workflow prompts', () => {
       () => ({ service, workspacePath: '/workspace' } as any),
     );
 
-    const handler = vscodeMocks.participantHandlers.get('gambit.gambit');
+    const handler = vscodeMocks.participantHandlers.get('veyra.veyra');
     const response = { markdown: vi.fn(), progress: vi.fn(), reference: vi.fn(), button: vi.fn() };
     await handler!(
       { prompt: 'implement this', command: undefined },
@@ -638,7 +638,7 @@ describe('native chat workflow prompts', () => {
     );
 
     expect(response.button).toHaveBeenCalledWith({
-      command: 'gambit.configureCliPaths',
+      command: 'veyra.configureCliPaths',
       title: 'Configure CLI paths',
     });
   });
@@ -662,7 +662,7 @@ describe('native chat workflow prompts', () => {
       () => ({ service, workspacePath: '/workspace' } as any),
     );
 
-    const handler = vscodeMocks.participantHandlers.get('gambit.gambit');
+    const handler = vscodeMocks.participantHandlers.get('veyra.veyra');
     const response = { markdown: vi.fn(), progress: vi.fn(), reference: vi.fn() };
     await handler!(
       { prompt: 'make a tiny edit', command: undefined },
@@ -700,7 +700,7 @@ describe('native chat workflow prompts', () => {
       () => ({ service, workspacePath: '/workspace' } as any),
     );
 
-    const handler = vscodeMocks.participantHandlers.get('gambit.gambit');
+    const handler = vscodeMocks.participantHandlers.get('veyra.veyra');
     const response = { markdown: vi.fn(), progress: vi.fn(), reference: vi.fn() };
     await handler!(
       { prompt: 'remove obsolete file', command: undefined },
@@ -733,7 +733,7 @@ describe('native chat workflow prompts', () => {
       () => ({ service, workspacePath: '/workspace' } as any),
     );
 
-    const handler = vscodeMocks.participantHandlers.get('gambit.gambit');
+    const handler = vscodeMocks.participantHandlers.get('veyra.veyra');
     const response = { markdown: vi.fn(), progress: vi.fn(), reference: vi.fn() };
     await handler!(
       { prompt: 'create a file', command: undefined },
@@ -770,7 +770,7 @@ describe('native chat workflow prompts', () => {
       () => ({ service, workspacePath: '/workspace' } as any),
     );
 
-    const handler = vscodeMocks.participantHandlers.get('gambit.gambit');
+    const handler = vscodeMocks.participantHandlers.get('veyra.veyra');
     const response = { markdown: vi.fn(), progress: vi.fn(), reference: vi.fn() };
     await handler!(
       { prompt: 'run tests', command: undefined },
@@ -804,7 +804,7 @@ describe('native chat workflow prompts', () => {
       () => ({ service, workspacePath: '/workspace' } as any),
     );
 
-    const handler = vscodeMocks.participantHandlers.get('gambit.gambit');
+    const handler = vscodeMocks.participantHandlers.get('veyra.veyra');
     const response = { markdown: vi.fn(), progress: vi.fn(), reference: vi.fn() };
     await handler!(
       { prompt: 'update the notebook', command: undefined },
@@ -850,7 +850,7 @@ describe('native chat workflow prompts', () => {
       () => ({ service, workspacePath: '/workspace' } as any),
     );
 
-    const handler = vscodeMocks.participantHandlers.get('gambit.gambit');
+    const handler = vscodeMocks.participantHandlers.get('veyra.veyra');
     const response = { markdown: vi.fn(), progress: vi.fn(), reference: vi.fn() };
     await handler!(
       { prompt: 'run tests and create file', command: undefined },
@@ -893,7 +893,7 @@ describe('native chat workflow prompts', () => {
       () => ({ service, workspacePath: '/workspace' } as any),
     );
 
-    const handler = vscodeMocks.participantHandlers.get('gambit.gambit');
+    const handler = vscodeMocks.participantHandlers.get('veyra.veyra');
     const response = { markdown: vi.fn(), progress: vi.fn(), reference: vi.fn() };
     await handler!(
       { prompt: 'run tests', command: undefined },

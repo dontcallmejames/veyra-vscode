@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const SETUP = {
   code: 'Install VS Code and ensure the `code` command is on PATH.',
-  node: 'Install Node.js and ensure the `node` command is on PATH so Gambit can launch wrapped Codex/Gemini JS-bundle CLIs, or configure native Codex/Gemini executable paths.',
+  node: 'Install Node.js and ensure the `node` command is on PATH so Veyra can launch wrapped Codex/Gemini JS-bundle CLIs, or configure native Codex/Gemini executable paths.',
   claudeInstall: 'Install Claude Code, then run `claude /login`.',
   claudeAuth: 'Run `claude /login`.',
   codexInstall: 'Install with `npm install -g @openai/codex`, then run `codex login`.',
@@ -103,7 +103,7 @@ function checkCodex(input) {
         return {
           name: 'Codex CLI',
           status: 'inaccessible',
-          detail: inaccessibleDetail(nativeStatus.path, 'GAMBIT_CODEX_CLI_PATH', 'gambit.codexCliPath'),
+          detail: inaccessibleDetail(nativeStatus.path, 'VEYRA_CODEX_CLI_PATH', 'veyra.codexCliPath'),
         };
       }
       const shimStatus = windowsNpmShimStatus(input, 'codex');
@@ -114,7 +114,7 @@ function checkCodex(input) {
         return {
           name: 'Codex CLI',
           status: 'inaccessible',
-          detail: inaccessibleDetail(shimStatus.path, 'GAMBIT_CODEX_CLI_PATH', 'gambit.codexCliPath'),
+          detail: inaccessibleDetail(shimStatus.path, 'VEYRA_CODEX_CLI_PATH', 'veyra.codexCliPath'),
         };
       }
     }
@@ -123,7 +123,7 @@ function checkCodex(input) {
       return { name: 'Codex CLI', status: 'not-installed', detail: SETUP.codexInstall };
     }
     if (input.cliOverrides?.codex && isUnsupportedWindowsCommandShim(bundle)) {
-      return { name: 'Codex CLI', status: 'inaccessible', detail: windowsShimOverrideDetail('Codex', 'GAMBIT_CODEX_CLI_PATH', 'gambit.codexCliPath') };
+      return { name: 'Codex CLI', status: 'inaccessible', detail: windowsShimOverrideDetail('Codex', 'VEYRA_CODEX_CLI_PATH', 'veyra.codexCliPath') };
     }
     if (input.cliOverrides?.codex) {
       const misconfiguration = cliPathMisconfiguration('codex', bundle);
@@ -133,7 +133,7 @@ function checkCodex(input) {
     }
     const bundleStatus = fileProbeStatus(input, bundle);
     if (bundleStatus === 'inaccessible') {
-      return { name: 'Codex CLI', status: 'inaccessible', detail: inaccessibleDetail(bundle, 'GAMBIT_CODEX_CLI_PATH', 'gambit.codexCliPath', 'codex.exe') };
+      return { name: 'Codex CLI', status: 'inaccessible', detail: inaccessibleDetail(bundle, 'VEYRA_CODEX_CLI_PATH', 'veyra.codexCliPath', 'codex.exe') };
     }
     if (bundleStatus === 'missing') {
       return { name: 'Codex CLI', status: 'not-installed', detail: SETUP.codexInstall };
@@ -168,7 +168,7 @@ function checkGemini(input) {
         return {
           name: 'Gemini CLI',
           status: 'inaccessible',
-          detail: inaccessibleDetail(nativeStatus.path, 'GAMBIT_GEMINI_CLI_PATH', 'gambit.geminiCliPath'),
+          detail: inaccessibleDetail(nativeStatus.path, 'VEYRA_GEMINI_CLI_PATH', 'veyra.geminiCliPath'),
         };
       }
       const shimStatus = windowsNpmShimStatus(input, 'gemini');
@@ -179,7 +179,7 @@ function checkGemini(input) {
         return {
           name: 'Gemini CLI',
           status: 'inaccessible',
-          detail: inaccessibleDetail(shimStatus.path, 'GAMBIT_GEMINI_CLI_PATH', 'gambit.geminiCliPath'),
+          detail: inaccessibleDetail(shimStatus.path, 'VEYRA_GEMINI_CLI_PATH', 'veyra.geminiCliPath'),
         };
       }
     }
@@ -188,7 +188,7 @@ function checkGemini(input) {
       return { name: 'Gemini CLI', status: 'not-installed', detail: SETUP.geminiInstall };
     }
     if (input.cliOverrides?.gemini && isUnsupportedWindowsCommandShim(bundle)) {
-      return { name: 'Gemini CLI', status: 'inaccessible', detail: windowsShimOverrideDetail('Gemini', 'GAMBIT_GEMINI_CLI_PATH', 'gambit.geminiCliPath') };
+      return { name: 'Gemini CLI', status: 'inaccessible', detail: windowsShimOverrideDetail('Gemini', 'VEYRA_GEMINI_CLI_PATH', 'veyra.geminiCliPath') };
     }
     if (input.cliOverrides?.gemini) {
       const misconfiguration = cliPathMisconfiguration('gemini', bundle);
@@ -198,7 +198,7 @@ function checkGemini(input) {
     }
     const bundleStatus = fileProbeStatus(input, bundle);
     if (bundleStatus === 'inaccessible') {
-      return { name: 'Gemini CLI', status: 'inaccessible', detail: inaccessibleDetail(bundle, 'GAMBIT_GEMINI_CLI_PATH', 'gambit.geminiCliPath', 'gemini.exe') };
+      return { name: 'Gemini CLI', status: 'inaccessible', detail: inaccessibleDetail(bundle, 'VEYRA_GEMINI_CLI_PATH', 'veyra.geminiCliPath', 'gemini.exe') };
     }
     if (bundleStatus === 'missing') {
       return { name: 'Gemini CLI', status: 'not-installed', detail: SETUP.geminiInstall };
@@ -443,8 +443,8 @@ export function resolveCliOverrides({
 } = {}) {
   const settings = readWorkspaceCliOverrides(cwd, fileExists, readFile);
   return {
-    codex: normalizeOverride(env.GAMBIT_CODEX_CLI_PATH) || settings.codex,
-    gemini: normalizeOverride(env.GAMBIT_GEMINI_CLI_PATH) || settings.gemini,
+    codex: normalizeOverride(env.VEYRA_CODEX_CLI_PATH) || settings.codex,
+    gemini: normalizeOverride(env.VEYRA_GEMINI_CLI_PATH) || settings.gemini,
   };
 }
 
@@ -455,8 +455,8 @@ function readWorkspaceCliOverrides(cwd, fileExists, readFile) {
   try {
     const settings = JSON.parse(stripTrailingCommas(stripJsonComments(readFile(settingsPath, 'utf8'))));
     return {
-      codex: normalizeOverride(settings['gambit.codexCliPath']),
-      gemini: normalizeOverride(settings['gambit.geminiCliPath']),
+      codex: normalizeOverride(settings['veyra.codexCliPath']),
+      gemini: normalizeOverride(settings['veyra.geminiCliPath']),
     };
   } catch {
     return {};
@@ -499,7 +499,7 @@ export function liveReadinessFailure(result) {
     'No paid model prompts were sent. Fix the items below before running live integration tests.',
     ...formatLiveTestCommandGuidance(),
     '',
-    'Gambit live readiness:',
+    'Veyra live readiness:',
     ...formatCheckLines(result),
     ...formatDiagnosticSection(result),
     ...formatUnrestrictedPowerShellDiagnostics(result),
@@ -516,9 +516,9 @@ export function liveReadinessSuccess(_result, env = process.env) {
     lines.push(
       '',
       'Next paid validation step:',
-      "  $env:GAMBIT_RUN_LIVE = '1'",
+      "  $env:VEYRA_RUN_LIVE = '1'",
       '  npm run test:integration:live',
-      '  Remove-Item Env:\\GAMBIT_RUN_LIVE -ErrorAction SilentlyContinue',
+      '  Remove-Item Env:\\VEYRA_RUN_LIVE -ErrorAction SilentlyContinue',
     );
   }
 
@@ -628,8 +628,8 @@ function formatDiagnosticSection(result) {
 
 function readinessDiagnostics(input) {
   const lines = [
-    `GAMBIT_CODEX_CLI_PATH / gambit.codexCliPath: ${formatCliOverride(input.cliOverrides?.codex)}`,
-    `GAMBIT_GEMINI_CLI_PATH / gambit.geminiCliPath: ${formatCliOverride(input.cliOverrides?.gemini)}`,
+    `VEYRA_CODEX_CLI_PATH / veyra.codexCliPath: ${formatCliOverride(input.cliOverrides?.codex)}`,
+    `VEYRA_GEMINI_CLI_PATH / veyra.geminiCliPath: ${formatCliOverride(input.cliOverrides?.gemini)}`,
   ];
 
   if (input.platform === 'win32') {
@@ -682,7 +682,7 @@ function formatNpmGlobalShimStatus(status) {
 }
 
 function printReadiness(result) {
-  process.stdout.write('Gambit live readiness:\n');
+  process.stdout.write('Veyra live readiness:\n');
   process.stdout.write(`${formatCheckLines(result).join('\n')}\n`);
   if (result.ok) {
     process.stdout.write(`${liveReadinessSuccess(result, process.env)}\n`);
@@ -716,12 +716,12 @@ function formatUnrestrictedPowerShellDiagnostics(result) {
   if (paths.gemini) {
     lines.push(`  Test-Path -LiteralPath ${powerShellSingleQuoted(paths.gemini)}`);
   }
-  lines.push('  # If Test-Path returns True, point Gambit at the exact inspectable CLI paths:');
+  lines.push('  # If Test-Path returns True, point Veyra at the exact inspectable CLI paths:');
   if (paths.codex) {
-    lines.push(`  $env:GAMBIT_CODEX_CLI_PATH = ${powerShellSingleQuoted(paths.codex)}`);
+    lines.push(`  $env:VEYRA_CODEX_CLI_PATH = ${powerShellSingleQuoted(paths.codex)}`);
   }
   if (paths.gemini) {
-    lines.push(`  $env:GAMBIT_GEMINI_CLI_PATH = ${powerShellSingleQuoted(paths.gemini)}`);
+    lines.push(`  $env:VEYRA_GEMINI_CLI_PATH = ${powerShellSingleQuoted(paths.gemini)}`);
   }
   lines.push('  npm run verify:live-ready');
   return lines;
@@ -747,20 +747,20 @@ function formatLiveTestCommandGuidance() {
   return [
     '',
     'PowerShell:',
-    "  $env:GAMBIT_RUN_LIVE = '1'",
+    "  $env:VEYRA_RUN_LIVE = '1'",
     '  npm run verify:goal',
-    '  Remove-Item Env:\\GAMBIT_RUN_LIVE -ErrorAction SilentlyContinue',
+    '  Remove-Item Env:\\VEYRA_RUN_LIVE -ErrorAction SilentlyContinue',
     '',
     'Or run only the live integration suite:',
-    "  $env:GAMBIT_RUN_LIVE = '1'",
+    "  $env:VEYRA_RUN_LIVE = '1'",
     '  npm run test:integration:live',
-    '  Remove-Item Env:\\GAMBIT_RUN_LIVE -ErrorAction SilentlyContinue',
+    '  Remove-Item Env:\\VEYRA_RUN_LIVE -ErrorAction SilentlyContinue',
     '',
     'Bash-compatible shells:',
-    '  GAMBIT_RUN_LIVE=1 npm run verify:goal',
+    '  VEYRA_RUN_LIVE=1 npm run verify:goal',
     '',
     'Or run only the live integration suite:',
-    '  GAMBIT_RUN_LIVE=1 npm run test:integration:live',
+    '  VEYRA_RUN_LIVE=1 npm run test:integration:live',
   ];
 }
 

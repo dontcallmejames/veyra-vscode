@@ -89,16 +89,16 @@ export function SystemNotice({
   if (
     message.kind === 'routing-needed'
     && (
-      message.text.includes('Gambit: Show setup guide')
-      || message.text.includes('Gambit: Configure Codex/Gemini CLI paths')
-      || message.text.includes('Gambit: Show live validation guide')
+      message.text.includes('Veyra: Show setup guide')
+      || message.text.includes('Veyra: Configure Codex/Gemini CLI paths')
+      || message.text.includes('Veyra: Show live validation guide')
     )
   ) {
     return (
       <div class={classes.join(' ')}>
         <span>{message.text}</span>
         <div style="margin-top:6px">
-          {message.text.includes('Gambit: Show setup guide') && (
+          {message.text.includes('Veyra: Show setup guide') && (
             <button
               type="button"
               class="file-edited-link"
@@ -108,7 +108,7 @@ export function SystemNotice({
               Open setup guide
             </button>
           )}
-          {message.text.includes('Gambit: Configure Codex/Gemini CLI paths') && (
+          {message.text.includes('Veyra: Configure Codex/Gemini CLI paths') && (
             <button
               type="button"
               class="file-edited-link"
@@ -118,7 +118,7 @@ export function SystemNotice({
               Configure CLI paths
             </button>
           )}
-          {message.text.includes('Gambit: Show live validation guide') && (
+          {message.text.includes('Veyra: Show live validation guide') && (
             <button
               type="button"
               class="file-edited-link"

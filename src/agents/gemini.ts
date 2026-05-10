@@ -23,7 +23,7 @@ function resolveGeminiCommand(): { command: string; args: string[] } {
   if (override) {
     assertCliPathAccessible(
       override,
-      `Gemini CLI path override not found at ${override}. Update GAMBIT_GEMINI_CLI_PATH or gambit.geminiCliPath, or install it with \`npm install -g @google/gemini-cli\`, then run \`gemini\` once to sign in.`,
+      `Gemini CLI path override not found at ${override}. Update VEYRA_GEMINI_CLI_PATH or veyra.geminiCliPath, or install it with \`npm install -g @google/gemini-cli\`, then run \`gemini\` once to sign in.`,
     );
     return cliPathCommand(override);
   }
@@ -105,7 +105,7 @@ function cliPathCommand(cliPath: string): { command: string; args: string[] } {
 
 function assertCliPathAccessible(filePath: string, missingMessage: string): void {
   if (isUnsupportedWindowsCommandShim(filePath)) {
-    throw new Error('Windows npm command shim overrides are not supported; set GAMBIT_GEMINI_CLI_PATH or gambit.geminiCliPath to the Gemini JS bundle or native executable instead.');
+    throw new Error('Windows npm command shim overrides are not supported; set VEYRA_GEMINI_CLI_PATH or veyra.geminiCliPath to the Gemini JS bundle or native executable instead.');
   }
   const misconfiguration = cliPathMisconfiguration('gemini', filePath);
   if (misconfiguration) {
@@ -141,7 +141,7 @@ const GEMINI_BASE_ARGS = ['-o', 'stream-json'];
 const GEMINI_AUTO_EDIT_ARGS = ['--approval-mode', 'auto_edit'];
 
 function geminiArgs(readOnly = false): string[] {
-  const writeApproval = vscode.workspace.getConfiguration('gambit').get<string>('writeApproval', 'auto-edit');
+  const writeApproval = vscode.workspace.getConfiguration('veyra').get<string>('writeApproval', 'auto-edit');
   const extra = !readOnly && writeApproval === 'auto-edit' ? GEMINI_AUTO_EDIT_ARGS : [];
   return [...extra, ...GEMINI_BASE_ARGS];
 }

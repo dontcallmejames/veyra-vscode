@@ -2,9 +2,9 @@ import * as vscode from 'vscode';
 import { ChatPanel } from './panel.js';
 import { FileBadgesController } from './fileBadges.js';
 import { installCommitHook, uninstallCommitHook, COMMIT_HOOK_SNIPPET } from './commitHook.js';
-import { createGambitSessionService, createSmokeAgents, refreshGambitSessionOptions, shouldUseSmokeAgents } from './gambitRuntime.js';
+import { createVeyraSessionService, createSmokeAgents, refreshVeyraSessionOptions, shouldUseSmokeAgents } from './veyraRuntime.js';
 import { nativeChatSmokeResponses, nativeChatWorkflowDiagnostics, registerNativeChatParticipants } from './nativeChat.js';
-import { registerGambitLanguageModelProvider } from './languageModelProvider.js';
+import { registerVeyraLanguageModelProvider } from './languageModelProvider.js';
 import { checkClaude, checkCodex, checkGemini, clearStatusCache } from './statusChecks.js';
 import { detectCliBundlePaths } from './cliPathDetection.js';
 import { cliPathMisconfiguration, normalizeCliPathOverride } from './cliPathValidation.js';
@@ -12,26 +12,26 @@ import type { NativeChatRegistration } from './nativeChat.js';
 import type { AgentStatus } from './types.js';
 import type { DetectedCliBundlePath } from './cliPathDetection.js';
 
-type FlushableGambitService = { flush(): Promise<void> };
+type FlushableVeyraService = { flush(): Promise<void> };
 
-const activeGambitServices = new Set<FlushableGambitService>();
+const activeVeyraServices = new Set<FlushableVeyraService>();
 
-const SETUP_GUIDE_MARKDOWN = `# Gambit Setup Guide
+const SETUP_GUIDE_MARKDOWN = `# Veyra Setup Guide
 
-Gambit coordinates Claude, Codex, and Gemini through their local authenticated tools.
+Veyra coordinates Claude, Codex, and Gemini through their local authenticated tools.
 
 ## Backend Setup
 
 1. Claude: install Claude Code, then run \`claude /login\`.
 2. Codex: install with \`npm install -g @openai/codex\`, then run \`codex login\`.
 3. Gemini: install with \`npm install -g @google/gemini-cli\`, then run \`gemini\` once to complete OAuth.
-4. Install Node.js and ensure the \`node\` command is on PATH when Gambit launches JS bundle paths or runs inside the VS Code Extension Host.
+4. Install Node.js and ensure the \`node\` command is on PATH when Veyra launches JS bundle paths or runs inside the VS Code Extension Host.
 
 ## Verify
 
-Run \`Gambit: Check agent status\` from the Command Palette. All three agents should report ready before starting \`@gambit /review\`, \`@gambit /debate\`, or \`@gambit /implement\`.
+Run \`Veyra: Check agent status\` from the Command Palette. All three agents should report ready before starting \`@veyra /review\`, \`@veyra /debate\`, or \`@veyra /implement\`.
 
-On Windows, run \`Gambit: Configure Codex/Gemini CLI paths\` to detect native executables or npm global CLI bundle paths and save them to workspace settings. If detection cannot inspect the package tree, choose \`Enter paths manually\` and paste the JS bundle paths, native executable paths, or npm shim paths such as \`codex.cmd\` and \`gemini.ps1\`. Gambit resolves npm shim paths to the underlying JS bundle before launch.
+On Windows, run \`Veyra: Configure Codex/Gemini CLI paths\` to detect native executables or npm global CLI bundle paths and save them to workspace settings. If detection cannot inspect the package tree, choose \`Enter paths manually\` and paste the JS bundle paths, native executable paths, or npm shim paths such as \`codex.cmd\` and \`gemini.ps1\`. Veyra resolves npm shim paths to the underlying JS bundle before launch.
 
 ## Inaccessible Windows CLI Bundles
 
@@ -41,22 +41,22 @@ For durable VS Code configuration, set:
 
 \`\`\`json
 {
-  "gambit.codexCliPath": "C:\\\\Users\\\\<you>\\\\AppData\\\\Roaming\\\\npm\\\\node_modules\\\\@openai\\\\codex\\\\bin\\\\codex.js",
-  "gambit.geminiCliPath": "C:\\\\Users\\\\<you>\\\\AppData\\\\Roaming\\\\npm\\\\node_modules\\\\@google\\\\gemini-cli\\\\bundle\\\\gemini.js"
+  "veyra.codexCliPath": "C:\\\\Users\\\\<you>\\\\AppData\\\\Roaming\\\\npm\\\\node_modules\\\\@openai\\\\codex\\\\bin\\\\codex.js",
+  "veyra.geminiCliPath": "C:\\\\Users\\\\<you>\\\\AppData\\\\Roaming\\\\npm\\\\node_modules\\\\@google\\\\gemini-cli\\\\bundle\\\\gemini.js"
 }
 \`\`\`
 
 For a single shell session before starting VS Code, set:
 
 \`\`\`powershell
-$env:GAMBIT_CODEX_CLI_PATH = 'C:\\Users\\<you>\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\bin\\codex.js'
-$env:GAMBIT_GEMINI_CLI_PATH = 'C:\\Users\\<you>\\AppData\\Roaming\\npm\\node_modules\\@google\\gemini-cli\\bundle\\gemini.js'
+$env:VEYRA_CODEX_CLI_PATH = 'C:\\Users\\<you>\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\bin\\codex.js'
+$env:VEYRA_GEMINI_CLI_PATH = 'C:\\Users\\<you>\\AppData\\Roaming\\npm\\node_modules\\@google\\gemini-cli\\bundle\\gemini.js'
 \`\`\`
 
 For extension-host validation, use \`docs/vscode-smoke-test.md\`.
-For paid backend validation, run \`Gambit: Show live validation guide\` before sending live prompts.
+For paid backend validation, run \`Veyra: Show live validation guide\` before sending live prompts.
 `;
-const LIVE_VALIDATION_GUIDE_MARKDOWN = `# Gambit Live Validation Guide
+const LIVE_VALIDATION_GUIDE_MARKDOWN = `# Veyra Live Validation Guide
 
 Live validation is the final paid-backend gate for Claude, Codex, and Gemini.
 
@@ -68,22 +68,22 @@ Run readiness first:
 npm run verify:live-ready
 \`\`\`
 
-No paid prompts are sent unless readiness is green. If readiness reports Codex or Gemini as inaccessible, run \`Gambit: Configure Codex/Gemini CLI paths\` and use JS bundle paths, native executable paths, or Windows npm shim paths such as \`codex.cmd\` and \`gemini.ps1\`.
+No paid prompts are sent unless readiness is green. If readiness reports Codex or Gemini as inaccessible, run \`Veyra: Configure Codex/Gemini CLI paths\` and use JS bundle paths, native executable paths, or Windows npm shim paths such as \`codex.cmd\` and \`gemini.ps1\`.
 
 ## Full Goal Verification
 
 PowerShell:
 
 \`\`\`powershell
-$env:GAMBIT_RUN_LIVE = '1'
+$env:VEYRA_RUN_LIVE = '1'
 npm run verify:goal
-Remove-Item Env:\\GAMBIT_RUN_LIVE -ErrorAction SilentlyContinue
+Remove-Item Env:\\VEYRA_RUN_LIVE -ErrorAction SilentlyContinue
 \`\`\`
 
 Bash-compatible shells:
 
 \`\`\`bash
-GAMBIT_RUN_LIVE=1 npm run verify:goal
+VEYRA_RUN_LIVE=1 npm run verify:goal
 \`\`\`
 
 ## Live Tests Only
@@ -91,15 +91,15 @@ GAMBIT_RUN_LIVE=1 npm run verify:goal
 PowerShell:
 
 \`\`\`powershell
-$env:GAMBIT_RUN_LIVE = '1'
+$env:VEYRA_RUN_LIVE = '1'
 npm run test:integration:live
-Remove-Item Env:\\GAMBIT_RUN_LIVE -ErrorAction SilentlyContinue
+Remove-Item Env:\\VEYRA_RUN_LIVE -ErrorAction SilentlyContinue
 \`\`\`
 
 Bash-compatible shells:
 
 \`\`\`bash
-GAMBIT_RUN_LIVE=1 npm run test:integration:live
+VEYRA_RUN_LIVE=1 npm run test:integration:live
 \`\`\`
 
 The live suite checks each backend individually, the read-only all-agent handoff with shared-context relay, and a disposable write-capable implementation workflow with visible file-edit evidence.
@@ -113,7 +113,7 @@ export function activate(context: vscode.ExtensionContext): void {
   let badgeController: FileBadgesController | undefined;
   let badgeProviderDisposable: vscode.Disposable | undefined;
   const fileBadgesEnabled = (): boolean =>
-    vscode.workspace.getConfiguration('gambit').get<boolean>('fileBadges.enabled', true);
+    vscode.workspace.getConfiguration('veyra').get<boolean>('fileBadges.enabled', true);
   const ensureBadgeController = (): FileBadgesController | undefined => {
     const folder = vscode.workspace.workspaceFolders?.[0];
     if (!folder || !fileBadgesEnabled()) {
@@ -141,9 +141,9 @@ export function activate(context: vscode.ExtensionContext): void {
     if (!nativeRegistration || nativeRegistration.workspacePath !== folder.uri.fsPath) {
       const smokeAgents = shouldUseSmokeAgents() ? createSmokeAgents() : undefined;
       const service = smokeAgents
-        ? createGambitSessionService(folder.uri.fsPath, currentBadgeController, smokeAgents)
-        : createGambitSessionService(folder.uri.fsPath, currentBadgeController);
-      activeGambitServices.add(service);
+        ? createVeyraSessionService(folder.uri.fsPath, currentBadgeController, smokeAgents)
+        : createVeyraSessionService(folder.uri.fsPath, currentBadgeController);
+      activeVeyraServices.add(service);
       nativeRegistration = {
         workspacePath: folder.uri.fsPath,
         service,
@@ -153,11 +153,11 @@ export function activate(context: vscode.ExtensionContext): void {
   };
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('gambit.openPanel', () => {
+    vscode.commands.registerCommand('veyra.openPanel', () => {
       const registration = ensureNativeRegistration();
       return ChatPanel.show(context, undefined, ensureBadgeController(), registration?.service, ensureBadgeController);
     }),
-    vscode.commands.registerCommand('gambit.checkStatus', async () => {
+    vscode.commands.registerCommand('veyra.checkStatus', async () => {
       clearStatusCache();
       const [claude, codex, gemini] = await Promise.all([
         checkClaude(),
@@ -165,7 +165,7 @@ export function activate(context: vscode.ExtensionContext): void {
         checkGemini(),
       ]);
       vscode.window.showInformationMessage(
-        `Gambit agent status: Claude ${formatAgentStatus(claude)}; Codex ${formatAgentStatus(codex)}; Gemini ${formatAgentStatus(gemini)}`,
+        `Veyra agent status: Claude ${formatAgentStatus(claude)}; Codex ${formatAgentStatus(codex)}; Gemini ${formatAgentStatus(gemini)}`,
       );
       const guidance = formatSetupGuidance({ claude, codex, gemini });
       if (guidance) {
@@ -174,49 +174,49 @@ export function activate(context: vscode.ExtensionContext): void {
           : [SHOW_SETUP_GUIDE_ACTION];
         void Promise.resolve(vscode.window.showWarningMessage(guidance, ...actions)).then((selected) => {
           if (selected === CONFIGURE_CLI_PATHS_ACTION) {
-            void vscode.commands.executeCommand('gambit.configureCliPaths');
+            void vscode.commands.executeCommand('veyra.configureCliPaths');
           } else if (selected === SHOW_SETUP_GUIDE_ACTION) {
-            void vscode.commands.executeCommand('gambit.showSetupGuide');
+            void vscode.commands.executeCommand('veyra.showSetupGuide');
           } else if (selected === SHOW_LIVE_VALIDATION_GUIDE_ACTION) {
-            void vscode.commands.executeCommand('gambit.showLiveValidationGuide');
+            void vscode.commands.executeCommand('veyra.showLiveValidationGuide');
           }
         });
       }
     }),
-    vscode.commands.registerCommand('gambit.showSetupGuide', async () => {
+    vscode.commands.registerCommand('veyra.showSetupGuide', async () => {
       const doc = await vscode.workspace.openTextDocument({
         content: SETUP_GUIDE_MARKDOWN,
         language: 'markdown',
       });
       await vscode.window.showTextDocument(doc);
     }),
-    vscode.commands.registerCommand('gambit.showLiveValidationGuide', async () => {
+    vscode.commands.registerCommand('veyra.showLiveValidationGuide', async () => {
       const doc = await vscode.workspace.openTextDocument({
         content: LIVE_VALIDATION_GUIDE_MARKDOWN,
         language: 'markdown',
       });
       await vscode.window.showTextDocument(doc);
     }),
-    vscode.commands.registerCommand('gambit.configureCliPaths', async () => {
+    vscode.commands.registerCommand('veyra.configureCliPaths', async () => {
       await configureCliPaths();
     }),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (
-        e.affectsConfiguration('gambit')
-        || e.affectsConfiguration('gambit.codexCliPath')
-        || e.affectsConfiguration('gambit.geminiCliPath')
+        e.affectsConfiguration('veyra')
+        || e.affectsConfiguration('veyra.codexCliPath')
+        || e.affectsConfiguration('veyra.geminiCliPath')
       ) {
         clearStatusCache();
       }
-      if (e.affectsConfiguration('gambit')) {
+      if (e.affectsConfiguration('veyra')) {
         const currentBadgeController = ensureBadgeController();
         const registration = ensureNativeRegistration();
         if (registration) {
-          refreshGambitSessionOptions(registration.service, currentBadgeController);
+          refreshVeyraSessionOptions(registration.service, currentBadgeController);
         }
       }
     }),
-    vscode.commands.registerCommand('gambit.installCommitHook', async () => {
+    vscode.commands.registerCommand('veyra.installCommitHook', async () => {
       const ws = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
       if (!ws) {
         vscode.window.showErrorMessage('Open a workspace folder first.');
@@ -224,18 +224,18 @@ export function activate(context: vscode.ExtensionContext): void {
       }
       const result = installCommitHook(ws);
       if (result.status === 'installed') {
-        vscode.window.showInformationMessage(`Installed Gambit commit hook at ${result.path}`);
+        vscode.window.showInformationMessage(`Installed Veyra commit hook at ${result.path}`);
       } else if (result.status === 'refused-hook-manager') {
         vscode.window.showWarningMessage(
-          `Detected ${result.manager}. Add the Gambit trailer logic manually - run "Gambit: Show commit hook snippet" to copy it.`,
+          `Detected ${result.manager}. Add the Veyra trailer logic manually - run "Veyra: Show commit hook snippet" to copy it.`,
         );
       } else if (result.status === 'refused-existing') {
-        vscode.window.showWarningMessage('A non-Gambit prepare-commit-msg hook already exists; refusing to overwrite.');
+        vscode.window.showWarningMessage('A non-Veyra prepare-commit-msg hook already exists; refusing to overwrite.');
       } else if (result.status === 'refused-no-git') {
         vscode.window.showErrorMessage('No .git directory at workspace root.');
       }
     }),
-    vscode.commands.registerCommand('gambit.uninstallCommitHook', async () => {
+    vscode.commands.registerCommand('veyra.uninstallCommitHook', async () => {
       const ws = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
       if (!ws) {
         vscode.window.showErrorMessage('Open a workspace folder first.');
@@ -243,14 +243,14 @@ export function activate(context: vscode.ExtensionContext): void {
       }
       const result = uninstallCommitHook(ws);
       if (result.status === 'removed') {
-        vscode.window.showInformationMessage('Removed Gambit commit hook.');
+        vscode.window.showInformationMessage('Removed Veyra commit hook.');
       } else if (result.status === 'refused-not-managed') {
-        vscode.window.showWarningMessage('Existing prepare-commit-msg is not Gambit-managed; refusing to remove.');
+        vscode.window.showWarningMessage('Existing prepare-commit-msg is not Veyra-managed; refusing to remove.');
       } else {
-        vscode.window.showInformationMessage('No Gambit commit hook installed.');
+        vscode.window.showInformationMessage('No Veyra commit hook installed.');
       }
     }),
-    vscode.commands.registerCommand('gambit.showCommitHookSnippet', async () => {
+    vscode.commands.registerCommand('veyra.showCommitHookSnippet', async () => {
       const doc = await vscode.workspace.openTextDocument({
         content: COMMIT_HOOK_SNIPPET,
         language: 'shellscript',
@@ -260,9 +260,9 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   const nativeChatRegistrations = registerNativeChatParticipants(context, ensureNativeRegistration);
-  if (process.env.VSCODE_GAMBIT_SMOKE === '1') {
+  if (process.env.VSCODE_VEYRA_SMOKE === '1') {
     context.subscriptions.push(
-      vscode.commands.registerCommand('gambit.internalSmokeDiagnostics', async () => {
+      vscode.commands.registerCommand('veyra.internalSmokeDiagnostics', async () => {
         const registration = ensureNativeRegistration();
         return {
           nativeChatRegistrations,
@@ -274,15 +274,15 @@ export function activate(context: vscode.ExtensionContext): void {
       }),
     );
   }
-  registerGambitLanguageModelProvider(context, ensureNativeRegistration);
+  registerVeyraLanguageModelProvider(context, ensureNativeRegistration);
 }
 
 export async function deactivate(): Promise<void> {
-  const services = [...activeGambitServices];
-  activeGambitServices.clear();
+  const services = [...activeVeyraServices];
+  activeVeyraServices.clear();
   await Promise.all(services.map((service) =>
     service.flush().catch((err) => {
-      console.error('Gambit session flush failed during deactivation:', err);
+      console.error('Veyra session flush failed during deactivation:', err);
     })
   ));
 }
@@ -306,7 +306,7 @@ function statusHasCliPathIssue(status: Pick<Record<'codex' | 'gemini', AgentStat
 
 async function configureCliPaths(): Promise<void> {
   const detection = detectCliBundlePaths();
-  const config = vscode.workspace.getConfiguration('gambit');
+  const config = vscode.workspace.getConfiguration('veyra');
   const configured: string[] = [];
   const incomplete: string[] = [];
 
@@ -329,9 +329,9 @@ async function configureCliPaths(): Promise<void> {
   }
 
   if (incomplete.length > 0) {
-    const message = `Gambit CLI path detection incomplete: ${incomplete.join('; ')}.`;
+    const message = `Veyra CLI path detection incomplete: ${incomplete.join('; ')}.`;
     void handleIncompleteCliPathDetection(message, detection).catch((err) => {
-      vscode.window.showErrorMessage(`Gambit CLI path configuration failed: ${errorMessage(err)}`);
+      vscode.window.showErrorMessage(`Veyra CLI path configuration failed: ${errorMessage(err)}`);
     });
   }
 }
@@ -360,16 +360,16 @@ async function handleIncompleteCliPathDetection(
       announceConfiguredCliPaths(configured);
     }
   } else if (selected === SHOW_SETUP_GUIDE_ACTION) {
-    void vscode.commands.executeCommand('gambit.showSetupGuide');
+    void vscode.commands.executeCommand('veyra.showSetupGuide');
   } else if (selected === SHOW_LIVE_VALIDATION_GUIDE_ACTION) {
-    void vscode.commands.executeCommand('gambit.showLiveValidationGuide');
+    void vscode.commands.executeCommand('veyra.showLiveValidationGuide');
   }
 }
 
 function announceConfiguredCliPaths(configured: string[]): void {
   clearStatusCache();
-  vscode.window.showInformationMessage(`Configured Gambit CLI path settings: ${configured.join(', ')}.`);
-  void vscode.commands.executeCommand('gambit.checkStatus');
+  vscode.window.showInformationMessage(`Configured Veyra CLI path settings: ${configured.join(', ')}.`);
+  void vscode.commands.executeCommand('veyra.checkStatus');
 }
 
 async function promptForCliPath(label: 'Codex' | 'Gemini', configKey: 'codexCliPath' | 'geminiCliPath', detectedPath?: string): Promise<boolean> {
@@ -396,10 +396,10 @@ async function promptForCliPath(label: 'Codex' | 'Gemini', configKey: 'codexCliP
   const normalized = normalizeCliPathOverride(runtime, trimmed);
   const misconfiguration = cliPathMisconfiguration(runtime, normalized);
   if (misconfiguration) {
-    vscode.window.showWarningMessage(`Gambit did not save ${label}: ${misconfiguration}`);
+    vscode.window.showWarningMessage(`Veyra did not save ${label}: ${misconfiguration}`);
     return false;
   }
-  await vscode.workspace.getConfiguration('gambit').update(configKey, normalized, vscode.ConfigurationTarget.Workspace);
+  await vscode.workspace.getConfiguration('veyra').update(configKey, normalized, vscode.ConfigurationTarget.Workspace);
   return true;
 }
 
@@ -432,11 +432,11 @@ function formatSetupGuidance(status: Record<'claude' | 'codex' | 'gemini', Agent
   } else if (status.codex === 'not-installed') {
     items.push('Codex is not installed (install with npm install -g @openai/codex, then run codex login)');
   } else if (status.codex === 'inaccessible') {
-    items.push('Codex files are inaccessible (check filesystem permissions, rerun outside the current sandbox, put native codex.exe on PATH, or set GAMBIT_CODEX_CLI_PATH / gambit.codexCliPath to a JS bundle, native executable, or npm shim)');
+    items.push('Codex files are inaccessible (check filesystem permissions, rerun outside the current sandbox, put native codex.exe on PATH, or set VEYRA_CODEX_CLI_PATH / veyra.codexCliPath to a JS bundle, native executable, or npm shim)');
   } else if (status.codex === 'misconfigured') {
-    items.push('Codex CLI path is misconfigured (set GAMBIT_CODEX_CLI_PATH / gambit.codexCliPath to codex.js, codex.exe, or codex)');
+    items.push('Codex CLI path is misconfigured (set VEYRA_CODEX_CLI_PATH / veyra.codexCliPath to codex.js, codex.exe, or codex)');
   } else if (status.codex === 'node-missing') {
-    items.push('Codex needs Node.js on PATH to launch a JS bundle (install Node.js or set GAMBIT_CODEX_CLI_PATH / gambit.codexCliPath to a native codex executable)');
+    items.push('Codex needs Node.js on PATH to launch a JS bundle (install Node.js or set VEYRA_CODEX_CLI_PATH / veyra.codexCliPath to a native codex executable)');
   }
 
   if (status.gemini === 'unauthenticated') {
@@ -444,13 +444,13 @@ function formatSetupGuidance(status: Record<'claude' | 'codex' | 'gemini', Agent
   } else if (status.gemini === 'not-installed') {
     items.push('Gemini is not installed (install with npm install -g @google/gemini-cli, then run gemini once to complete OAuth)');
   } else if (status.gemini === 'inaccessible') {
-    items.push('Gemini files are inaccessible (check filesystem permissions, rerun outside the current sandbox, put native gemini.exe on PATH, or set GAMBIT_GEMINI_CLI_PATH / gambit.geminiCliPath to a JS bundle, native executable, or npm shim)');
+    items.push('Gemini files are inaccessible (check filesystem permissions, rerun outside the current sandbox, put native gemini.exe on PATH, or set VEYRA_GEMINI_CLI_PATH / veyra.geminiCliPath to a JS bundle, native executable, or npm shim)');
   } else if (status.gemini === 'misconfigured') {
-    items.push('Gemini CLI path is misconfigured (set GAMBIT_GEMINI_CLI_PATH / gambit.geminiCliPath to gemini.js, gemini.exe, or gemini)');
+    items.push('Gemini CLI path is misconfigured (set VEYRA_GEMINI_CLI_PATH / veyra.geminiCliPath to gemini.js, gemini.exe, or gemini)');
   } else if (status.gemini === 'node-missing') {
-    items.push('Gemini needs Node.js on PATH to launch a JS bundle (install Node.js or set GAMBIT_GEMINI_CLI_PATH / gambit.geminiCliPath to a native gemini executable)');
+    items.push('Gemini needs Node.js on PATH to launch a JS bundle (install Node.js or set VEYRA_GEMINI_CLI_PATH / veyra.geminiCliPath to a native gemini executable)');
   }
 
   if (items.length === 0) return null;
-  return `Gambit setup needed: ${items.join('; ')}.`;
+  return `Veyra setup needed: ${items.join('; ')}.`;
 }

@@ -34,7 +34,7 @@ export class ClaudeAgent implements Agent {
 
     let stream: AsyncIterable<unknown>;
     try {
-      const writeApproval = vscode.workspace.getConfiguration('gambit').get<string>('writeApproval', 'auto-edit');
+      const writeApproval = vscode.workspace.getConfiguration('veyra').get<string>('writeApproval', 'auto-edit');
       const permissionMode = !opts.readOnly && writeApproval === 'auto-edit' ? 'acceptEdits' : 'default';
       stream = query({ prompt, options: { abortController, cwd: opts.cwd, permissionMode } });
     } catch (err) {

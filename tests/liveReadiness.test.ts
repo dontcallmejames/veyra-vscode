@@ -166,8 +166,8 @@ describe('live readiness verifier', () => {
     expect(codex?.status).toBe('inaccessible');
     expect(codex?.detail).toContain('Cannot inspect');
     expect(codex?.detail.replace(/\\/g, '/')).toContain('C:/npm/root/@openai/codex/bin/codex.js');
-    expect(codex?.detail).toContain('GAMBIT_CODEX_CLI_PATH');
-    expect(codex?.detail).toContain('gambit.codexCliPath');
+    expect(codex?.detail).toContain('VEYRA_CODEX_CLI_PATH');
+    expect(codex?.detail).toContain('veyra.codexCliPath');
     expect(codex?.detail).toContain('JS bundle, native executable, or Windows npm shim');
     expect(codex?.detail).toContain('codex.exe');
     expect(codex?.detail).toContain('PATH');
@@ -196,8 +196,8 @@ describe('live readiness verifier', () => {
     expect(gemini?.status).toBe('inaccessible');
     expect(gemini?.detail).toContain('Cannot inspect');
     expect(gemini?.detail.replace(/\\/g, '/')).toContain('C:/npm/root/@google/gemini-cli/bundle/gemini.js');
-    expect(gemini?.detail).toContain('GAMBIT_GEMINI_CLI_PATH');
-    expect(gemini?.detail).toContain('gambit.geminiCliPath');
+    expect(gemini?.detail).toContain('VEYRA_GEMINI_CLI_PATH');
+    expect(gemini?.detail).toContain('veyra.geminiCliPath');
     expect(gemini?.detail).toContain('JS bundle, native executable, or Windows npm shim');
     expect(gemini?.detail).toContain('gemini.exe');
     expect(gemini?.detail).toContain('PATH');
@@ -583,8 +583,8 @@ describe('live readiness verifier', () => {
       fileExists: () => true,
       readFile: () => `{
         // VS Code settings are JSONC.
-        "gambit.codexCliPath": "D:/tools/codex/bin/codex.js",
-        "gambit.geminiCliPath": "D:/tools/gemini/bundle/gemini.js",
+        "veyra.codexCliPath": "D:/tools/codex/bin/codex.js",
+        "veyra.geminiCliPath": "D:/tools/gemini/bundle/gemini.js",
       }`,
     });
 
@@ -599,14 +599,14 @@ describe('live readiness verifier', () => {
 
     const overrides = resolveCliOverrides({
       env: {
-        GAMBIT_CODEX_CLI_PATH: 'E:/env/codex.js',
-        GAMBIT_GEMINI_CLI_PATH: 'E:/env/gemini.js',
+        VEYRA_CODEX_CLI_PATH: 'E:/env/codex.js',
+        VEYRA_GEMINI_CLI_PATH: 'E:/env/gemini.js',
       },
       cwd: 'C:/repo',
       fileExists: () => true,
       readFile: () => `{
-        "gambit.codexCliPath": "D:/settings/codex.js",
-        "gambit.geminiCliPath": "D:/settings/gemini.js"
+        "veyra.codexCliPath": "D:/settings/codex.js",
+        "veyra.geminiCliPath": "D:/settings/gemini.js"
       }`,
     });
 
@@ -639,15 +639,15 @@ describe('live readiness verifier', () => {
       ],
     });
 
-    expect(message).toContain("$env:GAMBIT_RUN_LIVE = '1'");
+    expect(message).toContain("$env:VEYRA_RUN_LIVE = '1'");
     expect(message).toContain('npm run verify:goal');
     expect(message).toContain('npm run test:integration:live');
-    expect(message).toContain('Remove-Item Env:\\GAMBIT_RUN_LIVE -ErrorAction SilentlyContinue');
-    expect(message.match(/\$env:GAMBIT_RUN_LIVE = '1'/g)).toHaveLength(2);
-    expect(message.match(/Remove-Item Env:\\GAMBIT_RUN_LIVE -ErrorAction SilentlyContinue/g)).toHaveLength(2);
+    expect(message).toContain('Remove-Item Env:\\VEYRA_RUN_LIVE -ErrorAction SilentlyContinue');
+    expect(message.match(/\$env:VEYRA_RUN_LIVE = '1'/g)).toHaveLength(2);
+    expect(message.match(/Remove-Item Env:\\VEYRA_RUN_LIVE -ErrorAction SilentlyContinue/g)).toHaveLength(2);
     expect(message).toContain('Bash-compatible shells');
-    expect(message).toContain('GAMBIT_RUN_LIVE=1 npm run verify:goal');
-    expect(message).toContain('GAMBIT_RUN_LIVE=1 npm run test:integration:live');
+    expect(message).toContain('VEYRA_RUN_LIVE=1 npm run verify:goal');
+    expect(message).toContain('VEYRA_RUN_LIVE=1 npm run test:integration:live');
   });
 
   it('prints the next paid validation command when live readiness is ready', async () => {
@@ -666,9 +666,9 @@ describe('live readiness verifier', () => {
 
     expect(message).toContain('All live prerequisites are ready.');
     expect(message).toContain('Next paid validation step:');
-    expect(message).toContain("$env:GAMBIT_RUN_LIVE = '1'");
+    expect(message).toContain("$env:VEYRA_RUN_LIVE = '1'");
     expect(message).toContain('npm run test:integration:live');
-    expect(message).toContain('Remove-Item Env:\\GAMBIT_RUN_LIVE -ErrorAction SilentlyContinue');
+    expect(message).toContain('Remove-Item Env:\\VEYRA_RUN_LIVE -ErrorAction SilentlyContinue');
   });
 
   it('omits next paid validation guidance during the live-test npm preflight', async () => {
@@ -710,8 +710,8 @@ describe('live readiness verifier', () => {
     const failure = liveReadinessFailure(result);
 
     expect(failure).toContain('Readiness context:');
-    expect(failure).toContain('GAMBIT_CODEX_CLI_PATH / gambit.codexCliPath: unset');
-    expect(failure).toContain('GAMBIT_GEMINI_CLI_PATH / gambit.geminiCliPath: unset');
+    expect(failure).toContain('VEYRA_CODEX_CLI_PATH / veyra.codexCliPath: unset');
+    expect(failure).toContain('VEYRA_GEMINI_CLI_PATH / veyra.geminiCliPath: unset');
     expect(failure).toContain('Windows native codex.exe: missing');
     expect(failure).toContain('Windows native gemini.exe: missing');
     expect(failure).toContain('Windows npm Codex shim: missing');
@@ -741,8 +741,8 @@ describe('live readiness verifier', () => {
     expect(failure).toContain('Unrestricted PowerShell diagnostics:');
     expect(failure).toContain("Test-Path -LiteralPath 'C:/npm/root/@openai/codex/bin/codex.js'");
     expect(failure).toContain("Test-Path -LiteralPath 'C:/npm/root/@google/gemini-cli/bundle/gemini.js'");
-    expect(failure).toContain("$env:GAMBIT_CODEX_CLI_PATH = 'C:/npm/root/@openai/codex/bin/codex.js'");
-    expect(failure).toContain("$env:GAMBIT_GEMINI_CLI_PATH = 'C:/npm/root/@google/gemini-cli/bundle/gemini.js'");
+    expect(failure).toContain("$env:VEYRA_CODEX_CLI_PATH = 'C:/npm/root/@openai/codex/bin/codex.js'");
+    expect(failure).toContain("$env:VEYRA_GEMINI_CLI_PATH = 'C:/npm/root/@google/gemini-cli/bundle/gemini.js'");
     expect(failure).toContain('npm run verify:live-ready');
   });
 
@@ -809,7 +809,7 @@ describe('live readiness verifier', () => {
       'claude.live.test.ts',
       'codex.live.test.ts',
       'gemini.live.test.ts',
-      'gambit.live.test.ts',
+      'veyra.live.test.ts',
     ];
 
     for (const fileName of liveSuites) {
@@ -822,7 +822,7 @@ describe('live readiness verifier', () => {
   });
 
   it('requires the live all-agent handoff to verify cross-agent shared-context relay', async () => {
-    const contents = await readFile(join(process.cwd(), 'tests', 'integration', 'gambit.live.test.ts'), 'utf8');
+    const contents = await readFile(join(process.cwd(), 'tests', 'integration', 'veyra.live.test.ts'), 'utf8');
 
     for (const requiredText of [
       'CLAUDE_CONTEXT_MARKER',
@@ -838,20 +838,20 @@ describe('live readiness verifier', () => {
   });
 
   it('requires the live all-agent handoff to run read-only while validating shared context', async () => {
-    const contents = await readFile(join(process.cwd(), 'tests', 'integration', 'gambit.live.test.ts'), 'utf8');
+    const contents = await readFile(join(process.cwd(), 'tests', 'integration', 'veyra.live.test.ts'), 'utf8');
 
     expect(contents).toContain('readOnly: true');
   });
 
   it('requires the live all-agent suite to validate a write-capable implementation workflow', async () => {
-    const contents = await readFile(join(process.cwd(), 'tests', 'integration', 'gambit.live.test.ts'), 'utf8');
+    const contents = await readFile(join(process.cwd(), 'tests', 'integration', 'veyra.live.test.ts'), 'utf8');
 
     for (const requiredText of [
       'write-capable implementation',
-      'GAMBIT_LIVE_IMPLEMENT_MARKER',
+      'VEYRA_LIVE_IMPLEMENT_MARKER',
       'readFile',
       "expect(fileEditedEvents.length).toBeGreaterThan(0)",
-      "expect(finalContents).toContain(GAMBIT_LIVE_IMPLEMENT_MARKER)",
+      "expect(finalContents).toContain(VEYRA_LIVE_IMPLEMENT_MARKER)",
     ]) {
       expect(contents).toContain(requiredText);
     }

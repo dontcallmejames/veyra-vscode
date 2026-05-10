@@ -9,7 +9,7 @@ vi.mock('vscode', () => ({
 
 import { ClaudeAgent } from '../../src/agents/claude.js';
 
-const describeLive = process.env.GAMBIT_RUN_LIVE === '1' ? describe : describe.skip;
+const describeLive = process.env.VEYRA_RUN_LIVE === '1' ? describe : describe.skip;
 
 describeLive('ClaudeAgent - LIVE', () => {
   guardLiveModelPrompts();

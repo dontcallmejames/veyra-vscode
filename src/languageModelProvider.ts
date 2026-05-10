@@ -1,123 +1,123 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import type { GambitDispatchEvent, GambitForcedTarget, GambitSessionService } from './gambitService.js';
+import type { VeyraDispatchEvent, VeyraForcedTarget, VeyraSessionService } from './veyraService.js';
 import type { AgentId } from './types.js';
-import { gambitWorkflowPrompt, type GambitWorkflowCommand } from './workflowPrompts.js';
+import { veyraWorkflowPrompt, type VeyraWorkflowCommand } from './workflowPrompts.js';
 
-export interface GambitLanguageModelInfo extends vscode.LanguageModelChatInformation {
-  readonly forcedTarget: GambitForcedTarget;
-  readonly workflowCommand?: GambitWorkflowCommand;
+export interface VeyraLanguageModelInfo extends vscode.LanguageModelChatInformation {
+  readonly forcedTarget: VeyraForcedTarget;
+  readonly workflowCommand?: VeyraWorkflowCommand;
 }
 
-export interface GambitLanguageModelRegistration {
-  service: GambitSessionService;
+export interface VeyraLanguageModelRegistration {
+  service: VeyraSessionService;
   workspacePath: string;
 }
 
-export const GAMBIT_LANGUAGE_MODELS: readonly GambitLanguageModelInfo[] = [
+export const VEYRA_LANGUAGE_MODELS: readonly VeyraLanguageModelInfo[] = [
   {
-    id: 'gambit-orchestrator',
-    name: 'Gambit',
-    family: 'gambit',
+    id: 'veyra-orchestrator',
+    name: 'Veyra',
+    family: 'veyra',
     version: 'local-cli',
     maxInputTokens: 128_000,
     maxOutputTokens: 32_000,
-    tooltip: 'Route the request to Claude, Codex, or Gemini using Gambit context.',
+    tooltip: 'Route the request to Claude, Codex, or Gemini using Veyra context.',
     detail: 'Orchestrator',
     capabilities: {},
-    forcedTarget: 'gambit',
+    forcedTarget: 'veyra',
   },
   {
-    id: 'gambit-review',
-    name: 'Gambit Review',
-    family: 'gambit',
+    id: 'veyra-review',
+    name: 'Veyra Review',
+    family: 'veyra',
     version: 'local-cli',
     maxInputTokens: 128_000,
     maxOutputTokens: 32_000,
     tooltip: 'Run a read-only all-agent review through Claude, Codex, and Gemini.',
     detail: 'Workflow',
     capabilities: {},
-    forcedTarget: 'gambit',
+    forcedTarget: 'veyra',
     workflowCommand: 'review',
   },
   {
-    id: 'gambit-debate',
-    name: 'Gambit Debate',
-    family: 'gambit',
+    id: 'veyra-debate',
+    name: 'Veyra Debate',
+    family: 'veyra',
     version: 'local-cli',
     maxInputTokens: 128_000,
     maxOutputTokens: 32_000,
     tooltip: 'Run a read-only all-agent debate through Claude, Codex, and Gemini.',
     detail: 'Workflow',
     capabilities: {},
-    forcedTarget: 'gambit',
+    forcedTarget: 'veyra',
     workflowCommand: 'debate',
   },
   {
-    id: 'gambit-implement',
-    name: 'Gambit Implement',
-    family: 'gambit',
+    id: 'veyra-implement',
+    name: 'Veyra Implement',
+    family: 'veyra',
     version: 'local-cli',
     maxInputTokens: 128_000,
     maxOutputTokens: 32_000,
     tooltip: 'Run a serial all-agent implementation workflow through Claude, Codex, and Gemini.',
     detail: 'Workflow',
     capabilities: {},
-    forcedTarget: 'gambit',
+    forcedTarget: 'veyra',
     workflowCommand: 'implement',
   },
   {
-    id: 'gambit-claude',
-    name: 'Claude via Gambit',
+    id: 'veyra-claude',
+    name: 'Claude via Veyra',
     family: 'claude',
     version: 'local-cli',
     maxInputTokens: 128_000,
     maxOutputTokens: 32_000,
-    tooltip: 'Send the request directly to Claude through Gambit.',
+    tooltip: 'Send the request directly to Claude through Veyra.',
     detail: 'Direct agent',
     capabilities: {},
     forcedTarget: 'claude',
   },
   {
-    id: 'gambit-codex',
-    name: 'Codex via Gambit',
+    id: 'veyra-codex',
+    name: 'Codex via Veyra',
     family: 'codex',
     version: 'local-cli',
     maxInputTokens: 128_000,
     maxOutputTokens: 32_000,
-    tooltip: 'Send the request directly to Codex through Gambit.',
+    tooltip: 'Send the request directly to Codex through Veyra.',
     detail: 'Direct agent',
     capabilities: {},
     forcedTarget: 'codex',
   },
   {
-    id: 'gambit-gemini',
-    name: 'Gemini via Gambit',
+    id: 'veyra-gemini',
+    name: 'Gemini via Veyra',
     family: 'gemini',
     version: 'local-cli',
     maxInputTokens: 128_000,
     maxOutputTokens: 32_000,
-    tooltip: 'Send the request directly to Gemini through Gambit.',
+    tooltip: 'Send the request directly to Gemini through Veyra.',
     detail: 'Direct agent',
     capabilities: {},
     forcedTarget: 'gemini',
   },
 ];
 
-export function registerGambitLanguageModelProvider(
+export function registerVeyraLanguageModelProvider(
   context: vscode.ExtensionContext,
-  getRegistration: () => GambitLanguageModelRegistration | undefined,
+  getRegistration: () => VeyraLanguageModelRegistration | undefined,
 ): void {
   context.subscriptions.push(
     vscode.lm.registerLanguageModelChatProvider(
-      'gambit',
-      new GambitLanguageModelProvider(getRegistration),
+      'veyra',
+      new VeyraLanguageModelProvider(getRegistration),
     ),
   );
 }
 
-export function resolveGambitLanguageModel(modelId: string): GambitLanguageModelInfo {
-  return GAMBIT_LANGUAGE_MODELS.find((model) => model.id === modelId) ?? GAMBIT_LANGUAGE_MODELS[0];
+export function resolveVeyraLanguageModel(modelId: string): VeyraLanguageModelInfo {
+  return VEYRA_LANGUAGE_MODELS.find((model) => model.id === modelId) ?? VEYRA_LANGUAGE_MODELS[0];
 }
 
 export function languageModelMessagesToPrompt(
@@ -136,17 +136,17 @@ export function languageModelMessagesToPrompt(
     .trim();
 }
 
-class GambitLanguageModelProvider implements vscode.LanguageModelChatProvider<GambitLanguageModelInfo> {
+class VeyraLanguageModelProvider implements vscode.LanguageModelChatProvider<VeyraLanguageModelInfo> {
   constructor(
-    private readonly getRegistration: () => GambitLanguageModelRegistration | undefined,
+    private readonly getRegistration: () => VeyraLanguageModelRegistration | undefined,
   ) {}
 
-  provideLanguageModelChatInformation(): vscode.ProviderResult<GambitLanguageModelInfo[]> {
-    return [...GAMBIT_LANGUAGE_MODELS];
+  provideLanguageModelChatInformation(): vscode.ProviderResult<VeyraLanguageModelInfo[]> {
+    return [...VEYRA_LANGUAGE_MODELS];
   }
 
   async provideLanguageModelChatResponse(
-    model: GambitLanguageModelInfo,
+    model: VeyraLanguageModelInfo,
     messages: readonly vscode.LanguageModelChatRequestMessage[],
     _options: vscode.ProvideLanguageModelChatResponseOptions,
     progress: vscode.Progress<vscode.LanguageModelResponsePart>,
@@ -154,16 +154,16 @@ class GambitLanguageModelProvider implements vscode.LanguageModelChatProvider<Ga
   ): Promise<void> {
     const registration = this.getRegistration();
     if (!registration) {
-      progress.report(new vscode.LanguageModelTextPart('Open a workspace folder before using Gambit language models.'));
+      progress.report(new vscode.LanguageModelTextPart('Open a workspace folder before using Veyra language models.'));
       return;
     }
 
-    const selectedModel = resolveGambitLanguageModel(model.id);
+    const selectedModel = resolveVeyraLanguageModel(model.id);
     if (token.isCancellationRequested) return;
 
     const transcriptPrompt = languageModelMessagesToPrompt(messages);
     if (!transcriptPrompt.trim()) {
-      progress.report(new vscode.LanguageModelTextPart('Provide a prompt before using Gambit language models.'));
+      progress.report(new vscode.LanguageModelTextPart('Provide a prompt before using Veyra language models.'));
       return;
     }
     const prompt = withLanguageModelRequestContext(transcriptPrompt, _options);
@@ -173,7 +173,7 @@ class GambitLanguageModelProvider implements vscode.LanguageModelChatProvider<Ga
     });
 
     const routedText = selectedModel.workflowCommand
-      ? gambitWorkflowPrompt(selectedModel.workflowCommand, prompt)
+      ? veyraWorkflowPrompt(selectedModel.workflowCommand, prompt)
       : prompt;
     const readOnly = selectedModel.workflowCommand === 'review' || selectedModel.workflowCommand === 'debate';
 
@@ -194,7 +194,7 @@ class GambitLanguageModelProvider implements vscode.LanguageModelChatProvider<Ga
       );
     } catch (err) {
       reportedOutput = true;
-      progress.report(new vscode.LanguageModelTextPart(`\n\n**Gambit error:** ${errorMessage(err)}`));
+      progress.report(new vscode.LanguageModelTextPart(`\n\n**Veyra error:** ${errorMessage(err)}`));
     } finally {
       cancellation.dispose();
     }
@@ -205,7 +205,7 @@ class GambitLanguageModelProvider implements vscode.LanguageModelChatProvider<Ga
   }
 
   async provideTokenCount(
-    _model: GambitLanguageModelInfo,
+    _model: VeyraLanguageModelInfo,
     text: string | vscode.LanguageModelChatRequestMessage,
   ): Promise<number> {
     const value = typeof text === 'string'
@@ -216,7 +216,7 @@ class GambitLanguageModelProvider implements vscode.LanguageModelChatProvider<Ga
 }
 
 function reportLanguageModelEvent(
-  event: GambitDispatchEvent,
+  event: VeyraDispatchEvent,
   progress: vscode.Progress<vscode.LanguageModelResponsePart>,
   workspacePath: string,
 ): boolean {
@@ -363,7 +363,7 @@ function verboseToolPayload(value: unknown): string {
 }
 
 function readToolCallRenderStyle(): ToolCallRenderStyle {
-  const value = vscode.workspace.getConfiguration('gambit')
+  const value = vscode.workspace.getConfiguration('veyra')
     .get<ToolCallRenderStyle>('toolCallRenderStyle', 'compact');
   return value === 'verbose' || value === 'hidden' ? value : 'compact';
 }

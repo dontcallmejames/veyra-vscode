@@ -98,7 +98,7 @@ function packageNameFromSpecifier(specifier) {
 }
 
 function main() {
-  const cachePath = join(process.cwd(), 'node_modules', '.cache', 'gambit-npm-pack');
+  const cachePath = join(process.cwd(), 'node_modules', '.cache', 'veyra-npm-pack');
   mkdirSync(cachePath, { recursive: true });
   const npmArgs = ['pack', '--dry-run', '--json'];
   const npmCommand = resolveNpmCommand(process.env, process.execPath);

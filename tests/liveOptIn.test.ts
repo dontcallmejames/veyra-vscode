@@ -34,14 +34,14 @@ describe('live integration npm opt-in guard', () => {
       encoding: 'utf8',
     });
 
-    const debateIndex = output.indexOf('@gambit /debate choose a safe test-only change for this project');
-    const reviewIndex = output.indexOf('@gambit /review inspect this workspace and report risks only');
-    const implementIndex = output.indexOf('@gambit /implement make a tiny test-only change, then review it');
+    const debateIndex = output.indexOf('@veyra /debate choose a safe test-only change for this project');
+    const reviewIndex = output.indexOf('@veyra /review inspect this workspace and report risks only');
+    const implementIndex = output.indexOf('@veyra /implement make a tiny test-only change, then review it');
 
     expect(debateIndex).toBeGreaterThanOrEqual(0);
     expect(reviewIndex).toBeGreaterThan(debateIndex);
     expect(implementIndex).toBeGreaterThan(reviewIndex);
-    expect(output).toContain('If /debate does not end with "Gambit completed with errors.", continue with:');
+    expect(output).toContain('If /debate does not end with "Veyra completed with errors.", continue with:');
     expect(output).toContain('Manual evidence to paste back:');
     expect(output).toContain('/debate final error gone');
     expect(output).toContain('Do this next in VS Code, not PowerShell.');
@@ -63,13 +63,13 @@ describe('live integration npm opt-in guard', () => {
     expect(output).not.toContain('Paid live integration suites completed.');
     expect(output).toContain('Manual Extension Host check instructions.');
     expect(output).toContain('Do this in VS Code, not PowerShell.');
-    expect(output).toContain('@gambit /debate choose a safe test-only change for this project');
-    expect(output).toContain('@gambit /implement make a tiny test-only change, then review it');
-    expect(output).toContain('If /debate does not end with "Gambit completed with errors.", continue with:');
+    expect(output).toContain('@veyra /debate choose a safe test-only change for this project');
+    expect(output).toContain('@veyra /implement make a tiny test-only change, then review it');
+    expect(output).toContain('If /debate does not end with "Veyra completed with errors.", continue with:');
     expect(output).toContain('Manual evidence to paste back:');
   });
 
-  it('requires GAMBIT_RUN_LIVE=1 before the npm live-test entrypoint can continue', async () => {
+  it('requires VEYRA_RUN_LIVE=1 before the npm live-test entrypoint can continue', async () => {
     // @ts-expect-error The opt-in guard is a plain Node .mjs script used by npm preflight.
     const { requireLiveOptIn } = await import('../scripts/require-live-opt-in.mjs') as {
       requireLiveOptIn(env?: Record<string, string | undefined>): {
@@ -80,13 +80,13 @@ describe('live integration npm opt-in guard', () => {
 
     expect(requireLiveOptIn({})).toEqual({
       ok: false,
-      message: expect.stringContaining('GAMBIT_RUN_LIVE=1'),
+      message: expect.stringContaining('VEYRA_RUN_LIVE=1'),
     });
     expect(requireLiveOptIn({}).message).toContain('npm run verify:goal');
-    expect(requireLiveOptIn({ GAMBIT_RUN_LIVE: '0' })).toEqual({
+    expect(requireLiveOptIn({ VEYRA_RUN_LIVE: '0' })).toEqual({
       ok: false,
-      message: expect.stringContaining('GAMBIT_RUN_LIVE=1'),
+      message: expect.stringContaining('VEYRA_RUN_LIVE=1'),
     });
-    expect(requireLiveOptIn({ GAMBIT_RUN_LIVE: '1' })).toEqual({ ok: true });
+    expect(requireLiveOptIn({ VEYRA_RUN_LIVE: '1' })).toEqual({ ok: true });
   });
 });

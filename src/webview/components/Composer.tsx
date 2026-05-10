@@ -9,7 +9,7 @@ interface Props {
   send: (msg: FromWebview) => void;
   floorHolder: AgentId | null;
   status: Record<AgentId, AgentStatus>;
-  gambitMdPresent: boolean;
+  veyraMdPresent: boolean;
 }
 
 const AGENT_TOKENS = new Set(['@claude', '@gpt', '@codex', '@chatgpt', '@gemini', '@all']);
@@ -69,7 +69,7 @@ function looksLikeScopedPackage(token: string): boolean {
   return parts.length >= 2 && PACKAGE_SCOPES.has(parts[0].toLowerCase());
 }
 
-export function Composer({ send, floorHolder, status, gambitMdPresent }: Props) {
+export function Composer({ send, floorHolder, status, veyraMdPresent }: Props) {
   const [text, setText] = useState('');
   const [autocomplete, setAutocomplete] = useState<{ open: boolean; filter: string; activeIndex: number }>({
     open: false, filter: '', activeIndex: 0,
@@ -141,7 +141,7 @@ export function Composer({ send, floorHolder, status, gambitMdPresent }: Props) 
         </div>
       )}
       <div class="composer-row">
-        <HealthStrip status={status} send={send} gambitMdPresent={gambitMdPresent} />
+        <HealthStrip status={status} send={send} veyraMdPresent={veyraMdPresent} />
         <div style="flex:1" />
         {isFloorHeld && (
           <button class="cancel" onClick={() => send({ kind: 'cancel' })}>Cancel</button>

@@ -84,8 +84,8 @@ export const DEFAULT_SETTINGS: Settings = {
 // === postMessage protocol ===
 
 export type FromExtension =
-  | { kind: 'init'; session: Session; status: Record<AgentId, AgentStatus>; settings: Settings; gambitMdPresent: boolean }
-  | { kind: 'gambit-md-changed'; present: boolean }
+  | { kind: 'init'; session: Session; status: Record<AgentId, AgentStatus>; settings: Settings; veyraMdPresent: boolean }
+  | { kind: 'veyra-md-changed'; present: boolean }
   | { kind: 'message-started'; id: string; agentId: AgentId; timestamp: number }
   | { kind: 'message-chunk'; id: string; chunk: AgentChunk }
   | { kind: 'message-finalized'; message: AgentMessage }

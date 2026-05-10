@@ -28,12 +28,12 @@ const mocks = vi.hoisted(() => {
     openTextDocument: vi.fn().mockResolvedValue({ uri: { fsPath: '/snippet' } }),
     showTextDocument: vi.fn().mockResolvedValue(undefined),
     chatPanelShow: vi.fn(),
-    createGambitSessionService: vi.fn(() => service),
+    createVeyraSessionService: vi.fn(() => service),
     createSmokeAgents: vi.fn(() => smokeAgents),
     shouldUseSmokeAgents: vi.fn(() => false),
-    refreshGambitSessionOptions: vi.fn(),
+    refreshVeyraSessionOptions: vi.fn(),
     registerNativeChatParticipants: vi.fn(),
-    registerGambitLanguageModelProvider: vi.fn(),
+    registerVeyraLanguageModelProvider: vi.fn(),
     checkClaude: vi.fn().mockResolvedValue('ready'),
     checkCodex: vi.fn().mockResolvedValue('unauthenticated'),
     checkGemini: vi.fn().mockResolvedValue('not-installed'),
@@ -68,13 +68,13 @@ const mocks = vi.hoisted(() => {
       this.chatPanelShow.mockClear();
       this.service.flush.mockClear();
       this.service.flush.mockResolvedValue(undefined);
-      this.createGambitSessionService.mockClear();
+      this.createVeyraSessionService.mockClear();
       this.createSmokeAgents.mockClear();
       this.shouldUseSmokeAgents.mockClear();
       this.shouldUseSmokeAgents.mockReturnValue(false);
-      this.refreshGambitSessionOptions.mockClear();
+      this.refreshVeyraSessionOptions.mockClear();
       this.registerNativeChatParticipants.mockClear();
-      this.registerGambitLanguageModelProvider.mockClear();
+      this.registerVeyraLanguageModelProvider.mockClear();
       this.checkClaude.mockClear();
       this.checkCodex.mockClear();
       this.checkGemini.mockClear();
@@ -133,11 +133,11 @@ vi.mock('../src/commitHook.js', () => ({
   uninstallCommitHook: vi.fn(() => ({ status: 'removed' })),
 }));
 
-vi.mock('../src/gambitRuntime.js', () => ({
-  createGambitSessionService: mocks.createGambitSessionService,
+vi.mock('../src/veyraRuntime.js', () => ({
+  createVeyraSessionService: mocks.createVeyraSessionService,
   createSmokeAgents: mocks.createSmokeAgents,
   shouldUseSmokeAgents: mocks.shouldUseSmokeAgents,
-  refreshGambitSessionOptions: mocks.refreshGambitSessionOptions,
+  refreshVeyraSessionOptions: mocks.refreshVeyraSessionOptions,
 }));
 
 vi.mock('../src/nativeChat.js', () => ({
@@ -145,7 +145,7 @@ vi.mock('../src/nativeChat.js', () => ({
 }));
 
 vi.mock('../src/languageModelProvider.js', () => ({
-  registerGambitLanguageModelProvider: mocks.registerGambitLanguageModelProvider,
+  registerVeyraLanguageModelProvider: mocks.registerVeyraLanguageModelProvider,
 }));
 
 vi.mock('../src/statusChecks.js', () => ({
@@ -181,17 +181,17 @@ describe('activate', () => {
     activate(ctx as any);
 
     expect(mocks.registerCommand.mock.calls.map(([command]) => command)).toEqual([
-      'gambit.openPanel',
-      'gambit.checkStatus',
-      'gambit.showSetupGuide',
-      'gambit.showLiveValidationGuide',
-      'gambit.configureCliPaths',
-      'gambit.installCommitHook',
-      'gambit.uninstallCommitHook',
-      'gambit.showCommitHookSnippet',
+      'veyra.openPanel',
+      'veyra.checkStatus',
+      'veyra.showSetupGuide',
+      'veyra.showLiveValidationGuide',
+      'veyra.configureCliPaths',
+      'veyra.installCommitHook',
+      'veyra.uninstallCommitHook',
+      'veyra.showCommitHookSnippet',
     ]);
     expect(mocks.registerNativeChatParticipants).toHaveBeenCalledWith(ctx, expect.any(Function));
-    expect(mocks.registerGambitLanguageModelProvider).toHaveBeenCalledWith(ctx, expect.any(Function));
+    expect(mocks.registerVeyraLanguageModelProvider).toHaveBeenCalledWith(ctx, expect.any(Function));
     expect(mocks.registerFileDecorationProvider).toHaveBeenCalledTimes(1);
   });
 
@@ -202,7 +202,7 @@ describe('activate', () => {
     });
     activate(context() as any);
 
-    const configureCliPaths = mocks.commandCallbacks.get('gambit.configureCliPaths');
+    const configureCliPaths = mocks.commandCallbacks.get('veyra.configureCliPaths');
     expect(configureCliPaths).toBeTypeOf('function');
     await configureCliPaths!();
 
@@ -210,9 +210,9 @@ describe('activate', () => {
     expect(mocks.configUpdate).toHaveBeenCalledWith('geminiCliPath', 'D:\\tools\\gemini\\gemini.js', 'Workspace');
     expect(mocks.clearStatusCache).toHaveBeenCalledTimes(1);
     expect(mocks.showInformationMessage).toHaveBeenCalledWith(
-      'Configured Gambit CLI path settings: Codex, Gemini.',
+      'Configured Veyra CLI path settings: Codex, Gemini.',
     );
-    expect(mocks.executeCommand).toHaveBeenCalledWith('gambit.checkStatus');
+    expect(mocks.executeCommand).toHaveBeenCalledWith('veyra.checkStatus');
   });
 
   it('warns when automatic CLI bundle path configuration cannot find usable bundles', async () => {
@@ -222,13 +222,13 @@ describe('activate', () => {
     });
     activate(context() as any);
 
-    const configureCliPaths = mocks.commandCallbacks.get('gambit.configureCliPaths');
+    const configureCliPaths = mocks.commandCallbacks.get('veyra.configureCliPaths');
     expect(configureCliPaths).toBeTypeOf('function');
     await configureCliPaths!();
 
     expect(mocks.configUpdate).not.toHaveBeenCalled();
     expect(mocks.showWarningMessage).toHaveBeenCalledWith(
-      'Gambit CLI path detection incomplete: Codex inaccessible - Cannot inspect Codex path; Gemini missing - Gemini bundle missing.',
+      'Veyra CLI path detection incomplete: Codex inaccessible - Cannot inspect Codex path; Gemini missing - Gemini bundle missing.',
       'Enter paths manually',
       'Show setup guide',
       'Show live validation guide',
@@ -243,12 +243,12 @@ describe('activate', () => {
     mocks.showWarningMessage.mockResolvedValueOnce('Show live validation guide');
     activate(context() as any);
 
-    const configureCliPaths = mocks.commandCallbacks.get('gambit.configureCliPaths');
+    const configureCliPaths = mocks.commandCallbacks.get('veyra.configureCliPaths');
     expect(configureCliPaths).toBeTypeOf('function');
     await configureCliPaths!();
     await flushAsyncWork();
 
-    expect(mocks.executeCommand).toHaveBeenCalledWith('gambit.showLiveValidationGuide');
+    expect(mocks.executeCommand).toHaveBeenCalledWith('veyra.showLiveValidationGuide');
   });
 
   it('accepts manual CLI runtime paths when automatic configuration cannot inspect bundles', async () => {
@@ -262,13 +262,13 @@ describe('activate', () => {
       .mockResolvedValueOnce('D:\\manual\\gemini\\gemini.exe');
     activate(context() as any);
 
-    const configureCliPaths = mocks.commandCallbacks.get('gambit.configureCliPaths');
+    const configureCliPaths = mocks.commandCallbacks.get('veyra.configureCliPaths');
     expect(configureCliPaths).toBeTypeOf('function');
     await configureCliPaths!();
     await flushAsyncWork();
 
     expect(mocks.showWarningMessage).toHaveBeenCalledWith(
-      'Gambit CLI path detection incomplete: Codex inaccessible - Cannot inspect Codex path; Gemini missing - Gemini bundle missing.',
+      'Veyra CLI path detection incomplete: Codex inaccessible - Cannot inspect Codex path; Gemini missing - Gemini bundle missing.',
       'Enter paths manually',
       'Show setup guide',
       'Show live validation guide',
@@ -292,9 +292,9 @@ describe('activate', () => {
     expect(mocks.configUpdate).toHaveBeenCalledWith('geminiCliPath', 'D:\\manual\\gemini\\gemini.exe', 'Workspace');
     expect(mocks.clearStatusCache).toHaveBeenCalledTimes(1);
     expect(mocks.showInformationMessage).toHaveBeenCalledWith(
-      'Configured Gambit CLI path settings: Codex, Gemini.',
+      'Configured Veyra CLI path settings: Codex, Gemini.',
     );
-    expect(mocks.executeCommand).toHaveBeenCalledWith('gambit.checkStatus');
+    expect(mocks.executeCommand).toHaveBeenCalledWith('veyra.checkStatus');
   });
 
   it('normalizes manually entered Windows npm shim paths before saving workspace settings', async () => {
@@ -308,14 +308,14 @@ describe('activate', () => {
       .mockResolvedValueOnce('D:\\npm\\gemini.ps1');
     activate(context() as any);
 
-    const configureCliPaths = mocks.commandCallbacks.get('gambit.configureCliPaths');
+    const configureCliPaths = mocks.commandCallbacks.get('veyra.configureCliPaths');
     expect(configureCliPaths).toBeTypeOf('function');
     await configureCliPaths!();
     await flushAsyncWork();
 
     expect(mocks.configUpdate).toHaveBeenCalledWith('codexCliPath', 'D:\\npm\\node_modules\\@openai\\codex\\bin\\codex.js', 'Workspace');
     expect(mocks.configUpdate).toHaveBeenCalledWith('geminiCliPath', 'D:\\npm\\node_modules\\@google\\gemini-cli\\bundle\\gemini.js', 'Workspace');
-    expect(mocks.executeCommand).toHaveBeenCalledWith('gambit.checkStatus');
+    expect(mocks.executeCommand).toHaveBeenCalledWith('veyra.checkStatus');
   });
 
   it('does not block CLI path configuration while waiting for manual path selection', async () => {
@@ -332,7 +332,7 @@ describe('activate', () => {
       .mockResolvedValueOnce('D:\\manual\\gemini\\gemini.js');
     activate(context() as any);
 
-    const configureCliPaths = mocks.commandCallbacks.get('gambit.configureCliPaths');
+    const configureCliPaths = mocks.commandCallbacks.get('veyra.configureCliPaths');
     expect(configureCliPaths).toBeTypeOf('function');
     await expect(configureCliPaths!()).resolves.toBeUndefined();
     expect(mocks.showInputBox).not.toHaveBeenCalled();
@@ -342,7 +342,7 @@ describe('activate', () => {
 
     expect(mocks.configUpdate).toHaveBeenCalledWith('codexCliPath', 'D:\\manual\\codex\\codex.js', 'Workspace');
     expect(mocks.configUpdate).toHaveBeenCalledWith('geminiCliPath', 'D:\\manual\\gemini\\gemini.js', 'Workspace');
-    expect(mocks.executeCommand).toHaveBeenCalledWith('gambit.checkStatus');
+    expect(mocks.executeCommand).toHaveBeenCalledWith('veyra.checkStatus');
   });
 
   it('reports background manual CLI path configuration failures', async () => {
@@ -355,13 +355,13 @@ describe('activate', () => {
     mocks.configUpdate.mockRejectedValueOnce(new Error('settings are read-only'));
     activate(context() as any);
 
-    const configureCliPaths = mocks.commandCallbacks.get('gambit.configureCliPaths');
+    const configureCliPaths = mocks.commandCallbacks.get('veyra.configureCliPaths');
     expect(configureCliPaths).toBeTypeOf('function');
     await configureCliPaths!();
     await flushAsyncWork();
 
     expect(mocks.showErrorMessage).toHaveBeenCalledWith(
-      'Gambit CLI path configuration failed: settings are read-only',
+      'Veyra CLI path configuration failed: settings are read-only',
     );
   });
 
@@ -376,24 +376,24 @@ describe('activate', () => {
       .mockResolvedValueOnce('D:\\tools\\not-gemini.js');
     activate(context() as any);
 
-    const configureCliPaths = mocks.commandCallbacks.get('gambit.configureCliPaths');
+    const configureCliPaths = mocks.commandCallbacks.get('veyra.configureCliPaths');
     expect(configureCliPaths).toBeTypeOf('function');
     await configureCliPaths!();
     await flushAsyncWork();
 
     expect(mocks.configUpdate).not.toHaveBeenCalled();
     expect(mocks.showWarningMessage).toHaveBeenCalledWith(
-      'Gambit did not save Codex: Codex CLI path override must point to codex.js, codex.exe, or codex. Received D:\\tools\\not-codex.exe.',
+      'Veyra did not save Codex: Codex CLI path override must point to codex.js, codex.exe, or codex. Received D:\\tools\\not-codex.exe.',
     );
     expect(mocks.showWarningMessage).toHaveBeenCalledWith(
-      'Gambit did not save Gemini: Gemini CLI path override must point to gemini.js, gemini.exe, or gemini. Received D:\\tools\\not-gemini.js.',
+      'Veyra did not save Gemini: Gemini CLI path override must point to gemini.js, gemini.exe, or gemini. Received D:\\tools\\not-gemini.js.',
     );
   });
 
   it('checks all agent backends from the command palette', async () => {
     activate(context() as any);
 
-    const checkStatus = mocks.commandCallbacks.get('gambit.checkStatus');
+    const checkStatus = mocks.commandCallbacks.get('veyra.checkStatus');
     expect(checkStatus).toBeTypeOf('function');
     await checkStatus!();
 
@@ -402,10 +402,10 @@ describe('activate', () => {
     expect(mocks.checkCodex).toHaveBeenCalledTimes(1);
     expect(mocks.checkGemini).toHaveBeenCalledTimes(1);
     expect(mocks.showInformationMessage).toHaveBeenCalledWith(
-      'Gambit agent status: Claude ready; Codex unauthenticated; Gemini not installed',
+      'Veyra agent status: Claude ready; Codex unauthenticated; Gemini not installed',
     );
     expect(mocks.showWarningMessage).toHaveBeenCalledWith(
-      'Gambit setup needed: Codex is unauthenticated (run codex login); Gemini is not installed (install with npm install -g @google/gemini-cli, then run gemini once to complete OAuth).',
+      'Veyra setup needed: Codex is unauthenticated (run codex login); Gemini is not installed (install with npm install -g @google/gemini-cli, then run gemini once to complete OAuth).',
       'Configure CLI paths',
       'Show setup guide',
       'Show live validation guide',
@@ -416,17 +416,17 @@ describe('activate', () => {
     mocks.showWarningMessage.mockResolvedValueOnce('Show setup guide');
     activate(context() as any);
 
-    const checkStatus = mocks.commandCallbacks.get('gambit.checkStatus');
+    const checkStatus = mocks.commandCallbacks.get('veyra.checkStatus');
     expect(checkStatus).toBeTypeOf('function');
     await checkStatus!();
 
     expect(mocks.showWarningMessage).toHaveBeenCalledWith(
-      'Gambit setup needed: Codex is unauthenticated (run codex login); Gemini is not installed (install with npm install -g @google/gemini-cli, then run gemini once to complete OAuth).',
+      'Veyra setup needed: Codex is unauthenticated (run codex login); Gemini is not installed (install with npm install -g @google/gemini-cli, then run gemini once to complete OAuth).',
       'Configure CLI paths',
       'Show setup guide',
       'Show live validation guide',
     );
-    expect(mocks.executeCommand).toHaveBeenCalledWith('gambit.showSetupGuide');
+    expect(mocks.executeCommand).toHaveBeenCalledWith('veyra.showSetupGuide');
   });
 
   it('does not block the status command while waiting for warning button selection', async () => {
@@ -436,15 +436,15 @@ describe('activate', () => {
     }));
     activate(context() as any);
 
-    const checkStatus = mocks.commandCallbacks.get('gambit.checkStatus');
+    const checkStatus = mocks.commandCallbacks.get('veyra.checkStatus');
     expect(checkStatus).toBeTypeOf('function');
     await expect(checkStatus!()).resolves.toBeUndefined();
-    expect(mocks.executeCommand).not.toHaveBeenCalledWith('gambit.showSetupGuide');
+    expect(mocks.executeCommand).not.toHaveBeenCalledWith('veyra.showSetupGuide');
 
     resolveWarning('Show setup guide');
     await Promise.resolve();
 
-    expect(mocks.executeCommand).toHaveBeenCalledWith('gambit.showSetupGuide');
+    expect(mocks.executeCommand).toHaveBeenCalledWith('veyra.showSetupGuide');
   });
 
   it('shows inaccessible backend guidance from the command palette', async () => {
@@ -453,15 +453,15 @@ describe('activate', () => {
     mocks.checkGemini.mockResolvedValueOnce('ready');
     activate(context() as any);
 
-    const checkStatus = mocks.commandCallbacks.get('gambit.checkStatus');
+    const checkStatus = mocks.commandCallbacks.get('veyra.checkStatus');
     expect(checkStatus).toBeTypeOf('function');
     await checkStatus!();
 
     expect(mocks.showInformationMessage).toHaveBeenCalledWith(
-      'Gambit agent status: Claude ready; Codex inaccessible; Gemini ready',
+      'Veyra agent status: Claude ready; Codex inaccessible; Gemini ready',
     );
     expect(mocks.showWarningMessage).toHaveBeenCalledWith(
-      'Gambit setup needed: Codex files are inaccessible (check filesystem permissions, rerun outside the current sandbox, put native codex.exe on PATH, or set GAMBIT_CODEX_CLI_PATH / gambit.codexCliPath to a JS bundle, native executable, or npm shim).',
+      'Veyra setup needed: Codex files are inaccessible (check filesystem permissions, rerun outside the current sandbox, put native codex.exe on PATH, or set VEYRA_CODEX_CLI_PATH / veyra.codexCliPath to a JS bundle, native executable, or npm shim).',
       'Configure CLI paths',
       'Show setup guide',
       'Show live validation guide',
@@ -475,18 +475,18 @@ describe('activate', () => {
     mocks.showWarningMessage.mockResolvedValueOnce('Configure CLI paths');
     activate(context() as any);
 
-    const checkStatus = mocks.commandCallbacks.get('gambit.checkStatus');
+    const checkStatus = mocks.commandCallbacks.get('veyra.checkStatus');
     expect(checkStatus).toBeTypeOf('function');
     await checkStatus!();
     await Promise.resolve();
 
     expect(mocks.showWarningMessage).toHaveBeenCalledWith(
-      'Gambit setup needed: Codex files are inaccessible (check filesystem permissions, rerun outside the current sandbox, put native codex.exe on PATH, or set GAMBIT_CODEX_CLI_PATH / gambit.codexCliPath to a JS bundle, native executable, or npm shim).',
+      'Veyra setup needed: Codex files are inaccessible (check filesystem permissions, rerun outside the current sandbox, put native codex.exe on PATH, or set VEYRA_CODEX_CLI_PATH / veyra.codexCliPath to a JS bundle, native executable, or npm shim).',
       'Configure CLI paths',
       'Show setup guide',
       'Show live validation guide',
     );
-    expect(mocks.executeCommand).toHaveBeenCalledWith('gambit.configureCliPaths');
+    expect(mocks.executeCommand).toHaveBeenCalledWith('veyra.configureCliPaths');
   });
 
   it('opens the live validation guide when selected from a CLI status warning', async () => {
@@ -496,11 +496,11 @@ describe('activate', () => {
     mocks.showWarningMessage.mockResolvedValueOnce('Show live validation guide');
     activate(context() as any);
 
-    const checkStatus = mocks.commandCallbacks.get('gambit.checkStatus');
+    const checkStatus = mocks.commandCallbacks.get('veyra.checkStatus');
     await checkStatus!();
     await Promise.resolve();
 
-    expect(mocks.executeCommand).toHaveBeenCalledWith('gambit.showLiveValidationGuide');
+    expect(mocks.executeCommand).toHaveBeenCalledWith('veyra.showLiveValidationGuide');
   });
 
   it('shows misconfigured backend guidance from the command palette', async () => {
@@ -509,15 +509,15 @@ describe('activate', () => {
     mocks.checkGemini.mockResolvedValueOnce('ready');
     activate(context() as any);
 
-    const checkStatus = mocks.commandCallbacks.get('gambit.checkStatus');
+    const checkStatus = mocks.commandCallbacks.get('veyra.checkStatus');
     expect(checkStatus).toBeTypeOf('function');
     await checkStatus!();
 
     expect(mocks.showInformationMessage).toHaveBeenCalledWith(
-      'Gambit agent status: Claude ready; Codex misconfigured; Gemini ready',
+      'Veyra agent status: Claude ready; Codex misconfigured; Gemini ready',
     );
     expect(mocks.showWarningMessage).toHaveBeenCalledWith(
-      'Gambit setup needed: Codex CLI path is misconfigured (set GAMBIT_CODEX_CLI_PATH / gambit.codexCliPath to codex.js, codex.exe, or codex).',
+      'Veyra setup needed: Codex CLI path is misconfigured (set VEYRA_CODEX_CLI_PATH / veyra.codexCliPath to codex.js, codex.exe, or codex).',
       'Configure CLI paths',
       'Show setup guide',
       'Show live validation guide',
@@ -530,15 +530,15 @@ describe('activate', () => {
     mocks.checkGemini.mockResolvedValueOnce('ready');
     activate(context() as any);
 
-    const checkStatus = mocks.commandCallbacks.get('gambit.checkStatus');
+    const checkStatus = mocks.commandCallbacks.get('veyra.checkStatus');
     expect(checkStatus).toBeTypeOf('function');
     await checkStatus!();
 
     expect(mocks.showInformationMessage).toHaveBeenCalledWith(
-      'Gambit agent status: Claude ready; Codex Node.js missing; Gemini ready',
+      'Veyra agent status: Claude ready; Codex Node.js missing; Gemini ready',
     );
     expect(mocks.showWarningMessage).toHaveBeenCalledWith(
-      'Gambit setup needed: Codex needs Node.js on PATH to launch a JS bundle (install Node.js or set GAMBIT_CODEX_CLI_PATH / gambit.codexCliPath to a native codex executable).',
+      'Veyra setup needed: Codex needs Node.js on PATH to launch a JS bundle (install Node.js or set VEYRA_CODEX_CLI_PATH / veyra.codexCliPath to a native codex executable).',
       'Configure CLI paths',
       'Show setup guide',
       'Show live validation guide',
@@ -550,7 +550,7 @@ describe('activate', () => {
     mocks.openTextDocument.mockResolvedValueOnce(doc);
     activate(context() as any);
 
-    const showSetupGuide = mocks.commandCallbacks.get('gambit.showSetupGuide');
+    const showSetupGuide = mocks.commandCallbacks.get('veyra.showSetupGuide');
     expect(showSetupGuide).toBeTypeOf('function');
     await showSetupGuide!();
 
@@ -571,19 +571,19 @@ describe('activate', () => {
       language: 'markdown',
     });
     expect(mocks.openTextDocument).toHaveBeenCalledWith({
-      content: expect.stringContaining('GAMBIT_CODEX_CLI_PATH'),
+      content: expect.stringContaining('VEYRA_CODEX_CLI_PATH'),
       language: 'markdown',
     });
     expect(mocks.openTextDocument).toHaveBeenCalledWith({
-      content: expect.stringContaining('gambit.codexCliPath'),
+      content: expect.stringContaining('veyra.codexCliPath'),
       language: 'markdown',
     });
     expect(mocks.openTextDocument).toHaveBeenCalledWith({
-      content: expect.stringContaining('GAMBIT_GEMINI_CLI_PATH'),
+      content: expect.stringContaining('VEYRA_GEMINI_CLI_PATH'),
       language: 'markdown',
     });
     expect(mocks.openTextDocument).toHaveBeenCalledWith({
-      content: expect.stringContaining('gambit.geminiCliPath'),
+      content: expect.stringContaining('veyra.geminiCliPath'),
       language: 'markdown',
     });
     expect(mocks.openTextDocument).toHaveBeenCalledWith({
@@ -591,11 +591,11 @@ describe('activate', () => {
       language: 'markdown',
     });
     expect(mocks.openTextDocument).toHaveBeenCalledWith({
-      content: expect.stringContaining('Gambit resolves npm shim paths to the underlying JS bundle before launch'),
+      content: expect.stringContaining('Veyra resolves npm shim paths to the underlying JS bundle before launch'),
       language: 'markdown',
     });
     expect(mocks.openTextDocument).toHaveBeenCalledWith({
-      content: expect.stringContaining('Gambit: Show live validation guide'),
+      content: expect.stringContaining('Veyra: Show live validation guide'),
       language: 'markdown',
     });
     expect(mocks.showTextDocument).toHaveBeenCalledWith(doc);
@@ -606,7 +606,7 @@ describe('activate', () => {
     mocks.openTextDocument.mockResolvedValueOnce(doc);
     activate(context() as any);
 
-    const showLiveValidationGuide = mocks.commandCallbacks.get('gambit.showLiveValidationGuide');
+    const showLiveValidationGuide = mocks.commandCallbacks.get('veyra.showLiveValidationGuide');
     expect(showLiveValidationGuide).toBeTypeOf('function');
     await showLiveValidationGuide!();
 
@@ -617,7 +617,7 @@ describe('activate', () => {
       language: 'markdown',
     });
     expect(mocks.openTextDocument).toHaveBeenCalledWith({
-      content: expect.stringContaining("$env:GAMBIT_RUN_LIVE = '1'"),
+      content: expect.stringContaining("$env:VEYRA_RUN_LIVE = '1'"),
       language: 'markdown',
     });
     expect(mocks.openTextDocument).toHaveBeenCalledWith({
@@ -625,15 +625,15 @@ describe('activate', () => {
       language: 'markdown',
     });
     expect(mocks.openTextDocument).toHaveBeenCalledWith({
-      content: expect.stringContaining('GAMBIT_RUN_LIVE=1 npm run test:integration:live'),
+      content: expect.stringContaining('VEYRA_RUN_LIVE=1 npm run test:integration:live'),
       language: 'markdown',
     });
     expect(mocks.openTextDocument).toHaveBeenCalledWith({
       content: expect.stringContaining('No paid prompts are sent unless readiness is green'),
       language: 'markdown',
     });
-    expect(liveGuide.match(/\$env:GAMBIT_RUN_LIVE = '1'/g)).toHaveLength(2);
-    expect(liveGuide.match(/Remove-Item Env:\\GAMBIT_RUN_LIVE -ErrorAction SilentlyContinue/g)).toHaveLength(2);
+    expect(liveGuide.match(/\$env:VEYRA_RUN_LIVE = '1'/g)).toHaveLength(2);
+    expect(liveGuide.match(/Remove-Item Env:\\VEYRA_RUN_LIVE -ErrorAction SilentlyContinue/g)).toHaveLength(2);
     expect(mocks.showTextDocument).toHaveBeenCalledWith(doc);
   });
 
@@ -646,12 +646,12 @@ describe('activate', () => {
     expect(mocks.registerFileDecorationProvider).not.toHaveBeenCalled();
 
     mocks.workspaceFolders = [{ uri: { fsPath: '/late-workspace' } }];
-    const openPanel = mocks.commandCallbacks.get('gambit.openPanel');
+    const openPanel = mocks.commandCallbacks.get('veyra.openPanel');
     expect(openPanel).toBeTypeOf('function');
     openPanel!();
 
     expect(mocks.registerFileDecorationProvider).toHaveBeenCalledTimes(1);
-    expect(mocks.createGambitSessionService).toHaveBeenCalledWith('/late-workspace', expect.anything());
+    expect(mocks.createVeyraSessionService).toHaveBeenCalledWith('/late-workspace', expect.anything());
     expect(mocks.chatPanelShow).toHaveBeenCalledWith(
       ctx,
       undefined,
@@ -665,20 +665,20 @@ describe('activate', () => {
     const ctx = context();
 
     activate(ctx as any);
-    const openPanel = mocks.commandCallbacks.get('gambit.openPanel');
+    const openPanel = mocks.commandCallbacks.get('veyra.openPanel');
     expect(openPanel).toBeTypeOf('function');
     openPanel!();
-    mocks.refreshGambitSessionOptions.mockClear();
+    mocks.refreshVeyraSessionOptions.mockClear();
 
     mocks.configGet.mockImplementation((key: string, dflt: unknown) =>
       key === 'fileBadges.enabled' ? false : dflt
     );
     const listener = mocks.getConfigListener();
     expect(listener).toBeTypeOf('function');
-    listener!({ affectsConfiguration: (key) => key === 'gambit' || key === 'gambit.fileBadges.enabled' });
+    listener!({ affectsConfiguration: (key) => key === 'veyra' || key === 'veyra.fileBadges.enabled' });
 
     expect(mocks.fileDecorationProviderDisposable.dispose).toHaveBeenCalledTimes(1);
-    expect(mocks.refreshGambitSessionOptions).toHaveBeenCalledWith(mocks.service, undefined);
+    expect(mocks.refreshVeyraSessionOptions).toHaveBeenCalledWith(mocks.service, undefined);
   });
 
   it('clears cached backend status when CLI path settings change', () => {
@@ -687,7 +687,7 @@ describe('activate', () => {
 
     const listener = mocks.getConfigListener();
     expect(listener).toBeTypeOf('function');
-    listener!({ affectsConfiguration: (key) => key === 'gambit.codexCliPath' });
+    listener!({ affectsConfiguration: (key) => key === 'veyra.codexCliPath' });
 
     expect(mocks.clearStatusCache).toHaveBeenCalledTimes(1);
   });
@@ -697,23 +697,23 @@ describe('activate', () => {
     const ctx = context();
 
     activate(ctx as any);
-    const openPanel = mocks.commandCallbacks.get('gambit.openPanel');
+    const openPanel = mocks.commandCallbacks.get('veyra.openPanel');
     expect(openPanel).toBeTypeOf('function');
     openPanel!();
 
     expect(mocks.createSmokeAgents).toHaveBeenCalledTimes(1);
-    expect(mocks.createGambitSessionService).toHaveBeenCalledWith(
+    expect(mocks.createVeyraSessionService).toHaveBeenCalledWith(
       '/workspace',
       expect.anything(),
       mocks.smokeAgents,
     );
   });
 
-  it('flushes the active Gambit session service on extension deactivation', async () => {
+  it('flushes the active Veyra session service on extension deactivation', async () => {
     const ctx = context();
 
     activate(ctx as any);
-    const openPanel = mocks.commandCallbacks.get('gambit.openPanel');
+    const openPanel = mocks.commandCallbacks.get('veyra.openPanel');
     expect(openPanel).toBeTypeOf('function');
     await openPanel!();
 
@@ -729,12 +729,12 @@ describe('activate', () => {
     });
     activate(context() as any);
 
-    const installHook = mocks.commandCallbacks.get('gambit.installCommitHook');
+    const installHook = mocks.commandCallbacks.get('veyra.installCommitHook');
     expect(installHook).toBeTypeOf('function');
     await installHook!();
 
     expect(mocks.showWarningMessage).toHaveBeenCalledWith(
-      'Detected Husky. Add the Gambit trailer logic manually - run "Gambit: Show commit hook snippet" to copy it.',
+      'Detected Husky. Add the Veyra trailer logic manually - run "Veyra: Show commit hook snippet" to copy it.',
     );
     expect(mocks.showWarningMessage.mock.calls[0][0]).not.toMatch(/[^\x00-\x7F]/);
   });

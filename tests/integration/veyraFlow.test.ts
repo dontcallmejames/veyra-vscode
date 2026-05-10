@@ -2,15 +2,15 @@ import { describe, expect, it } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { GambitSessionService } from '../../src/gambitService.js';
+import { VeyraSessionService } from '../../src/veyraService.js';
 import { createWorkspaceChangeTracker } from '../../src/workspaceChanges.js';
 import type { Agent } from '../../src/agents/types.js';
 import type { AgentChunk, AgentId } from '../../src/types.js';
 
-describe('Gambit integrated dispatch flow', () => {
+describe('Veyra integrated dispatch flow', () => {
   it('surfaces invisible file changes and flags a later cross-agent edit conflict', async () => {
-    const workspacePath = await fs.mkdtemp(path.join(os.tmpdir(), 'gambit-flow-'));
-    const service = new GambitSessionService(
+    const workspacePath = await fs.mkdtemp(path.join(os.tmpdir(), 'veyra-flow-'));
+    const service = new VeyraSessionService(
       workspacePath,
       {
         claude: fileWritingAgent('claude', "export const owner = 'claude';\n"),

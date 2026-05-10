@@ -22,7 +22,7 @@ function resolveCodexCommand(): { command: string; args: string[] } {
   if (override) {
     assertCliPathAccessible(
       override,
-      `Codex CLI path override not found at ${override}. Update GAMBIT_CODEX_CLI_PATH or gambit.codexCliPath, or install it with \`npm install -g @openai/codex\`, then run \`codex login\`.`,
+      `Codex CLI path override not found at ${override}. Update VEYRA_CODEX_CLI_PATH or veyra.codexCliPath, or install it with \`npm install -g @openai/codex\`, then run \`codex login\`.`,
     );
     return cliPathCommand(override);
   }
@@ -104,7 +104,7 @@ function cliPathCommand(cliPath: string): { command: string; args: string[] } {
 
 function assertCliPathAccessible(filePath: string, missingMessage: string): void {
   if (isUnsupportedWindowsCommandShim(filePath)) {
-    throw new Error('Windows npm command shim overrides are not supported; set GAMBIT_CODEX_CLI_PATH or gambit.codexCliPath to the Codex JS bundle or native executable instead.');
+    throw new Error('Windows npm command shim overrides are not supported; set VEYRA_CODEX_CLI_PATH or veyra.codexCliPath to the Codex JS bundle or native executable instead.');
   }
   const misconfiguration = cliPathMisconfiguration('codex', filePath);
   if (misconfiguration) {
@@ -140,7 +140,7 @@ const CODEX_BASE_ARGS = ['exec', '--json', '--skip-git-repo-check'];
 const CODEX_AUTO_EDIT_ARGS = ['--sandbox', 'workspace-write'];
 
 function codexArgs(readOnly = false): string[] {
-  const writeApproval = vscode.workspace.getConfiguration('gambit').get<string>('writeApproval', 'auto-edit');
+  const writeApproval = vscode.workspace.getConfiguration('veyra').get<string>('writeApproval', 'auto-edit');
   const extra = !readOnly && writeApproval === 'auto-edit' ? CODEX_AUTO_EDIT_ARGS : [];
   return [...CODEX_BASE_ARGS, ...extra, '-'];
 }

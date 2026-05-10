@@ -49,7 +49,7 @@ describe('diffWorkspaceSnapshots', () => {
   });
 
   it('detects changes to ignored workspace files outside excluded directories', async () => {
-    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'gambit-workspace-changes-'));
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-workspace-changes-'));
     try {
       execFileSync('git', ['init'], { cwd: workspacePath, stdio: 'ignore' });
       fs.mkdirSync(path.join(workspacePath, 'src'), { recursive: true });
@@ -69,21 +69,21 @@ describe('diffWorkspaceSnapshots', () => {
     }
   });
 
-  it('ignores Gambit internal state from git-backed snapshots', async () => {
-    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'gambit-workspace-changes-'));
+  it('ignores Veyra internal state from git-backed snapshots', async () => {
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-workspace-changes-'));
     try {
       execFileSync('git', ['init'], { cwd: workspacePath, stdio: 'ignore' });
       fs.mkdirSync(path.join(workspacePath, 'src'), { recursive: true });
-      fs.mkdirSync(path.join(workspacePath, '.vscode', 'gambit'), { recursive: true });
+      fs.mkdirSync(path.join(workspacePath, '.vscode', 'veyra'), { recursive: true });
       fs.writeFileSync(path.join(workspacePath, 'src', 'real.ts'), 'export const value = 1;\n');
-      fs.writeFileSync(path.join(workspacePath, '.vscode', 'gambit', 'sessions.json'), '{}\n');
+      fs.writeFileSync(path.join(workspacePath, '.vscode', 'veyra', 'sessions.json'), '{}\n');
 
       const tracker = createWorkspaceChangeTracker(workspacePath);
       const before = await tracker.snapshot();
 
       fs.writeFileSync(path.join(workspacePath, 'src', 'real.ts'), 'export const value = 2;\n');
-      fs.writeFileSync(path.join(workspacePath, '.vscode', 'gambit', 'sessions.json'), '{"internal":true}\n');
-      fs.writeFileSync(path.join(workspacePath, '.vscode', 'gambit', 'sessions.json.tmp'), '{"tmp":true}\n');
+      fs.writeFileSync(path.join(workspacePath, '.vscode', 'veyra', 'sessions.json'), '{"internal":true}\n');
+      fs.writeFileSync(path.join(workspacePath, '.vscode', 'veyra', 'sessions.json.tmp'), '{"tmp":true}\n');
 
       await expect(tracker.changedFilesSince(before)).resolves.toEqual(['src/real.ts']);
     } finally {
@@ -92,7 +92,7 @@ describe('diffWorkspaceSnapshots', () => {
   });
 
   it('detects same-size file content changes even when mtime is unchanged', async () => {
-    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'gambit-workspace-changes-'));
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-workspace-changes-'));
     try {
       fs.mkdirSync(path.join(workspacePath, 'src'), { recursive: true });
       const filePath = path.join(workspacePath, 'src', 'stable.ts');
@@ -112,7 +112,7 @@ describe('diffWorkspaceSnapshots', () => {
   });
 
   it('ignores excluded directories at any workspace depth', async () => {
-    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'gambit-workspace-changes-'));
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-workspace-changes-'));
     try {
       fs.mkdirSync(path.join(workspacePath, 'packages', 'app', 'node_modules', 'pkg'), { recursive: true });
       fs.mkdirSync(path.join(workspacePath, 'packages', 'app', 'src'), { recursive: true });

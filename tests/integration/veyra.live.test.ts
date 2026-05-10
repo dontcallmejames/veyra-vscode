@@ -6,9 +6,9 @@ import { guardLiveModelPrompts } from './liveReadinessGuard.js';
 import { ClaudeAgent } from '../../src/agents/claude.js';
 import { CodexAgent } from '../../src/agents/codex.js';
 import { GeminiAgent } from '../../src/agents/gemini.js';
-import { GambitSessionService } from '../../src/gambitService.js';
+import { VeyraSessionService } from '../../src/veyraService.js';
 import { createWorkspaceChangeTracker } from '../../src/workspaceChanges.js';
-import type { GambitDispatchEvent } from '../../src/gambitService.js';
+import type { VeyraDispatchEvent } from '../../src/veyraService.js';
 
 vi.mock('vscode', () => ({
   workspace: {
@@ -16,18 +16,18 @@ vi.mock('vscode', () => ({
   },
 }));
 
-const describeLive = process.env.GAMBIT_RUN_LIVE === '1' ? describe : describe.skip;
+const describeLive = process.env.VEYRA_RUN_LIVE === '1' ? describe : describe.skip;
 const CLAUDE_CONTEXT_MARKER = 'CLAUDE_CONTEXT_MARKER';
 const CODEX_CONTEXT_MARKER = 'CODEX_CONTEXT_MARKER';
 const GEMINI_CONTEXT_MARKER = 'GEMINI_CONTEXT_MARKER';
-const GAMBIT_LIVE_IMPLEMENT_MARKER = 'GAMBIT_LIVE_IMPLEMENT_MARKER';
+const VEYRA_LIVE_IMPLEMENT_MARKER = 'VEYRA_LIVE_IMPLEMENT_MARKER';
 
-describeLive('Gambit all-agent handoff - LIVE', () => {
+describeLive('Veyra all-agent handoff - LIVE', () => {
   guardLiveModelPrompts();
 
   it('dispatches one prompt through Claude, Codex, and Gemini with shared context relay', async () => {
-    const workspacePath = await fs.mkdtemp(path.join(os.tmpdir(), 'gambit-live-handoff-'));
-    const service = new GambitSessionService(
+    const workspacePath = await fs.mkdtemp(path.join(os.tmpdir(), 'veyra-live-handoff-'));
+    const service = new VeyraSessionService(
       workspacePath,
       {
         claude: new ClaudeAgent(),
@@ -41,11 +41,11 @@ describeLive('Gambit all-agent handoff - LIVE', () => {
       },
     );
 
-    const events: GambitDispatchEvent[] = [];
+    const events: VeyraDispatchEvent[] = [];
     await service.dispatch(
       {
         text: [
-          '@all Context-relay validation. Do not inspect, create, or edit files. Follow only the instruction addressed to your Gambit agent role.',
+          '@all Context-relay validation. Do not inspect, create, or edit files. Follow only the instruction addressed to your Veyra agent role.',
           `Claude: reply with one line starting ${CLAUDE_CONTEXT_MARKER}: followed by two simple words you choose.`,
           `Codex: if the conversation so far contains a line starting ${CLAUDE_CONTEXT_MARKER}:, copy that full line exactly, then add one line starting ${CODEX_CONTEXT_MARKER}: followed by two simple words you choose.`,
           `Gemini: if the conversation so far contains lines starting ${CLAUDE_CONTEXT_MARKER}: and ${CODEX_CONTEXT_MARKER}:, copy both full lines exactly, then add one line starting ${GEMINI_CONTEXT_MARKER}: ok.`,
@@ -95,9 +95,9 @@ describeLive('Gambit all-agent handoff - LIVE', () => {
   }, 180_000);
 
   it('runs a write-capable implementation workflow in a disposable workspace', async () => {
-    const workspacePath = await fs.mkdtemp(path.join(os.tmpdir(), 'gambit-live-implement-'));
-    const targetFile = 'gambit-live-implementation.txt';
-    const service = new GambitSessionService(
+    const workspacePath = await fs.mkdtemp(path.join(os.tmpdir(), 'veyra-live-implement-'));
+    const targetFile = 'veyra-live-implementation.txt';
+    const service = new VeyraSessionService(
       workspacePath,
       {
         claude: new ClaudeAgent(),
@@ -111,12 +111,12 @@ describeLive('Gambit all-agent handoff - LIVE', () => {
       },
     );
 
-    const events: GambitDispatchEvent[] = [];
+    const events: VeyraDispatchEvent[] = [];
     await service.dispatch(
       {
         text: [
           '@all Write-capable implementation validation in this disposable workspace.',
-          `Create or update ${targetFile} so it contains a line with exactly this marker: ${GAMBIT_LIVE_IMPLEMENT_MARKER}: ok`,
+          `Create or update ${targetFile} so it contains a line with exactly this marker: ${VEYRA_LIVE_IMPLEMENT_MARKER}: ok`,
           `Only edit ${targetFile}. Do not inspect or change unrelated files.`,
           'Later agents should preserve the marker if an earlier agent already wrote it.',
         ].join('\n'),
@@ -141,7 +141,7 @@ describeLive('Gambit all-agent handoff - LIVE', () => {
     expect(fileEditedEvents.length).toBeGreaterThan(0);
 
     const finalContents = await fs.readFile(path.join(workspacePath, targetFile), 'utf8');
-    expect(finalContents).toContain(GAMBIT_LIVE_IMPLEMENT_MARKER);
+    expect(finalContents).toContain(VEYRA_LIVE_IMPLEMENT_MARKER);
 
     const unexpectedFileEvents = events.filter((event) =>
       event.kind === 'file-edited' &&
@@ -152,7 +152,7 @@ describeLive('Gambit all-agent handoff - LIVE', () => {
 });
 
 function textForAgent(
-  completed: Array<Extract<GambitDispatchEvent, { kind: 'dispatch-end' }>>,
+  completed: Array<Extract<VeyraDispatchEvent, { kind: 'dispatch-end' }>>,
   agentId: 'claude' | 'codex' | 'gemini',
 ): string {
   const event = completed.find((item) => item.agentId === agentId);

@@ -1,6 +1,6 @@
-export type GambitWorkflowCommand = 'review' | 'debate' | 'implement';
+export type VeyraWorkflowCommand = 'review' | 'debate' | 'implement';
 
-export function gambitWorkflowPrompt(command: GambitWorkflowCommand, prompt: string): string {
+export function veyraWorkflowPrompt(command: VeyraWorkflowCommand, prompt: string): string {
   if (command === 'review') {
     return [
       '@all',

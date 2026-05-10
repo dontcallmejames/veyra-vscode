@@ -8,29 +8,29 @@ const FIX_INSTRUCTIONS: Record<AgentId, Record<Exclude<AgentStatus, 'ready' | 'b
     'unauthenticated': 'Run `claude /login` in a terminal.',
     'not-installed': 'Install Claude Code, then run `claude /login`.',
     'inaccessible': 'Check filesystem permissions or rerun outside the current sandbox.',
-    'misconfigured': 'Check Gambit CLI path settings.',
-    'node-missing': 'Install Node.js on PATH so Gambit can launch Claude from VS Code.',
+    'misconfigured': 'Check Veyra CLI path settings.',
+    'node-missing': 'Install Node.js on PATH so Veyra can launch Claude from VS Code.',
   },
   codex: {
     'unauthenticated': 'Run `codex login` in a terminal.',
     'not-installed': 'Install Codex CLI: `npm i -g @openai/codex` then run `codex login`.',
-    'inaccessible': 'Check filesystem permissions, rerun outside the current sandbox, or set `GAMBIT_CODEX_CLI_PATH` / `gambit.codexCliPath` to a JS bundle, native executable, or npm shim. Run Gambit: Show live validation guide before paid prompts.',
-    'misconfigured': 'Set `GAMBIT_CODEX_CLI_PATH` / `gambit.codexCliPath` to codex.js, codex.exe, or codex.',
-    'node-missing': 'Install Node.js on PATH, or set `GAMBIT_CODEX_CLI_PATH` / `gambit.codexCliPath` to a native codex executable.',
+    'inaccessible': 'Check filesystem permissions, rerun outside the current sandbox, or set `VEYRA_CODEX_CLI_PATH` / `veyra.codexCliPath` to a JS bundle, native executable, or npm shim. Run Veyra: Show live validation guide before paid prompts.',
+    'misconfigured': 'Set `VEYRA_CODEX_CLI_PATH` / `veyra.codexCliPath` to codex.js, codex.exe, or codex.',
+    'node-missing': 'Install Node.js on PATH, or set `VEYRA_CODEX_CLI_PATH` / `veyra.codexCliPath` to a native codex executable.',
   },
   gemini: {
     'unauthenticated': 'Run `gemini` in a terminal and complete the OAuth flow.',
     'not-installed': 'Install Gemini CLI: `npm i -g @google/gemini-cli` then run `gemini`.',
-    'inaccessible': 'Check filesystem permissions, rerun outside the current sandbox, or set `GAMBIT_GEMINI_CLI_PATH` / `gambit.geminiCliPath` to a JS bundle, native executable, or npm shim. Run Gambit: Show live validation guide before paid prompts.',
-    'misconfigured': 'Set `GAMBIT_GEMINI_CLI_PATH` / `gambit.geminiCliPath` to gemini.js, gemini.exe, or gemini.',
-    'node-missing': 'Install Node.js on PATH, or set `GAMBIT_GEMINI_CLI_PATH` / `gambit.geminiCliPath` to a native gemini executable.',
+    'inaccessible': 'Check filesystem permissions, rerun outside the current sandbox, or set `VEYRA_GEMINI_CLI_PATH` / `veyra.geminiCliPath` to a JS bundle, native executable, or npm shim. Run Veyra: Show live validation guide before paid prompts.',
+    'misconfigured': 'Set `VEYRA_GEMINI_CLI_PATH` / `veyra.geminiCliPath` to gemini.js, gemini.exe, or gemini.',
+    'node-missing': 'Install Node.js on PATH, or set `VEYRA_GEMINI_CLI_PATH` / `veyra.geminiCliPath` to a native gemini executable.',
   },
 };
 
 interface Props {
   status: Record<AgentId, AgentStatus>;
   send: (msg: FromWebview) => void;
-  gambitMdPresent: boolean;
+  veyraMdPresent: boolean;
 }
 
 function offersLiveValidationGuide(agentId: AgentId, status: AgentStatus): boolean {
@@ -52,7 +52,7 @@ function offersCliPathConfiguration(agentId: AgentId, status: AgentStatus): bool
   );
 }
 
-export function HealthStrip({ status, send, gambitMdPresent }: Props) {
+export function HealthStrip({ status, send, veyraMdPresent }: Props) {
   const [popoverFor, setPopoverFor] = useState<AgentId | null>(null);
 
   const labels: Record<AgentId, string> = {
@@ -129,11 +129,11 @@ export function HealthStrip({ status, send, gambitMdPresent }: Props) {
           </div>
         );
       })}
-      {gambitMdPresent && (
+      {veyraMdPresent && (
         <span
           class="health-pill rules"
-          title="gambit.md present - rules pinned to all agent prompts"
-          onClick={() => send({ kind: 'open-workspace-file', relativePath: 'gambit.md' })}
+          title="veyra.md present - rules pinned to all agent prompts"
+          onClick={() => send({ kind: 'open-workspace-file', relativePath: 'veyra.md' })}
         >
           📋 rules
         </span>

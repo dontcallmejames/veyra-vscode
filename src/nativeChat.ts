@@ -1,11 +1,11 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import type { GambitDispatchEvent, GambitForcedTarget, GambitSessionService } from './gambitService.js';
+import type { VeyraDispatchEvent, VeyraForcedTarget, VeyraSessionService } from './veyraService.js';
 import type { AgentId } from './types.js';
-import { gambitWorkflowPrompt, type GambitWorkflowCommand } from './workflowPrompts.js';
+import { veyraWorkflowPrompt, type VeyraWorkflowCommand } from './workflowPrompts.js';
 
 export interface NativeChatRegistration {
-  service: GambitSessionService;
+  service: VeyraSessionService;
   workspacePath: string;
 }
 
@@ -14,43 +14,43 @@ export interface ParticipantDefinition {
   name: string;
   fullName: string;
   description: string;
-  forcedTarget: GambitForcedTarget;
+  forcedTarget: VeyraForcedTarget;
 }
 
 export const NATIVE_CHAT_PARTICIPANTS: ParticipantDefinition[] = [
   {
-    id: 'gambit.gambit',
-    name: 'gambit',
-    fullName: 'Gambit',
+    id: 'veyra.veyra',
+    name: 'veyra',
+    fullName: 'Veyra',
     description: 'Route work across Claude, Codex, and Gemini.',
-    forcedTarget: 'gambit',
+    forcedTarget: 'veyra',
   },
   {
-    id: 'gambit.claude',
+    id: 'veyra.claude',
     name: 'claude',
     fullName: 'Claude',
-    description: 'Send this request directly to Claude through Gambit.',
+    description: 'Send this request directly to Claude through Veyra.',
     forcedTarget: 'claude',
   },
   {
-    id: 'gambit.codex',
+    id: 'veyra.codex',
     name: 'codex',
     fullName: 'Codex',
-    description: 'Send this request directly to Codex through Gambit.',
+    description: 'Send this request directly to Codex through Veyra.',
     forcedTarget: 'codex',
   },
   {
-    id: 'gambit.gemini',
+    id: 'veyra.gemini',
     name: 'gemini',
     fullName: 'Gemini',
-    description: 'Send this request directly to Gemini through Gambit.',
+    description: 'Send this request directly to Gemini through Veyra.',
     forcedTarget: 'gemini',
   },
 ];
 
 export interface NativeChatRoutedPrompt {
   text: string;
-  forcedTarget: GambitForcedTarget;
+  forcedTarget: VeyraForcedTarget;
   readOnly?: boolean;
 }
 
@@ -72,7 +72,7 @@ export function nativeChatPromptForRequest(
     workspacePath,
   );
 
-  if (definition.forcedTarget !== 'gambit') {
+  if (definition.forcedTarget !== 'veyra') {
     return {
       text: prompt,
       forcedTarget: definition.forcedTarget,
@@ -82,14 +82,14 @@ export function nativeChatPromptForRequest(
   if (request.command === 'review') {
     if (!prompt.trim()) {
       return {
-        forcedTarget: 'gambit',
+        forcedTarget: 'veyra',
         text: '',
         readOnly: true,
       };
     }
     return {
-      forcedTarget: 'gambit',
-      text: gambitWorkflowPrompt('review', prompt),
+      forcedTarget: 'veyra',
+      text: veyraWorkflowPrompt('review', prompt),
       readOnly: true,
     };
   }
@@ -97,14 +97,14 @@ export function nativeChatPromptForRequest(
   if (request.command === 'debate') {
     if (!prompt.trim()) {
       return {
-        forcedTarget: 'gambit',
+        forcedTarget: 'veyra',
         text: '',
         readOnly: true,
       };
     }
     return {
-      forcedTarget: 'gambit',
-      text: gambitWorkflowPrompt('debate', prompt),
+      forcedTarget: 'veyra',
+      text: veyraWorkflowPrompt('debate', prompt),
       readOnly: true,
     };
   }
@@ -112,13 +112,13 @@ export function nativeChatPromptForRequest(
   if (request.command === 'implement') {
     if (!prompt.trim()) {
       return {
-        forcedTarget: 'gambit',
+        forcedTarget: 'veyra',
         text: '',
       };
     }
     return {
-      forcedTarget: 'gambit',
-      text: gambitWorkflowPrompt('implement', prompt),
+      forcedTarget: 'veyra',
+      text: veyraWorkflowPrompt('implement', prompt),
     };
   }
 
@@ -139,9 +139,9 @@ export function registerNativeChatParticipants(
       async (request, chatContext, response, token) => {
         const registration = getRegistration();
         if (!registration) {
-          response.markdown('Open a workspace folder before using Gambit chat participants.');
+          response.markdown('Open a workspace folder before using Veyra chat participants.');
           return {
-            errorDetails: { message: 'Gambit requires an open workspace folder.' },
+            errorDetails: { message: 'Veyra requires an open workspace folder.' },
             metadata: { participant: definition.name },
           };
         }
@@ -156,16 +156,16 @@ export function registerNativeChatParticipants(
   return registeredIds;
 }
 
-export function nativeChatWorkflowDiagnostics(): Record<GambitWorkflowCommand, {
-  forcedTarget: GambitForcedTarget;
+export function nativeChatWorkflowDiagnostics(): Record<VeyraWorkflowCommand, {
+  forcedTarget: VeyraForcedTarget;
   readOnly: boolean;
   containsAllMention: boolean;
   containsWorkflowMarker: boolean;
 }> {
-  const gambit = NATIVE_CHAT_PARTICIPANTS.find((participant) => participant.forcedTarget === 'gambit')!;
-  return Object.fromEntries((['review', 'debate', 'implement'] as GambitWorkflowCommand[]).map((command) => {
+  const veyra = NATIVE_CHAT_PARTICIPANTS.find((participant) => participant.forcedTarget === 'veyra')!;
+  return Object.fromEntries((['review', 'debate', 'implement'] as VeyraWorkflowCommand[]).map((command) => {
     const routed = nativeChatPromptForRequest(
-      gambit,
+      veyra,
       {
         command,
         prompt: `Smoke diagnostic for ${command}.`,
@@ -180,8 +180,8 @@ export function nativeChatWorkflowDiagnostics(): Record<GambitWorkflowCommand, {
         containsWorkflowMarker: routed.text.includes(`Workflow: ${command}`),
       },
     ];
-  })) as Record<GambitWorkflowCommand, {
-    forcedTarget: GambitForcedTarget;
+  })) as Record<VeyraWorkflowCommand, {
+    forcedTarget: VeyraForcedTarget;
     readOnly: boolean;
     containsAllMention: boolean;
     containsWorkflowMarker: boolean;
@@ -192,58 +192,58 @@ export async function nativeChatSmokeResponses(registration: NativeChatRegistrat
   const requests: Array<{
     key: string;
     participantId: string;
-    command?: GambitWorkflowCommand;
+    command?: VeyraWorkflowCommand;
     prompt: string;
   }> = [
     {
-      key: 'gambit.gambit',
-      participantId: 'gambit.gambit',
-      prompt: 'Gambit native chat smoke request.',
+      key: 'veyra.veyra',
+      participantId: 'veyra.veyra',
+      prompt: 'Veyra native chat smoke request.',
     },
     {
-      key: 'gambit.gambit/review',
-      participantId: 'gambit.gambit',
+      key: 'veyra.veyra/review',
+      participantId: 'veyra.veyra',
       command: 'review',
-      prompt: 'Gambit native chat review smoke request.',
+      prompt: 'Veyra native chat review smoke request.',
     },
     {
-      key: 'gambit.gambit/debate',
-      participantId: 'gambit.gambit',
+      key: 'veyra.veyra/debate',
+      participantId: 'veyra.veyra',
       command: 'debate',
-      prompt: 'Gambit native chat debate smoke request.',
+      prompt: 'Veyra native chat debate smoke request.',
     },
     {
-      key: 'gambit.gambit/implement',
-      participantId: 'gambit.gambit',
+      key: 'veyra.veyra/implement',
+      participantId: 'veyra.veyra',
       command: 'implement',
-      prompt: 'Gambit native chat implement smoke request.',
+      prompt: 'Veyra native chat implement smoke request.',
     },
     {
-      key: 'gambit.gambit/conflict',
-      participantId: 'gambit.gambit',
+      key: 'veyra.veyra/conflict',
+      participantId: 'veyra.veyra',
       command: 'implement',
-      prompt: 'Gambit native chat edit conflict smoke request. [gambit-smoke-conflict]',
+      prompt: 'Veyra native chat edit conflict smoke request. [veyra-smoke-conflict]',
     },
     {
-      key: 'gambit.gambit/shared-context',
-      participantId: 'gambit.gambit',
+      key: 'veyra.veyra/shared-context',
+      participantId: 'veyra.veyra',
       command: 'implement',
-      prompt: 'Gambit native chat shared context smoke request. [gambit-smoke-shared-context]',
+      prompt: 'Veyra native chat shared context smoke request. [veyra-smoke-shared-context]',
     },
     {
-      key: 'gambit.claude',
-      participantId: 'gambit.claude',
-      prompt: 'Gambit native chat Claude smoke request.',
+      key: 'veyra.claude',
+      participantId: 'veyra.claude',
+      prompt: 'Veyra native chat Claude smoke request.',
     },
     {
-      key: 'gambit.codex',
-      participantId: 'gambit.codex',
-      prompt: 'Gambit native chat Codex smoke request.',
+      key: 'veyra.codex',
+      participantId: 'veyra.codex',
+      prompt: 'Veyra native chat Codex smoke request.',
     },
     {
-      key: 'gambit.gemini',
-      participantId: 'gambit.gemini',
-      prompt: 'Gambit native chat Gemini smoke request.',
+      key: 'veyra.gemini',
+      participantId: 'veyra.gemini',
+      prompt: 'Veyra native chat Gemini smoke request.',
     },
   ];
   const responses: Record<string, string> = {};
@@ -300,7 +300,7 @@ async function handleNativeChatRequest(
   try {
     const routedPrompt = nativeChatPromptForRequest(definition, request, registration.workspacePath, chatContext);
     if (!routedPrompt.text.trim()) {
-      response.markdown('Provide a prompt before using Gambit chat participants.');
+      response.markdown('Provide a prompt before using Veyra chat participants.');
       return {
         metadata: {
           participant: definition.name,
@@ -325,7 +325,7 @@ async function handleNativeChatRequest(
     );
   } catch (err) {
     sawError = true;
-    response.markdown(`\n\n**Gambit error:** ${errorMessage(err)}`);
+    response.markdown(`\n\n**Veyra error:** ${errorMessage(err)}`);
   } finally {
     cancellation.dispose();
   }
@@ -335,7 +335,7 @@ async function handleNativeChatRequest(
   }
 
   return {
-    ...(sawError ? { errorDetails: { message: 'Gambit completed with errors.' } } : {}),
+    ...(sawError ? { errorDetails: { message: 'Veyra completed with errors.' } } : {}),
     metadata: {
       participant: definition.name,
       forcedTarget: definition.forcedTarget,
@@ -344,7 +344,7 @@ async function handleNativeChatRequest(
 }
 
 function renderNativeChatEvent(
-  event: GambitDispatchEvent,
+  event: VeyraDispatchEvent,
   workspacePath: string,
   response: vscode.ChatResponseStream,
 ): { sawText: boolean; sawError: boolean } {
@@ -356,18 +356,18 @@ function renderNativeChatEvent(
     }
     if (event.message.kind === 'routing-needed') {
       response.markdown(event.message.text);
-      if (event.message.text.includes('Gambit: Configure Codex/Gemini CLI paths')) {
+      if (event.message.text.includes('Veyra: Configure Codex/Gemini CLI paths')) {
         response.button({
-          command: 'gambit.configureCliPaths',
+          command: 'veyra.configureCliPaths',
           title: 'Configure CLI paths',
         });
       }
       response.button({
-        command: 'gambit.showSetupGuide',
+        command: 'veyra.showSetupGuide',
         title: 'Open setup guide',
       });
       response.button({
-        command: 'gambit.showLiveValidationGuide',
+        command: 'veyra.showLiveValidationGuide',
         title: 'Open live validation guide',
       });
       return { sawText: true, sawError: false };
@@ -756,7 +756,7 @@ function verboseToolPayload(value: unknown): string {
 }
 
 function readToolCallRenderStyle(): ToolCallRenderStyle {
-  const value = vscode.workspace.getConfiguration('gambit')
+  const value = vscode.workspace.getConfiguration('veyra')
     .get<ToolCallRenderStyle>('toolCallRenderStyle', 'compact');
   return value === 'verbose' || value === 'hidden' ? value : 'compact';
 }

@@ -1,19 +1,19 @@
 {
-  "name": "gambit-vscode",
-  "displayName": "Gambit Agent Chat",
-  "description": "Gambit routes Claude, Codex, and Gemini through VS Code Chat and the Language Model provider.",
+  "name": "veyra-vscode",
+  "displayName": "Veyra",
+  "description": "Veyra coordinates Claude, Codex, and Gemini through VS Code Chat and the Language Model provider.",
   "version": "0.0.1",
   "publisher": "dontcallmejames",
   "preview": true,
   "license": "SEE LICENSE IN LICENSE.txt",
   "repository": {
     "type": "git",
-    "url": "https://github.com/dontcallmejames/gambit-vscode.git"
+    "url": "https://github.com/dontcallmejames/veyra-vscode.git"
   },
   "bugs": {
-    "url": "https://github.com/dontcallmejames/gambit-vscode/issues"
+    "url": "https://github.com/dontcallmejames/veyra-vscode/issues"
   },
-  "homepage": "https://github.com/dontcallmejames/gambit-vscode#readme",
+  "homepage": "https://github.com/dontcallmejames/veyra-vscode#readme",
   "icon": "resources/icon.png",
   "galleryBanner": {
     "color": "#15171a",
@@ -52,60 +52,60 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:gambit.openPanel",
-    "onCommand:gambit.checkStatus",
-    "onCommand:gambit.showSetupGuide",
-    "onCommand:gambit.showLiveValidationGuide",
-    "onCommand:gambit.configureCliPaths",
-    "onCommand:gambit.installCommitHook",
-    "onCommand:gambit.uninstallCommitHook",
-    "onCommand:gambit.showCommitHookSnippet",
-    "onChatParticipant:gambit.gambit",
-    "onChatParticipant:gambit.claude",
-    "onChatParticipant:gambit.codex",
-    "onChatParticipant:gambit.gemini",
-    "onLanguageModelChatProvider:gambit"
+    "onCommand:veyra.openPanel",
+    "onCommand:veyra.checkStatus",
+    "onCommand:veyra.showSetupGuide",
+    "onCommand:veyra.showLiveValidationGuide",
+    "onCommand:veyra.configureCliPaths",
+    "onCommand:veyra.installCommitHook",
+    "onCommand:veyra.uninstallCommitHook",
+    "onCommand:veyra.showCommitHookSnippet",
+    "onChatParticipant:veyra.veyra",
+    "onChatParticipant:veyra.claude",
+    "onChatParticipant:veyra.codex",
+    "onChatParticipant:veyra.gemini",
+    "onLanguageModelChatProvider:veyra"
   ],
   "contributes": {
     "commands": [
       {
-        "command": "gambit.openPanel",
-        "title": "Gambit: Open Panel"
+        "command": "veyra.openPanel",
+        "title": "Veyra: Open Panel"
       },
       {
-        "command": "gambit.checkStatus",
-        "title": "Gambit: Check agent status"
+        "command": "veyra.checkStatus",
+        "title": "Veyra: Check agent status"
       },
       {
-        "command": "gambit.showSetupGuide",
-        "title": "Gambit: Show setup guide"
+        "command": "veyra.showSetupGuide",
+        "title": "Veyra: Show setup guide"
       },
       {
-        "command": "gambit.showLiveValidationGuide",
-        "title": "Gambit: Show live validation guide"
+        "command": "veyra.showLiveValidationGuide",
+        "title": "Veyra: Show live validation guide"
       },
       {
-        "command": "gambit.configureCliPaths",
-        "title": "Gambit: Configure Codex/Gemini CLI paths"
+        "command": "veyra.configureCliPaths",
+        "title": "Veyra: Configure Codex/Gemini CLI paths"
       },
       {
-        "command": "gambit.installCommitHook",
-        "title": "Gambit: Install commit hook"
+        "command": "veyra.installCommitHook",
+        "title": "Veyra: Install commit hook"
       },
       {
-        "command": "gambit.uninstallCommitHook",
-        "title": "Gambit: Uninstall commit hook"
+        "command": "veyra.uninstallCommitHook",
+        "title": "Veyra: Uninstall commit hook"
       },
       {
-        "command": "gambit.showCommitHookSnippet",
-        "title": "Gambit: Show commit hook snippet"
+        "command": "veyra.showCommitHookSnippet",
+        "title": "Veyra: Show commit hook snippet"
       }
     ],
     "chatParticipants": [
       {
-        "id": "gambit.gambit",
-        "name": "gambit",
-        "fullName": "Gambit",
+        "id": "veyra.veyra",
+        "name": "veyra",
+        "fullName": "Veyra",
         "description": "Route work across Claude, Codex, and Gemini.",
         "isSticky": true,
         "commands": [
@@ -124,95 +124,95 @@
         ]
       },
       {
-        "id": "gambit.claude",
+        "id": "veyra.claude",
         "name": "claude",
         "fullName": "Claude",
-        "description": "Send this request directly to Claude through Gambit.",
+        "description": "Send this request directly to Claude through Veyra.",
         "isSticky": true
       },
       {
-        "id": "gambit.codex",
+        "id": "veyra.codex",
         "name": "codex",
         "fullName": "Codex",
-        "description": "Send this request directly to Codex through Gambit.",
+        "description": "Send this request directly to Codex through Veyra.",
         "isSticky": true
       },
       {
-        "id": "gambit.gemini",
+        "id": "veyra.gemini",
         "name": "gemini",
         "fullName": "Gemini",
-        "description": "Send this request directly to Gemini through Gambit.",
+        "description": "Send this request directly to Gemini through Veyra.",
         "isSticky": true
       }
     ],
     "languageModelChatProviders": [
       {
-        "vendor": "gambit",
-        "displayName": "Gambit"
+        "vendor": "veyra",
+        "displayName": "Veyra"
       }
     ],
     "configuration": {
-      "title": "Gambit",
+      "title": "Veyra",
       "properties": {
-        "gambit.toolCallRenderStyle": {
+        "veyra.toolCallRenderStyle": {
           "type": "string",
           "enum": ["verbose", "compact", "hidden"],
           "default": "compact",
           "description": "How tool calls (file reads, edits, terminal commands) are displayed in the chat."
         },
-        "gambit.hangDetectionSeconds": {
+        "veyra.hangDetectionSeconds": {
           "type": "number",
           "default": 60,
           "minimum": 0,
           "maximum": 600,
           "description": "Seconds with no output from an agent before showing a 'still waiting?' notice. Set to 0 to disable."
         },
-        "gambit.watchdogMinutes": {
+        "veyra.watchdogMinutes": {
           "type": "number",
           "default": 5,
           "minimum": 0,
           "maximum": 60,
           "description": "Maximum minutes an agent may hold the dispatch floor before it's force-released. Set to 0 to disable."
         },
-        "gambit.fileEmbedMaxLines": {
+        "veyra.fileEmbedMaxLines": {
           "type": "number",
           "default": 500,
           "minimum": 1,
           "maximum": 10000,
           "description": "Maximum lines embedded per @file mention before truncating."
         },
-        "gambit.codexCliPath": {
+        "veyra.codexCliPath": {
           "type": "string",
           "default": "",
           "pattern": "^$|(^|[\\\\/])([cC][oO][dD][eE][xX]\\.([jJ][sS]|[eE][xX][eE]|[cC][mM][dD]|[bB][aA][tT]|[pP][sS]1)|[cC][oO][dD][eE][xX])$",
           "patternErrorMessage": "Use a path ending in codex.js, codex.exe, codex, codex.cmd, codex.bat, or codex.ps1.",
-          "description": "Optional absolute path to the Codex CLI JS bundle, native executable such as codex.exe, or Windows npm shim. Shim paths such as codex.cmd are resolved to the underlying JS bundle before launch. Environment variable GAMBIT_CODEX_CLI_PATH takes precedence."
+          "description": "Optional absolute path to the Codex CLI JS bundle, native executable such as codex.exe, or Windows npm shim. Shim paths such as codex.cmd are resolved to the underlying JS bundle before launch. Environment variable VEYRA_CODEX_CLI_PATH takes precedence."
         },
-        "gambit.geminiCliPath": {
+        "veyra.geminiCliPath": {
           "type": "string",
           "default": "",
           "pattern": "^$|(^|[\\\\/])([gG][eE][mM][iI][nN][iI]\\.([jJ][sS]|[eE][xX][eE]|[cC][mM][dD]|[bB][aA][tT]|[pP][sS]1)|[gG][eE][mM][iI][nN][iI])$",
           "patternErrorMessage": "Use a path ending in gemini.js, gemini.exe, gemini, gemini.cmd, gemini.bat, or gemini.ps1.",
-          "description": "Optional absolute path to the Gemini CLI JS bundle, native executable such as gemini.exe, or Windows npm shim. Shim paths such as gemini.cmd are resolved to the underlying JS bundle before launch. Environment variable GAMBIT_GEMINI_CLI_PATH takes precedence."
+          "description": "Optional absolute path to the Gemini CLI JS bundle, native executable such as gemini.exe, or Windows npm shim. Shim paths such as gemini.cmd are resolved to the underlying JS bundle before launch. Environment variable VEYRA_GEMINI_CLI_PATH takes precedence."
         },
-        "gambit.sharedContextWindow": {
+        "veyra.sharedContextWindow": {
           "type": "number",
           "default": 25,
           "minimum": 1,
           "maximum": 200,
           "description": "Number of recent user+agent messages included in cross-agent context."
         },
-        "gambit.fileBadges.enabled": {
+        "veyra.fileBadges.enabled": {
           "type": "boolean",
           "default": true,
           "description": "Show colored dots in the file explorer for files recently edited by an agent."
         },
-        "gambit.commitSignature.enabled": {
+        "veyra.commitSignature.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Write the .vscode/gambit/active-dispatch sentinel during dispatches so the prepare-commit-msg hook can attribute commits."
+          "description": "Write the .vscode/veyra/active-dispatch sentinel during dispatches so the prepare-commit-msg hook can attribute commits."
         },
-        "gambit.writeApproval": {
+        "veyra.writeApproval": {
           "type": "string",
           "enum": ["auto-edit", "ask"],
           "default": "auto-edit",
@@ -222,7 +222,7 @@
     },
     "colors": [
       {
-        "id": "gambit.claudeColor",
+        "id": "veyra.claudeColor",
         "description": "Color used for Claude file decoration badges.",
         "defaults": {
           "dark": "#d97757",
@@ -231,7 +231,7 @@
         }
       },
       {
-        "id": "gambit.codexColor",
+        "id": "veyra.codexColor",
         "description": "Color used for Codex file decoration badges.",
         "defaults": {
           "dark": "#10a37f",
@@ -240,7 +240,7 @@
         }
       },
       {
-        "id": "gambit.geminiColor",
+        "id": "veyra.geminiColor",
         "description": "Color used for Gemini file decoration badges.",
         "defaults": {
           "dark": "#4a8df0",
@@ -266,7 +266,7 @@
     "test:vscode-smoke": "npm run build && node scripts/run-vscode-smoke.mjs",
     "test:integration": "vitest run --passWithNoTests --environment node --testTimeout 60000 --exclude \"tests/integration/**/*.live.test.ts\" --exclude \".vscode-test/**\" tests/integration",
     "pretest:integration:live": "node scripts/require-live-opt-in.mjs && npm run verify:live-ready",
-    "test:integration:live": "vitest run --environment node --testTimeout 180000 --exclude \".vscode-test/**\" tests/integration/claude.live.test.ts tests/integration/codex.live.test.ts tests/integration/gemini.live.test.ts tests/integration/gambit.live.test.ts",
+    "test:integration:live": "vitest run --environment node --testTimeout 180000 --exclude \".vscode-test/**\" tests/integration/claude.live.test.ts tests/integration/codex.live.test.ts tests/integration/gemini.live.test.ts tests/integration/veyra.live.test.ts",
     "posttest:integration:live": "node scripts/print-extension-host-check.mjs --after-live",
     "manual:extension-host-check": "node scripts/print-extension-host-check.mjs"
   },

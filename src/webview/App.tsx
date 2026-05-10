@@ -23,7 +23,7 @@ export function App() {
     <div class="app">
       <FloorIndicator holder={state.floorHolder} />
       <MessageList session={state.session} inProgress={state.inProgress} settings={state.settings} send={send} />
-      <Composer send={send} floorHolder={state.floorHolder} status={state.status} gambitMdPresent={state.gambitMdPresent} />
+      <Composer send={send} floorHolder={state.floorHolder} status={state.status} veyraMdPresent={state.veyraMdPresent} />
     </div>
   );
 }

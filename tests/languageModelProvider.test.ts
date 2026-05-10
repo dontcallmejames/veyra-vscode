@@ -29,34 +29,34 @@ vi.mock('vscode', () => ({
 }));
 
 import {
-  GAMBIT_LANGUAGE_MODELS,
+  VEYRA_LANGUAGE_MODELS,
   languageModelMessagesToPrompt,
-  registerGambitLanguageModelProvider,
-  resolveGambitLanguageModel,
+  registerVeyraLanguageModelProvider,
+  resolveVeyraLanguageModel,
 } from '../src/languageModelProvider.js';
 
-describe('Gambit language model provider helpers', () => {
+describe('Veyra language model provider helpers', () => {
   beforeEach(() => {
     vscodeMocks.registerLanguageModelChatProvider.mockClear();
     vscodeMocks.toolCallRenderStyle = 'compact';
   });
 
   it('exposes one orchestrator model, workflow models, and one direct model per agent', () => {
-    expect(GAMBIT_LANGUAGE_MODELS.map((model) => [model.id, model.forcedTarget])).toEqual([
-      ['gambit-orchestrator', 'gambit'],
-      ['gambit-review', 'gambit'],
-      ['gambit-debate', 'gambit'],
-      ['gambit-implement', 'gambit'],
-      ['gambit-claude', 'claude'],
-      ['gambit-codex', 'codex'],
-      ['gambit-gemini', 'gemini'],
+    expect(VEYRA_LANGUAGE_MODELS.map((model) => [model.id, model.forcedTarget])).toEqual([
+      ['veyra-orchestrator', 'veyra'],
+      ['veyra-review', 'veyra'],
+      ['veyra-debate', 'veyra'],
+      ['veyra-implement', 'veyra'],
+      ['veyra-claude', 'claude'],
+      ['veyra-codex', 'codex'],
+      ['veyra-gemini', 'gemini'],
     ]);
   });
 
   it('resolves known models and falls back to the orchestrator', () => {
-    expect(resolveGambitLanguageModel('gambit-codex').forcedTarget).toBe('codex');
-    expect(resolveGambitLanguageModel('gambit-review').id).toBe('gambit-review');
-    expect(resolveGambitLanguageModel('missing-model').forcedTarget).toBe('gambit');
+    expect(resolveVeyraLanguageModel('veyra-codex').forcedTarget).toBe('codex');
+    expect(resolveVeyraLanguageModel('veyra-review').id).toBe('veyra-review');
+    expect(resolveVeyraLanguageModel('missing-model').forcedTarget).toBe('veyra');
   });
 
   it('converts VS Code language model messages into an explicit transcript', () => {
@@ -215,7 +215,7 @@ describe('Gambit language model provider helpers', () => {
       cancelAll: vi.fn(),
     };
 
-    registerGambitLanguageModelProvider(
+    registerVeyraLanguageModelProvider(
       context as any,
       () => ({ service, workspacePath: '/workspace' } as any),
     );
@@ -232,7 +232,7 @@ describe('Gambit language model provider helpers', () => {
     const progress = { report: vi.fn() };
 
     await expect(provider.provideLanguageModelChatResponse(
-      GAMBIT_LANGUAGE_MODELS[0],
+      VEYRA_LANGUAGE_MODELS[0],
       [{ role: 1, name: undefined, content: [{ value: 'Run the task.' }] }],
       {},
       progress,
@@ -254,7 +254,7 @@ describe('Gambit language model provider helpers', () => {
             id: 'sys1',
             role: 'system',
             kind: 'routing-needed',
-            text: 'Codex is unauthenticated; run Gambit: Check agent status or Gambit: Show setup guide.',
+            text: 'Codex is unauthenticated; run Veyra: Check agent status or Veyra: Show setup guide.',
             timestamp: 1,
           },
         });
@@ -262,7 +262,7 @@ describe('Gambit language model provider helpers', () => {
       cancelAll: vi.fn(),
     };
 
-    registerGambitLanguageModelProvider(
+    registerVeyraLanguageModelProvider(
       context as any,
       () => ({ service, workspacePath: '/workspace' } as any),
     );
@@ -279,7 +279,7 @@ describe('Gambit language model provider helpers', () => {
     const progress = { report: vi.fn() };
 
     await provider.provideLanguageModelChatResponse(
-      GAMBIT_LANGUAGE_MODELS[2],
+      VEYRA_LANGUAGE_MODELS[2],
       [{ role: 1, name: undefined, content: [{ value: 'Implement this.' }] }],
       {},
       progress,
@@ -287,7 +287,7 @@ describe('Gambit language model provider helpers', () => {
     );
 
     expect(progress.report).toHaveBeenCalledWith(expect.objectContaining({
-      value: 'Codex is unauthenticated; run Gambit: Check agent status or Gambit: Show setup guide.',
+      value: 'Codex is unauthenticated; run Veyra: Check agent status or Veyra: Show setup guide.',
     }));
   });
 
@@ -298,7 +298,7 @@ describe('Gambit language model provider helpers', () => {
       cancelAll: vi.fn(),
     };
 
-    registerGambitLanguageModelProvider(
+    registerVeyraLanguageModelProvider(
       context as any,
       () => ({ service, workspacePath: '/workspace' } as any),
     );
@@ -315,7 +315,7 @@ describe('Gambit language model provider helpers', () => {
     const progress = { report: vi.fn() };
 
     await provider.provideLanguageModelChatResponse(
-      GAMBIT_LANGUAGE_MODELS[0],
+      VEYRA_LANGUAGE_MODELS[0],
       [
         { role: 1, name: undefined, content: [{ value: '   ' }] },
         { role: 2, name: undefined, content: [] },
@@ -327,7 +327,7 @@ describe('Gambit language model provider helpers', () => {
 
     expect(service.dispatch).not.toHaveBeenCalled();
     expect(progress.report).toHaveBeenCalledWith(expect.objectContaining({
-      value: 'Provide a prompt before using Gambit language models.',
+      value: 'Provide a prompt before using Veyra language models.',
     }));
   });
 
@@ -338,7 +338,7 @@ describe('Gambit language model provider helpers', () => {
       cancelAll: vi.fn(),
     };
 
-    registerGambitLanguageModelProvider(
+    registerVeyraLanguageModelProvider(
       context as any,
       () => ({ service, workspacePath: '/workspace' } as any),
     );
@@ -354,7 +354,7 @@ describe('Gambit language model provider helpers', () => {
     };
 
     await provider.provideLanguageModelChatResponse(
-      resolveGambitLanguageModel('gambit-review'),
+      resolveVeyraLanguageModel('veyra-review'),
       [{ role: 1, name: undefined, content: [{ value: 'Check this change.' }] }],
       {},
       { report: vi.fn() },
@@ -363,7 +363,7 @@ describe('Gambit language model provider helpers', () => {
 
     expect(service.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
-        forcedTarget: 'gambit',
+        forcedTarget: 'veyra',
         readOnly: true,
         text: expect.stringContaining('@all'),
       }),
@@ -384,7 +384,7 @@ describe('Gambit language model provider helpers', () => {
       cancelAll: vi.fn(),
     };
 
-    registerGambitLanguageModelProvider(
+    registerVeyraLanguageModelProvider(
       context as any,
       () => ({ service, workspacePath: '/workspace' } as any),
     );
@@ -400,7 +400,7 @@ describe('Gambit language model provider helpers', () => {
     };
 
     await provider.provideLanguageModelChatResponse(
-      GAMBIT_LANGUAGE_MODELS[0],
+      VEYRA_LANGUAGE_MODELS[0],
       [{ role: 1, name: undefined, content: [{ value: 'Use the available workspace helper.' }] }],
       {
         toolMode: 1,
@@ -431,7 +431,7 @@ describe('Gambit language model provider helpers', () => {
       cancelAll: vi.fn(),
     };
 
-    registerGambitLanguageModelProvider(
+    registerVeyraLanguageModelProvider(
       context as any,
       () => ({ service, workspacePath: '/workspace' } as any),
     );
@@ -447,7 +447,7 @@ describe('Gambit language model provider helpers', () => {
     };
 
     await provider.provideLanguageModelChatResponse(
-      GAMBIT_LANGUAGE_MODELS[0],
+      VEYRA_LANGUAGE_MODELS[0],
       [{ role: 1, name: undefined, content: [{ value: 'Follow the request options.' }] }],
       {
         modelOptions: {
@@ -473,7 +473,7 @@ describe('Gambit language model provider helpers', () => {
       cancelAll: vi.fn(),
     };
 
-    registerGambitLanguageModelProvider(
+    registerVeyraLanguageModelProvider(
       context as any,
       () => ({ service, workspacePath: '/workspace' } as any),
     );
@@ -490,7 +490,7 @@ describe('Gambit language model provider helpers', () => {
     const progress = { report: vi.fn() };
 
     await provider.provideLanguageModelChatResponse(
-      GAMBIT_LANGUAGE_MODELS[0],
+      VEYRA_LANGUAGE_MODELS[0],
       [{ role: 1, name: undefined, content: [{ value: 'Run the task.' }] }],
       {},
       progress,
@@ -516,7 +516,7 @@ describe('Gambit language model provider helpers', () => {
       cancelAll: vi.fn(),
     };
 
-    registerGambitLanguageModelProvider(
+    registerVeyraLanguageModelProvider(
       context as any,
       () => ({ service, workspacePath: '/workspace' } as any),
     );
@@ -533,7 +533,7 @@ describe('Gambit language model provider helpers', () => {
     const progress = { report: vi.fn() };
 
     await provider.provideLanguageModelChatResponse(
-      GAMBIT_LANGUAGE_MODELS[2],
+      VEYRA_LANGUAGE_MODELS[2],
       [{ role: 1, name: undefined, content: [{ value: 'Implement this.' }] }],
       {},
       progress,
@@ -559,7 +559,7 @@ describe('Gambit language model provider helpers', () => {
       }),
       cancelAll: vi.fn(),
     };
-    registerGambitLanguageModelProvider(
+    registerVeyraLanguageModelProvider(
       context as any,
       () => ({ service, workspacePath: '/workspace' } as any),
     );
@@ -575,7 +575,7 @@ describe('Gambit language model provider helpers', () => {
     const progress = { report: vi.fn() };
 
     await provider.provideLanguageModelChatResponse(
-      GAMBIT_LANGUAGE_MODELS[2],
+      VEYRA_LANGUAGE_MODELS[2],
       [{ role: 1, name: undefined, content: [{ value: 'Remove obsolete file.' }] }],
       {},
       progress,
@@ -601,7 +601,7 @@ describe('Gambit language model provider helpers', () => {
       }),
       cancelAll: vi.fn(),
     };
-    registerGambitLanguageModelProvider(
+    registerVeyraLanguageModelProvider(
       context as any,
       () => ({ service, workspacePath: '/workspace' } as any),
     );
@@ -617,7 +617,7 @@ describe('Gambit language model provider helpers', () => {
     const progress = { report: vi.fn() };
 
     await provider.provideLanguageModelChatResponse(
-      GAMBIT_LANGUAGE_MODELS[2],
+      VEYRA_LANGUAGE_MODELS[2],
       [{ role: 1, name: undefined, content: [{ value: 'Create a file.' }] }],
       {},
       progress,
@@ -647,7 +647,7 @@ describe('Gambit language model provider helpers', () => {
       cancelAll: vi.fn(),
     };
 
-    registerGambitLanguageModelProvider(
+    registerVeyraLanguageModelProvider(
       context as any,
       () => ({ service, workspacePath: '/workspace' } as any),
     );
@@ -664,7 +664,7 @@ describe('Gambit language model provider helpers', () => {
     const progress = { report: vi.fn() };
 
     await provider.provideLanguageModelChatResponse(
-      GAMBIT_LANGUAGE_MODELS[2],
+      VEYRA_LANGUAGE_MODELS[2],
       [{ role: 1, name: undefined, content: [{ value: 'Run tests.' }] }],
       {},
       progress,
@@ -697,7 +697,7 @@ describe('Gambit language model provider helpers', () => {
       cancelAll: vi.fn(),
     };
 
-    registerGambitLanguageModelProvider(
+    registerVeyraLanguageModelProvider(
       context as any,
       () => ({ service, workspacePath: '/workspace' } as any),
     );
@@ -714,7 +714,7 @@ describe('Gambit language model provider helpers', () => {
     const progress = { report: vi.fn() };
 
     await provider.provideLanguageModelChatResponse(
-      GAMBIT_LANGUAGE_MODELS[0],
+      VEYRA_LANGUAGE_MODELS[0],
       [{ role: 1, name: undefined, content: [{ value: 'Update config.' }] }],
       {},
       progress,
@@ -743,7 +743,7 @@ describe('Gambit language model provider helpers', () => {
       cancelAll: vi.fn(),
     };
 
-    registerGambitLanguageModelProvider(
+    registerVeyraLanguageModelProvider(
       context as any,
       () => ({ service, workspacePath: '/workspace' } as any),
     );
@@ -760,7 +760,7 @@ describe('Gambit language model provider helpers', () => {
     const progress = { report: vi.fn() };
 
     await provider.provideLanguageModelChatResponse(
-      GAMBIT_LANGUAGE_MODELS[0],
+      VEYRA_LANGUAGE_MODELS[0],
       [{ role: 1, name: undefined, content: [{ value: 'Run the task.' }] }],
       {},
       progress,
@@ -796,7 +796,7 @@ describe('Gambit language model provider helpers', () => {
       cancelAll: vi.fn(),
     };
 
-    registerGambitLanguageModelProvider(
+    registerVeyraLanguageModelProvider(
       context as any,
       () => ({ service, workspacePath: '/workspace' } as any),
     );
@@ -813,7 +813,7 @@ describe('Gambit language model provider helpers', () => {
     const progress = { report: vi.fn() };
 
     await provider.provideLanguageModelChatResponse(
-      GAMBIT_LANGUAGE_MODELS[0],
+      VEYRA_LANGUAGE_MODELS[0],
       [{ role: 1, name: undefined, content: [{ value: 'Run the task.' }] }],
       {},
       progress,
@@ -846,7 +846,7 @@ describe('Gambit language model provider helpers', () => {
       cancelAll: vi.fn(),
     };
 
-    registerGambitLanguageModelProvider(
+    registerVeyraLanguageModelProvider(
       context as any,
       () => ({ service, workspacePath: '/workspace' } as any),
     );
@@ -863,7 +863,7 @@ describe('Gambit language model provider helpers', () => {
     const progress = { report: vi.fn() };
 
     await provider.provideLanguageModelChatResponse(
-      GAMBIT_LANGUAGE_MODELS[2],
+      VEYRA_LANGUAGE_MODELS[2],
       [{ role: 1, name: undefined, content: [{ value: 'Run tests.' }] }],
       {},
       progress,
@@ -898,7 +898,7 @@ describe('Gambit language model provider helpers', () => {
       cancelAll: vi.fn(),
     };
 
-    registerGambitLanguageModelProvider(
+    registerVeyraLanguageModelProvider(
       context as any,
       () => ({ service, workspacePath: '/workspace' } as any),
     );
@@ -915,7 +915,7 @@ describe('Gambit language model provider helpers', () => {
     const progress = { report: vi.fn() };
 
     await provider.provideLanguageModelChatResponse(
-      GAMBIT_LANGUAGE_MODELS[2],
+      VEYRA_LANGUAGE_MODELS[2],
       [{ role: 1, name: undefined, content: [{ value: 'Implement this.' }] }],
       {},
       progress,
@@ -955,7 +955,7 @@ describe('Gambit language model provider helpers', () => {
       cancelAll: vi.fn(),
     };
 
-    registerGambitLanguageModelProvider(
+    registerVeyraLanguageModelProvider(
       context as any,
       () => ({ service, workspacePath: '/workspace' } as any),
     );
@@ -972,7 +972,7 @@ describe('Gambit language model provider helpers', () => {
     const progress = { report: vi.fn() };
 
     await provider.provideLanguageModelChatResponse(
-      GAMBIT_LANGUAGE_MODELS[0],
+      VEYRA_LANGUAGE_MODELS[0],
       [{ role: 1, name: undefined, content: [{ value: 'Run tests and create file.' }] }],
       {},
       progress,
@@ -1014,7 +1014,7 @@ describe('Gambit language model provider helpers', () => {
       cancelAll: vi.fn(),
     };
 
-    registerGambitLanguageModelProvider(
+    registerVeyraLanguageModelProvider(
       context as any,
       () => ({ service, workspacePath: '/workspace' } as any),
     );
@@ -1031,7 +1031,7 @@ describe('Gambit language model provider helpers', () => {
     const progress = { report: vi.fn() };
 
     await provider.provideLanguageModelChatResponse(
-      GAMBIT_LANGUAGE_MODELS[0],
+      VEYRA_LANGUAGE_MODELS[0],
       [{ role: 1, name: undefined, content: [{ value: 'Run tests.' }] }],
       {},
       progress,
@@ -1069,7 +1069,7 @@ describe('Gambit language model provider helpers', () => {
       cancelAll: vi.fn(),
     };
 
-    registerGambitLanguageModelProvider(
+    registerVeyraLanguageModelProvider(
       context as any,
       () => ({ service, workspacePath: '/workspace' } as any),
     );
@@ -1086,7 +1086,7 @@ describe('Gambit language model provider helpers', () => {
     const progress = { report: vi.fn() };
 
     await provider.provideLanguageModelChatResponse(
-      GAMBIT_LANGUAGE_MODELS[0],
+      VEYRA_LANGUAGE_MODELS[0],
       [{ role: 1, name: undefined, content: [{ value: 'Review this.' }] }],
       {},
       progress,
@@ -1105,7 +1105,7 @@ describe('Gambit language model provider helpers', () => {
       cancelAll: vi.fn(),
     };
 
-    registerGambitLanguageModelProvider(
+    registerVeyraLanguageModelProvider(
       context as any,
       () => ({ service, workspacePath: '/workspace' } as any),
     );
@@ -1121,7 +1121,7 @@ describe('Gambit language model provider helpers', () => {
     };
 
     await provider.provideLanguageModelChatResponse(
-      GAMBIT_LANGUAGE_MODELS[0],
+      VEYRA_LANGUAGE_MODELS[0],
       [{ role: 1, name: undefined, content: [{ value: 'Run the task.' }] }],
       {},
       { report: vi.fn() },
@@ -1150,7 +1150,7 @@ describe('Gambit language model provider helpers', () => {
       cancelAll: vi.fn(),
     };
 
-    registerGambitLanguageModelProvider(
+    registerVeyraLanguageModelProvider(
       context as any,
       () => ({ service, workspacePath: '/workspace' } as any),
     );
@@ -1167,7 +1167,7 @@ describe('Gambit language model provider helpers', () => {
     const progress = { report: vi.fn() };
 
     await provider.provideLanguageModelChatResponse(
-      GAMBIT_LANGUAGE_MODELS[0],
+      VEYRA_LANGUAGE_MODELS[0],
       [{ role: 1, name: undefined, content: [{ value: 'Run the task.' }] }],
       {},
       progress,

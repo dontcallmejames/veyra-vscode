@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { gambitWorkflowPrompt } from '../src/workflowPrompts.js';
+import { veyraWorkflowPrompt } from '../src/workflowPrompts.js';
 
-describe('gambitWorkflowPrompt', () => {
+describe('veyraWorkflowPrompt', () => {
   it('assigns model-strength roles in review workflows without permitting edits', () => {
-    const prompt = gambitWorkflowPrompt('review', 'Check the migration.');
+    const prompt = veyraWorkflowPrompt('review', 'Check the migration.');
 
     expect(prompt).toContain('@all');
     expect(prompt).toContain('Workflow: review');
@@ -15,7 +15,7 @@ describe('gambitWorkflowPrompt', () => {
   });
 
   it('assigns model-strength roles in debate workflows without permitting edits', () => {
-    const prompt = gambitWorkflowPrompt('debate', 'Pick a refactor path.');
+    const prompt = veyraWorkflowPrompt('debate', 'Pick a refactor path.');
 
     expect(prompt).toContain('@all');
     expect(prompt).toContain('Workflow: debate');
@@ -27,7 +27,7 @@ describe('gambitWorkflowPrompt', () => {
   });
 
   it('assigns model-strength roles in implementation workflows', () => {
-    const prompt = gambitWorkflowPrompt('implement', 'Fix the parser.');
+    const prompt = veyraWorkflowPrompt('implement', 'Fix the parser.');
 
     expect(prompt).toContain('@all');
     expect(prompt).toContain('Workflow: implement');

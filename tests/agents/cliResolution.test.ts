@@ -6,8 +6,8 @@ const originalPlatform = process.platform;
 
 afterEach(() => {
   Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
-  delete process.env.GAMBIT_CODEX_CLI_PATH;
-  delete process.env.GAMBIT_GEMINI_CLI_PATH;
+  delete process.env.VEYRA_CODEX_CLI_PATH;
+  delete process.env.VEYRA_GEMINI_CLI_PATH;
   vi.doUnmock('node:child_process');
   vi.doUnmock('node:fs');
   vi.doUnmock('vscode');
@@ -24,7 +24,7 @@ function fakeProcess() {
 }
 
 describe('agent CLI resolution failures', () => {
-  it('CodexAgent uses gambit.codexCliPath before resolving the Windows npm bundle', async () => {
+  it('CodexAgent uses veyra.codexCliPath before resolving the Windows npm bundle', async () => {
     Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
     const spawn = vi.fn(() => fakeProcess());
     const execSync = vi.fn((command: string) => {
@@ -60,9 +60,9 @@ describe('agent CLI resolution failures', () => {
     expect(execSync).not.toHaveBeenCalledWith('npm root -g', expect.anything());
   });
 
-  it('CodexAgent uses GAMBIT_CODEX_CLI_PATH before resolving the Windows npm bundle', async () => {
+  it('CodexAgent uses VEYRA_CODEX_CLI_PATH before resolving the Windows npm bundle', async () => {
     Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
-    process.env.GAMBIT_CODEX_CLI_PATH = 'D:\\tools\\codex\\codex.js';
+    process.env.VEYRA_CODEX_CLI_PATH = 'D:\\tools\\codex\\codex.js';
     const spawn = vi.fn(() => fakeProcess());
     const execSync = vi.fn((command: string) => {
       if (command.startsWith('where node')) return 'D:\\node\\node.exe\n';
@@ -91,12 +91,12 @@ describe('agent CLI resolution failures', () => {
       expect.anything(),
     );
     expect(execSync).not.toHaveBeenCalledWith('npm root -g', expect.anything());
-    delete process.env.GAMBIT_CODEX_CLI_PATH;
+    delete process.env.VEYRA_CODEX_CLI_PATH;
   });
 
   it('CodexAgent spawns native executable overrides directly', async () => {
     Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
-    process.env.GAMBIT_CODEX_CLI_PATH = 'D:\\tools\\codex\\codex.exe';
+    process.env.VEYRA_CODEX_CLI_PATH = 'D:\\tools\\codex\\codex.exe';
     const spawn = vi.fn(() => fakeProcess());
     const execSync = vi.fn((command: string) => {
       if (command.startsWith('where node')) return 'D:\\node\\node.exe\n';
@@ -278,7 +278,7 @@ describe('agent CLI resolution failures', () => {
 
   it('CodexAgent resolves Windows npm command shim overrides to JS bundle paths', async () => {
     Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
-    process.env.GAMBIT_CODEX_CLI_PATH = 'D:\\npm\\codex.cmd';
+    process.env.VEYRA_CODEX_CLI_PATH = 'D:\\npm\\codex.cmd';
     const spawn = vi.fn(() => fakeProcess());
     vi.doMock('vscode', () => ({
       workspace: {
@@ -314,7 +314,7 @@ describe('agent CLI resolution failures', () => {
 
   it('CodexAgent rejects malformed CLI path overrides before spawning', async () => {
     Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
-    process.env.GAMBIT_CODEX_CLI_PATH = 'D:\\tools\\not-codex.exe';
+    process.env.VEYRA_CODEX_CLI_PATH = 'D:\\tools\\not-codex.exe';
     const spawn = vi.fn(() => fakeProcess());
     vi.doMock('vscode', () => ({
       workspace: {
@@ -480,7 +480,7 @@ describe('agent CLI resolution failures', () => {
     ]);
   });
 
-  it('GeminiAgent uses gambit.geminiCliPath before resolving the Windows npm bundle', async () => {
+  it('GeminiAgent uses veyra.geminiCliPath before resolving the Windows npm bundle', async () => {
     Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
     const spawn = vi.fn(() => fakeProcess());
     const execSync = vi.fn((command: string) => {
@@ -516,9 +516,9 @@ describe('agent CLI resolution failures', () => {
     expect(execSync).not.toHaveBeenCalledWith('npm root -g', expect.anything());
   });
 
-  it('GeminiAgent uses GAMBIT_GEMINI_CLI_PATH before resolving the Windows npm bundle', async () => {
+  it('GeminiAgent uses VEYRA_GEMINI_CLI_PATH before resolving the Windows npm bundle', async () => {
     Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
-    process.env.GAMBIT_GEMINI_CLI_PATH = 'D:\\tools\\gemini\\gemini.js';
+    process.env.VEYRA_GEMINI_CLI_PATH = 'D:\\tools\\gemini\\gemini.js';
     const spawn = vi.fn(() => fakeProcess());
     const execSync = vi.fn((command: string) => {
       if (command.startsWith('where node')) return 'D:\\node\\node.exe\n';
@@ -547,12 +547,12 @@ describe('agent CLI resolution failures', () => {
       expect.anything(),
     );
     expect(execSync).not.toHaveBeenCalledWith('npm root -g', expect.anything());
-    delete process.env.GAMBIT_GEMINI_CLI_PATH;
+    delete process.env.VEYRA_GEMINI_CLI_PATH;
   });
 
   it('GeminiAgent spawns native executable overrides directly', async () => {
     Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
-    process.env.GAMBIT_GEMINI_CLI_PATH = 'D:\\tools\\gemini\\gemini.exe';
+    process.env.VEYRA_GEMINI_CLI_PATH = 'D:\\tools\\gemini\\gemini.exe';
     const spawn = vi.fn(() => fakeProcess());
     const execSync = vi.fn((command: string) => {
       if (command.startsWith('where node')) return 'D:\\node\\node.exe\n';
@@ -738,7 +738,7 @@ describe('agent CLI resolution failures', () => {
 
   it('GeminiAgent resolves Windows npm command shim overrides to JS bundle paths', async () => {
     Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
-    process.env.GAMBIT_GEMINI_CLI_PATH = 'D:\\npm\\gemini.cmd';
+    process.env.VEYRA_GEMINI_CLI_PATH = 'D:\\npm\\gemini.cmd';
     const spawn = vi.fn(() => fakeProcess());
     vi.doMock('vscode', () => ({
       workspace: {
@@ -774,7 +774,7 @@ describe('agent CLI resolution failures', () => {
 
   it('GeminiAgent rejects malformed CLI path overrides before spawning', async () => {
     Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
-    process.env.GAMBIT_GEMINI_CLI_PATH = 'D:\\tools\\not-gemini.js';
+    process.env.VEYRA_GEMINI_CLI_PATH = 'D:\\tools\\not-gemini.js';
     const spawn = vi.fn(() => fakeProcess());
     vi.doMock('vscode', () => ({
       workspace: {

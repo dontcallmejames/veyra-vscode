@@ -29,8 +29,8 @@ const originalPlatform = process.platform;
 beforeEach(() => {
   Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
   clearStatusCache();
-  delete process.env.GAMBIT_CODEX_CLI_PATH;
-  delete process.env.GAMBIT_GEMINI_CLI_PATH;
+  delete process.env.VEYRA_CODEX_CLI_PATH;
+  delete process.env.VEYRA_GEMINI_CLI_PATH;
   vscodeMocks.configGet.mockReset();
   vscodeMocks.configGet.mockImplementation((_key: string, dflt: unknown) => dflt);
   mockedAccessSync.mockReset();
@@ -82,7 +82,7 @@ describe('checkClaude', () => {
 });
 
 describe('checkCodex', () => {
-  it('uses gambit.codexCliPath before resolving the Windows npm bundle', async () => {
+  it('uses veyra.codexCliPath before resolving the Windows npm bundle', async () => {
     vscodeMocks.configGet.mockImplementation((key: string, dflt: unknown) =>
       key === 'codexCliPath' ? 'D:\\settings\\codex\\codex.js' : dflt
     );
@@ -94,8 +94,8 @@ describe('checkCodex', () => {
     expect(mockedAccessSync).toHaveBeenCalledWith('D:\\settings\\codex\\codex.js');
   });
 
-  it('uses GAMBIT_CODEX_CLI_PATH before resolving the Windows npm bundle', async () => {
-    process.env.GAMBIT_CODEX_CLI_PATH = 'D:\\tools\\codex\\codex.js';
+  it('uses VEYRA_CODEX_CLI_PATH before resolving the Windows npm bundle', async () => {
+    process.env.VEYRA_CODEX_CLI_PATH = 'D:\\tools\\codex\\codex.js';
     mockedExistsSync.mockReturnValue(true);
     Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
 
@@ -105,7 +105,7 @@ describe('checkCodex', () => {
   });
 
   it('does not report Codex ready for a JS bundle when the Node CLI is missing', async () => {
-    process.env.GAMBIT_CODEX_CLI_PATH = 'D:\\tools\\codex\\codex.js';
+    process.env.VEYRA_CODEX_CLI_PATH = 'D:\\tools\\codex\\codex.js';
     mockedExistsSync.mockReturnValue(true);
     mockedExecSync.mockImplementation((command: string) => {
       if (command.startsWith('where') || command.includes('Get-Command node')) {
@@ -171,7 +171,7 @@ describe('checkCodex', () => {
   });
 
   it('normalizes Windows npm command shim Codex overrides before checking readiness', async () => {
-    process.env.GAMBIT_CODEX_CLI_PATH = 'D:\\npm\\codex.cmd';
+    process.env.VEYRA_CODEX_CLI_PATH = 'D:\\npm\\codex.cmd';
     mockedExistsSync.mockReturnValue(true);
     Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
 
@@ -181,7 +181,7 @@ describe('checkCodex', () => {
   });
 
   it('returns misconfigured for malformed Codex CLI path overrides', async () => {
-    process.env.GAMBIT_CODEX_CLI_PATH = 'D:\\tools\\not-codex.exe';
+    process.env.VEYRA_CODEX_CLI_PATH = 'D:\\tools\\not-codex.exe';
     mockedExistsSync.mockReturnValue(true);
     Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
 
@@ -234,7 +234,7 @@ describe('checkCodex', () => {
 });
 
 describe('checkGemini', () => {
-  it('uses gambit.geminiCliPath before resolving the Windows npm bundle', async () => {
+  it('uses veyra.geminiCliPath before resolving the Windows npm bundle', async () => {
     vscodeMocks.configGet.mockImplementation((key: string, dflt: unknown) =>
       key === 'geminiCliPath' ? 'D:\\settings\\gemini\\gemini.js' : dflt
     );
@@ -246,8 +246,8 @@ describe('checkGemini', () => {
     expect(mockedAccessSync).toHaveBeenCalledWith('D:\\settings\\gemini\\gemini.js');
   });
 
-  it('uses GAMBIT_GEMINI_CLI_PATH before resolving the Windows npm bundle', async () => {
-    process.env.GAMBIT_GEMINI_CLI_PATH = 'D:\\tools\\gemini\\gemini.js';
+  it('uses VEYRA_GEMINI_CLI_PATH before resolving the Windows npm bundle', async () => {
+    process.env.VEYRA_GEMINI_CLI_PATH = 'D:\\tools\\gemini\\gemini.js';
     mockedExistsSync.mockReturnValue(true);
     Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
 
@@ -257,7 +257,7 @@ describe('checkGemini', () => {
   });
 
   it('does not report Gemini ready for a JS bundle when the Node CLI is missing', async () => {
-    process.env.GAMBIT_GEMINI_CLI_PATH = 'D:\\tools\\gemini\\gemini.js';
+    process.env.VEYRA_GEMINI_CLI_PATH = 'D:\\tools\\gemini\\gemini.js';
     mockedExistsSync.mockReturnValue(true);
     mockedExecSync.mockImplementation((command: string) => {
       if (command.startsWith('where') || command.includes('Get-Command node')) {
@@ -323,7 +323,7 @@ describe('checkGemini', () => {
   });
 
   it('normalizes Windows npm command shim Gemini overrides before checking readiness', async () => {
-    process.env.GAMBIT_GEMINI_CLI_PATH = 'D:\\npm\\gemini.cmd';
+    process.env.VEYRA_GEMINI_CLI_PATH = 'D:\\npm\\gemini.cmd';
     mockedExistsSync.mockReturnValue(true);
     Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
 
@@ -333,7 +333,7 @@ describe('checkGemini', () => {
   });
 
   it('returns misconfigured for malformed Gemini CLI path overrides', async () => {
-    process.env.GAMBIT_GEMINI_CLI_PATH = 'D:\\tools\\not-gemini.exe';
+    process.env.VEYRA_GEMINI_CLI_PATH = 'D:\\tools\\not-gemini.exe';
     mockedExistsSync.mockReturnValue(true);
     Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
 

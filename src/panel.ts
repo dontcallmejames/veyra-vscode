@@ -4,21 +4,21 @@ import * as path from 'node:path';
 import { ulid } from './ulid.js';
 import { cspNonce } from './cspNonce.js';
 import { checkClaude, checkCodex, checkGemini, clearStatusCache } from './statusChecks.js';
-import { GambitSessionService } from './gambitService.js';
-import { createGambitSessionService, refreshGambitSessionOptions } from './gambitRuntime.js';
+import { VeyraSessionService } from './veyraService.js';
+import { createVeyraSessionService, refreshVeyraSessionOptions } from './veyraRuntime.js';
 import type {
   FromExtension, FromWebview, Settings, SystemMessage,
 } from './shared/protocol.js';
 import type { AgentId, AgentStatus } from './types.js';
 import type { AgentRegistry } from './messageRouter.js';
 import type { FileBadgesController } from './fileBadges.js';
-import type { GambitDispatchEvent } from './gambitService.js';
+import type { VeyraDispatchEvent } from './veyraService.js';
 
 export class ChatPanel {
   private static current: ChatPanel | undefined;
   private panel: vscode.WebviewPanel;
   private disposables: vscode.Disposable[] = [];
-  private service: GambitSessionService;
+  private service: VeyraSessionService;
   private extensionUri: vscode.Uri;
   private onboardingPromptsStarted = false;
 
@@ -26,7 +26,7 @@ export class ChatPanel {
     context: vscode.ExtensionContext,
     agentsOverride?: AgentRegistry,
     badgeController?: FileBadgesController,
-    serviceOverride?: GambitSessionService,
+    serviceOverride?: VeyraSessionService,
     badgeControllerProvider?: () => FileBadgesController | undefined,
   ): Promise<void> {
     if (ChatPanel.current) {
@@ -35,12 +35,12 @@ export class ChatPanel {
     }
     const folder = vscode.workspace.workspaceFolders?.[0];
     if (!folder) {
-      vscode.window.showErrorMessage('Gambit requires an open workspace folder.');
+      vscode.window.showErrorMessage('Veyra requires an open workspace folder.');
       return;
     }
     const panel = vscode.window.createWebviewPanel(
-      'gambit',
-      'Gambit',
+      'veyra',
+      'Veyra',
       vscode.ViewColumn.One,
       {
         enableScripts: true,
@@ -51,7 +51,7 @@ export class ChatPanel {
     const activeBadgeController = badgeControllerProvider
       ? badgeControllerProvider()
       : fileBadgesEnabled() ? badgeController : undefined;
-    const service = serviceOverride ?? createGambitSessionService(folder.uri.fsPath, activeBadgeController, agentsOverride);
+    const service = serviceOverride ?? createVeyraSessionService(folder.uri.fsPath, activeBadgeController, agentsOverride);
     ChatPanel.current = new ChatPanel(panel, context, folder.uri.fsPath, service, badgeController, badgeControllerProvider);
     await ChatPanel.current.initialize();
   }
@@ -60,7 +60,7 @@ export class ChatPanel {
     panel: vscode.WebviewPanel,
     private context: vscode.ExtensionContext,
     private workspacePath: string,
-    service: GambitSessionService,
+    service: VeyraSessionService,
     private badgeController?: FileBadgesController,
     private badgeControllerProvider?: () => FileBadgesController | undefined,
   ) {
@@ -83,8 +83,8 @@ export class ChatPanel {
       gemini: await checkGemini(),
     };
     const settings = this.readSettings();
-    const gambitMdPresent = fs.existsSync(path.join(this.workspacePath, 'gambit.md'));
-    this.send({ kind: 'init', session, status, settings, gambitMdPresent });
+    const veyraMdPresent = fs.existsSync(path.join(this.workspacePath, 'veyra.md'));
+    this.send({ kind: 'init', session, status, settings, veyraMdPresent });
 
     this.disposables.push(
       { dispose: this.service.onFloorChange((holder) => this.send({ kind: 'floor-changed', holder })) },
@@ -105,17 +105,17 @@ export class ChatPanel {
         }),
       },
       vscode.workspace.onDidChangeConfiguration((e) => {
-        if (e.affectsConfiguration('gambit')) {
-          refreshGambitSessionOptions(this.service, this.currentBadgeController());
+        if (e.affectsConfiguration('veyra')) {
+          refreshVeyraSessionOptions(this.service, this.currentBadgeController());
           this.send({ kind: 'settings-changed', settings: this.readSettings() });
         }
       }),
     );
 
-    const rulesWatcher = vscode.workspace.createFileSystemWatcher('**/gambit.md', false, true, false);
+    const rulesWatcher = vscode.workspace.createFileSystemWatcher('**/veyra.md', false, true, false);
     const onRulesChange = () => {
-      const present = fs.existsSync(path.join(this.workspacePath, 'gambit.md'));
-      this.send({ kind: 'gambit-md-changed', present });
+      const present = fs.existsSync(path.join(this.workspacePath, 'veyra.md'));
+      this.send({ kind: 'veyra-md-changed', present });
     };
     rulesWatcher.onDidCreate(onRulesChange);
     rulesWatcher.onDidDelete(onRulesChange);
@@ -167,7 +167,7 @@ export class ChatPanel {
   }
 
   private readSettings(): Settings {
-    const config = vscode.workspace.getConfiguration('gambit');
+    const config = vscode.workspace.getConfiguration('veyra');
     return {
       toolCallRenderStyle: config.get<Settings['toolCallRenderStyle']>('toolCallRenderStyle', 'compact'),
     };
@@ -194,13 +194,13 @@ export class ChatPanel {
         }
         break;
       case 'show-live-validation-guide':
-        await vscode.commands.executeCommand('gambit.showLiveValidationGuide');
+        await vscode.commands.executeCommand('veyra.showLiveValidationGuide');
         break;
       case 'show-setup-guide':
-        await vscode.commands.executeCommand('gambit.showSetupGuide');
+        await vscode.commands.executeCommand('veyra.showSetupGuide');
         break;
       case 'configure-cli-paths':
-        await vscode.commands.executeCommand('gambit.configureCliPaths');
+        await vscode.commands.executeCommand('veyra.configureCliPaths');
         break;
       case 'open-external':
         await this.openExternalUrl(msg.url);
@@ -270,14 +270,14 @@ export class ChatPanel {
     this.onboardingPromptsStarted = true;
     void (async () => {
       await this.maybeShowGitignorePrompt(this.workspacePath);
-      await this.maybeShowGambitMdTip();
+      await this.maybeShowVeyraMdTip();
       await this.maybeShowCommitHookPrompt();
     })().catch((err) => {
-      console.error('Gambit onboarding prompts failed:', err);
+      console.error('Veyra onboarding prompts failed:', err);
     });
   }
 
-  private handleDispatchEvent(event: GambitDispatchEvent): void {
+  private handleDispatchEvent(event: VeyraDispatchEvent): void {
     switch (event.kind) {
       case 'user-message':
         this.send({ kind: 'user-message-appended', message: event.message });
@@ -313,7 +313,7 @@ export class ChatPanel {
 
 
   private async maybeShowGitignorePrompt(workspacePath: string): Promise<void> {
-    const stateKey = 'gambit.gitignorePromptDismissed';
+    const stateKey = 'veyra.gitignorePromptDismissed';
     if (this.context.workspaceState.get(stateKey)) return;
 
     const gitignorePath = path.join(workspacePath, '.gitignore');
@@ -325,39 +325,39 @@ export class ChatPanel {
       gitignore.split(/\r?\n/).some((line) => {
         const trimmed = line.trim();
         return trimmed === '.vscode/' ||
-               trimmed === '.vscode/gambit/' ||
-               trimmed === '.vscode/gambit';
+               trimmed === '.vscode/veyra/' ||
+               trimmed === '.vscode/veyra';
       });
     if (alreadyCovered) return;
 
     const choice = await vscode.window.showInformationMessage(
-      'Gambit stores session history in .vscode/gambit/. Add to .gitignore?',
+      'Veyra stores session history in .vscode/veyra/. Add to .gitignore?',
       'Add to .gitignore',
       'Not now',
       "Don't ask again",
     );
     if (choice === 'Add to .gitignore') {
       const additionalLines = (gitignore.length > 0 && !gitignore.endsWith('\n') ? '\n' : '')
-        + '\n# Gambit session history\n.vscode/gambit/\n';
+        + '\n# Veyra session history\n.vscode/veyra/\n';
       fs.appendFileSync(gitignorePath, additionalLines, 'utf8');
     } else if (choice === "Don't ask again") {
       await this.context.workspaceState.update(stateKey, true);
     }
   }
 
-  private async maybeShowGambitMdTip(): Promise<void> {
-    const stateKey = 'gambit.gambitMdTipShown';
+  private async maybeShowVeyraMdTip(): Promise<void> {
+    const stateKey = 'veyra.veyraMdTipShown';
     if (this.context.workspaceState.get(stateKey)) return;
-    if (fs.existsSync(path.join(this.workspacePath, 'gambit.md'))) return;
+    if (fs.existsSync(path.join(this.workspacePath, 'veyra.md'))) return;
 
     const choice = await vscode.window.showInformationMessage(
-      'Tip: create gambit.md at the workspace root to pin per-project instructions for all agents.',
+      'Tip: create veyra.md at the workspace root to pin per-project instructions for all agents.',
       'Create now',
       "Don't show again",
     );
     if (choice === 'Create now') {
-      const filePath = path.join(this.workspacePath, 'gambit.md');
-      const seed = '# gambit.md\n\nWorkspace rules pinned to all agent prompts. Free-form Markdown.\n';
+      const filePath = path.join(this.workspacePath, 'veyra.md');
+      const seed = '# veyra.md\n\nWorkspace rules pinned to all agent prompts. Free-form Markdown.\n';
       fs.writeFileSync(filePath, seed, 'utf8');
       const doc = await vscode.workspace.openTextDocument(filePath);
       await vscode.window.showTextDocument(doc);
@@ -368,18 +368,18 @@ export class ChatPanel {
   }
 
   private async maybeShowCommitHookPrompt(): Promise<void> {
-    const stateKey = 'gambit.commitHookPromptDismissed';
+    const stateKey = 'veyra.commitHookPromptDismissed';
     if (this.context.workspaceState.get(stateKey)) return;
     if (!fs.existsSync(path.join(this.workspacePath, '.git'))) return;
 
     const choice = await vscode.window.showInformationMessage(
-      'Install commit hook to tag commits made by agents? Adds .git/hooks/prepare-commit-msg. Removable via "Gambit: Uninstall commit hook".',
+      'Install commit hook to tag commits made by agents? Adds .git/hooks/prepare-commit-msg. Removable via "Veyra: Uninstall commit hook".',
       'Install',
       'Not now',
       "Don't ask again",
     );
     if (choice === 'Install') {
-      await vscode.commands.executeCommand('gambit.installCommitHook');
+      await vscode.commands.executeCommand('veyra.installCommitHook');
       await this.context.workspaceState.update(stateKey, true);
     } else if (choice === "Don't ask again") {
       await this.context.workspaceState.update(stateKey, true);
@@ -409,5 +409,5 @@ export class ChatPanel {
 }
 
 function fileBadgesEnabled(): boolean {
-  return vscode.workspace.getConfiguration('gambit').get<boolean>('fileBadges.enabled', true);
+  return vscode.workspace.getConfiguration('veyra').get<boolean>('fileBadges.enabled', true);
 }

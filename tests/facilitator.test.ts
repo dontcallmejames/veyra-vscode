@@ -85,8 +85,8 @@ describe('chooseFacilitatorAgent', () => {
       'anything',
       { claude: 'unauthenticated', codex: 'unauthenticated', gemini: 'not-installed' },
     );
-    expect(decision).toMatchObject({ error: expect.stringContaining('Gambit: Check agent status') });
-    expect(decision).toMatchObject({ error: expect.stringContaining('Gambit: Show setup guide') });
+    expect(decision).toMatchObject({ error: expect.stringContaining('Veyra: Check agent status') });
+    expect(decision).toMatchObject({ error: expect.stringContaining('Veyra: Show setup guide') });
     expect(mockedQuery).not.toHaveBeenCalled();
   });
 

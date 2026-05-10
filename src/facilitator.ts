@@ -2,8 +2,8 @@ import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentId, AgentStatus } from './types.js';
 import { findNode } from './findNode.js';
 
-const ROUTING_ERROR = 'Routing unavailable; please prefix with @claude / @codex / @gemini / @all or run Gambit: Check agent status.';
-const NO_AGENTS_ERROR = 'No agents currently authenticated; run Gambit: Check agent status or Gambit: Show setup guide.';
+const ROUTING_ERROR = 'Routing unavailable; please prefix with @claude / @codex / @gemini / @all or run Veyra: Check agent status.';
+const NO_AGENTS_ERROR = 'No agents currently authenticated; run Veyra: Check agent status or Veyra: Show setup guide.';
 const BUSY_AGENTS_ERROR = 'All ready agents are busy; wait for the current dispatch to finish or cancel it before sending more work.';
 
 export type FacilitatorDecision =

@@ -2,13 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { GambitSessionService, toRoutedInput } from '../src/gambitService.js';
+import { VeyraSessionService, toRoutedInput } from '../src/veyraService.js';
 import type { Agent } from '../src/agents/types.js';
 import type { AgentChunk, AgentId } from '../src/types.js';
 
 describe('toRoutedInput', () => {
-  it('leaves text unchanged when routing through Gambit', () => {
-    expect(toRoutedInput('review this', 'gambit')).toBe('review this');
+  it('leaves text unchanged when routing through Veyra', () => {
+    expect(toRoutedInput('review this', 'veyra')).toBe('review this');
   });
 
   it('leaves text unchanged when no forced target is provided', () => {
@@ -27,10 +27,10 @@ describe('toRoutedInput', () => {
   });
 });
 
-describe('GambitSessionService', () => {
+describe('VeyraSessionService', () => {
   it('passes prior agent edit summaries to later agents during @all dispatch', async () => {
     const prompts = new Map<AgentId, string>();
-    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'gambit-service-'));
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
 
     const agent = (id: AgentId, chunks: AgentChunk[]): Agent => ({
       id,
@@ -42,7 +42,7 @@ describe('GambitSessionService', () => {
       },
     });
 
-    const service = new GambitSessionService(
+    const service = new VeyraSessionService(
       workspacePath,
       {
         claude: agent('claude', [
@@ -72,9 +72,9 @@ describe('GambitSessionService', () => {
     expect(prompts.get('codex')).toContain('src/a.ts edited by claude');
   });
 
-  it('tells each targeted agent which Gambit role it is fulfilling', async () => {
+  it('tells each targeted agent which Veyra role it is fulfilling', async () => {
     const prompts = new Map<AgentId, string>();
-    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'gambit-service-'));
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
     const agent = (id: AgentId): Agent => ({
       id,
       status: async () => 'ready',
@@ -84,7 +84,7 @@ describe('GambitSessionService', () => {
         yield { type: 'done' } as AgentChunk;
       },
     });
-    const service = new GambitSessionService(
+    const service = new VeyraSessionService(
       workspacePath,
       {
         claude: agent('claude'),
@@ -99,9 +99,9 @@ describe('GambitSessionService', () => {
       () => {},
     );
 
-    expect(prompts.get('claude')).toContain('You are Claude in this Gambit dispatch.');
-    expect(prompts.get('codex')).toContain('You are Codex in this Gambit dispatch.');
-    expect(prompts.get('gemini')).toContain('You are Gemini in this Gambit dispatch.');
+    expect(prompts.get('claude')).toContain('You are Claude in this Veyra dispatch.');
+    expect(prompts.get('codex')).toContain('You are Codex in this Veyra dispatch.');
+    expect(prompts.get('gemini')).toContain('You are Gemini in this Veyra dispatch.');
     for (const prompt of prompts.values()) {
       expect(prompt).toContain('Use your available model and CLI capabilities that fit this workflow.');
       expect(prompt).toContain('Follow any read-only or edit-permitted instructions in this prompt.');
@@ -110,7 +110,7 @@ describe('GambitSessionService', () => {
 
   it('forwards readOnly dispatches to every targeted agent send call', async () => {
     const optionsByAgent = new Map<AgentId, unknown>();
-    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'gambit-service-'));
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
     const agent = (id: AgentId): Agent => ({
       id,
       status: async () => 'ready',
@@ -120,7 +120,7 @@ describe('GambitSessionService', () => {
         yield { type: 'done' } as AgentChunk;
       },
     });
-    const service = new GambitSessionService(
+    const service = new VeyraSessionService(
       workspacePath,
       {
         claude: agent('claude'),
@@ -141,8 +141,8 @@ describe('GambitSessionService', () => {
   });
 
   it('emits a read-only violation when a read-only dispatch edits a file', async () => {
-    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'gambit-service-'));
-    const service = new GambitSessionService(
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
+    const service = new VeyraSessionService(
       workspacePath,
       {
         claude: {
@@ -195,9 +195,9 @@ describe('GambitSessionService', () => {
   });
 
   it('stops registering file badge edits after the badge controller is removed from options', async () => {
-    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'gambit-service-'));
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
     const badgeController = { registerEdit: vi.fn() };
-    const service = new GambitSessionService(
+    const service = new VeyraSessionService(
       workspacePath,
       {
         claude: {
@@ -236,8 +236,8 @@ describe('GambitSessionService', () => {
 
   it('persists forced direct participant routing so later context keeps the target', async () => {
     let codexPrompt = '';
-    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'gambit-service-'));
-    const service = new GambitSessionService(
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
+    const service = new VeyraSessionService(
       workspacePath,
       {
         claude: agentNoop('claude'),
@@ -272,8 +272,8 @@ describe('GambitSessionService', () => {
 
   it('includes file attachment failures in the agent prompt', async () => {
     let claudePrompt = '';
-    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'gambit-service-'));
-    const service = new GambitSessionService(
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
+    const service = new VeyraSessionService(
       workspacePath,
       {
         claude: {
@@ -311,8 +311,8 @@ describe('GambitSessionService', () => {
 
   it('carries file attachment failures into later shared context without repeating raw mentions', async () => {
     let codexPrompt = '';
-    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'gambit-service-'));
-    const service = new GambitSessionService(
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
+    const service = new VeyraSessionService(
       workspacePath,
       {
         claude: {
@@ -353,10 +353,10 @@ describe('GambitSessionService', () => {
 
   it('preserves multiline prompt shape while attaching inline-code file mentions', async () => {
     let claudePrompt = '';
-    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'gambit-service-'));
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
     fs.mkdirSync(path.join(workspacePath, 'src'), { recursive: true });
     fs.writeFileSync(path.join(workspacePath, 'src', 'auth.ts'), 'export const auth = true;\n');
-    const service = new GambitSessionService(
+    const service = new VeyraSessionService(
       workspacePath,
       {
         claude: {
@@ -407,12 +407,12 @@ describe('GambitSessionService', () => {
   });
 
   it('surfaces files changed during an agent turn even without reported write tools', async () => {
-    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'gambit-service-'));
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
     const tracker = {
       snapshot: vi.fn().mockResolvedValue('before-turn'),
       changedFilesSince: vi.fn().mockResolvedValue(['src/invisible.ts']),
     };
-    const service = new GambitSessionService(
+    const service = new VeyraSessionService(
       workspacePath,
       {
         claude: {
@@ -450,12 +450,12 @@ describe('GambitSessionService', () => {
   });
 
   it('marks missing changed files as deleted', async () => {
-    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'gambit-service-'));
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
     const tracker = {
       snapshot: vi.fn().mockResolvedValue('before-turn'),
       changedFilesSince: vi.fn().mockResolvedValue(['src/removed.ts']),
     };
-    const service = new GambitSessionService(
+    const service = new VeyraSessionService(
       workspacePath,
       {
         claude: {
@@ -494,7 +494,7 @@ describe('GambitSessionService', () => {
   });
 
   it('marks newly changed files as created when the tracker provides change details', async () => {
-    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'gambit-service-'));
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
     const tracker = {
       snapshot: vi.fn().mockResolvedValue('before-turn'),
       changedFilesSince: vi.fn(),
@@ -502,7 +502,7 @@ describe('GambitSessionService', () => {
         { path: 'src/new.ts', changeKind: 'created' },
       ]),
     };
-    const service = new GambitSessionService(
+    const service = new VeyraSessionService(
       workspacePath,
       {
         claude: {
@@ -542,7 +542,7 @@ describe('GambitSessionService', () => {
   });
 
   it('updates a tool-reported generic edit when workspace diff proves a specific change kind', async () => {
-    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'gambit-service-'));
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
     const tracker = {
       snapshot: vi.fn().mockResolvedValue('before-turn'),
       changedFilesSince: vi.fn(),
@@ -550,7 +550,7 @@ describe('GambitSessionService', () => {
         { path: 'src/removed.ts', changeKind: 'deleted' },
       ]),
     };
-    const service = new GambitSessionService(
+    const service = new VeyraSessionService(
       workspacePath,
       {
         claude: {
@@ -601,13 +601,13 @@ describe('GambitSessionService', () => {
   });
 
   it('surfaces workspace change detection failures without losing the agent result', async () => {
-    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'gambit-service-'));
-    const sentinelPath = path.join(workspacePath, '.vscode', 'gambit', 'active-dispatch');
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
+    const sentinelPath = path.join(workspacePath, '.vscode', 'veyra', 'active-dispatch');
     const tracker = {
       snapshot: vi.fn().mockResolvedValue('before-turn'),
       changedFilesSince: vi.fn().mockRejectedValue(new Error('scan failed')),
     };
-    const service = new GambitSessionService(
+    const service = new VeyraSessionService(
       workspacePath,
       {
         claude: {
@@ -649,13 +649,13 @@ describe('GambitSessionService', () => {
   });
 
   it('surfaces workspace snapshot failures without losing the agent result', async () => {
-    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'gambit-service-'));
-    const sentinelPath = path.join(workspacePath, '.vscode', 'gambit', 'active-dispatch');
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
+    const sentinelPath = path.join(workspacePath, '.vscode', 'veyra', 'active-dispatch');
     const tracker = {
       snapshot: vi.fn().mockRejectedValue(new Error('snapshot failed')),
       changedFilesSince: vi.fn(),
     };
-    const service = new GambitSessionService(
+    const service = new VeyraSessionService(
       workspacePath,
       {
         claude: {
@@ -698,7 +698,7 @@ describe('GambitSessionService', () => {
   });
 
   it('emits an edit conflict notice when a later agent edits a file touched by another agent', async () => {
-    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'gambit-service-'));
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
     const agent = (id: AgentId): Agent => ({
       id,
       status: async () => 'ready',
@@ -709,7 +709,7 @@ describe('GambitSessionService', () => {
         yield { type: 'done' } as AgentChunk;
       },
     });
-    const service = new GambitSessionService(
+    const service = new VeyraSessionService(
       workspacePath,
       {
         claude: agent('claude'),
@@ -746,7 +746,7 @@ describe('GambitSessionService', () => {
   });
 
   it('detects edit conflicts when agents report the same workspace file with absolute and relative paths', async () => {
-    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'gambit-service-'));
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
     const sharedFile = path.join(workspacePath, 'src', 'shared.ts');
     const agent = (id: AgentId, reportedPath: string): Agent => ({
       id,
@@ -758,7 +758,7 @@ describe('GambitSessionService', () => {
         yield { type: 'done' } as AgentChunk;
       },
     });
-    const service = new GambitSessionService(
+    const service = new VeyraSessionService(
       workspacePath,
       {
         claude: agent('claude', sharedFile),
@@ -799,7 +799,7 @@ describe('GambitSessionService', () => {
   });
 
   it('detects edit conflicts when agents report equivalent relative paths', async () => {
-    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'gambit-service-'));
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
     const agent = (id: AgentId, reportedPath: string): Agent => ({
       id,
       status: async () => 'ready',
@@ -810,7 +810,7 @@ describe('GambitSessionService', () => {
         yield { type: 'done' } as AgentChunk;
       },
     });
-    const service = new GambitSessionService(
+    const service = new VeyraSessionService(
       workspacePath,
       {
         claude: agent('claude', './src/shared.ts'),
@@ -851,13 +851,13 @@ describe('GambitSessionService', () => {
   });
 
   it('serializes concurrent top-level dispatches so shared context cannot interleave', async () => {
-    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'gambit-service-'));
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
     const started: AgentId[] = [];
     let releaseClaude!: () => void;
     const claudeCanFinish = new Promise<void>((resolve) => {
       releaseClaude = resolve;
     });
-    const service = new GambitSessionService(
+    const service = new VeyraSessionService(
       workspacePath,
       {
         claude: {
@@ -911,12 +911,12 @@ describe('GambitSessionService', () => {
   });
 
   it('queues concurrent top-level dispatches before appending the next user message', async () => {
-    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'gambit-service-'));
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
     let releaseClaude!: () => void;
     const claudeCanFinish = new Promise<void>((resolve) => {
       releaseClaude = resolve;
     });
-    const service = new GambitSessionService(
+    const service = new VeyraSessionService(
       workspacePath,
       {
         claude: {
@@ -967,9 +967,9 @@ describe('GambitSessionService', () => {
   });
 
   it('does not start queued top-level dispatches after cancelAll', async () => {
-    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'gambit-service-'));
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
     let codexStarted = false;
-    const service = new GambitSessionService(
+    const service = new VeyraSessionService(
       workspacePath,
       {
         claude: {
@@ -1028,9 +1028,9 @@ describe('GambitSessionService', () => {
   });
 
   it('preserves router routing-needed details for unavailable direct agents', async () => {
-    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'gambit-service-'));
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
     let codexStarted = false;
-    const service = new GambitSessionService(
+    const service = new VeyraSessionService(
       workspacePath,
       {
         claude: agentNoop('claude'),
@@ -1061,7 +1061,7 @@ describe('GambitSessionService', () => {
       event.kind === 'system-message' &&
       event.message.kind === 'routing-needed',
     );
-    expect(routing?.message.text).toBe('Codex is unauthenticated. Run `codex login`. If `codex` is missing, install it with `npm install -g @openai/codex`. You can also run Gambit: Show setup guide.');
+    expect(routing?.message.text).toBe('Codex is unauthenticated. Run `codex login`. If `codex` is missing, install it with `npm install -g @openai/codex`. You can also run Veyra: Show setup guide.');
   });
 });
 

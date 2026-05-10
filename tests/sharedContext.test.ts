@@ -117,12 +117,12 @@ describe('buildSharedContext', () => {
 
   it('includes compact edited-file summaries for completed agent messages', () => {
     const msg = a('2', 'claude', 'updated the implementation');
-    msg.editedFiles = ['src/panel.ts', 'src/gambitService.ts'];
+    msg.editedFiles = ['src/panel.ts', 'src/veyraService.ts'];
 
     const ctx = buildSharedContext(session(u('1', 'ship the bridge'), msg), { window: 25 });
 
     expect(ctx).toContain('claude: updated the implementation');
-    expect(ctx).toContain('claude edits: src/panel.ts, src/gambitService.ts');
+    expect(ctx).toContain('claude edits: src/panel.ts, src/veyraService.ts');
   });
 
   it('uses persisted file-change kinds in completed agent summaries', () => {

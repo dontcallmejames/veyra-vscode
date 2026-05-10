@@ -1,33 +1,33 @@
-# Gambit Native Chat Bridge Implementation Plan
+# Veyra Native Chat Bridge Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add native VS Code Chat participants for Gambit while preserving the existing panel, shared context, file badges, and commit attribution.
+**Goal:** Add native VS Code Chat participants for Veyra while preserving the existing panel, shared context, file badges, and commit attribution.
 
-**Architecture:** Extract the current panel dispatch pipeline into a reusable `GambitSessionService`. The webview panel and native VS Code Chat participants both consume the same service event stream, so there is one path for prompt composition, session persistence, file edit detection, badge registration, cancellation, and commit sentinel lifecycle.
+**Architecture:** Extract the current panel dispatch pipeline into a reusable `VeyraSessionService`. The webview panel and native VS Code Chat participants both consume the same service event stream, so there is one path for prompt composition, session persistence, file edit detection, badge registration, cancellation, and commit sentinel lifecycle.
 
-**Tech Stack:** TypeScript, VS Code extension API, `vscode.chat.createChatParticipant`, Vitest, existing Gambit agent adapters, existing Preact webview.
+**Tech Stack:** TypeScript, VS Code extension API, `vscode.chat.createChatParticipant`, Vitest, existing Veyra agent adapters, existing Preact webview.
 
-**Spec:** `docs/superpowers/specs/2026-05-09-gambit-native-chat-bridge-design.md`
+**Spec:** `docs/superpowers/specs/2026-05-09-veyra-native-chat-bridge-design.md`
 
 ---
 
 ## File Structure
 
-- Create `src/gambitService.ts`
+- Create `src/veyraService.ts`
   - Owns `SessionStore`, `MessageRouter`, prompt composition, file mention embedding, workspace rules, sentinel lifecycle, file badge registration, hang/watchdog-adjacent dispatch state, and dispatch events.
 - Create `src/nativeChat.ts`
-  - Registers `@gambit`, `@claude`, `@codex`, and `@gemini` participants and renders `GambitDispatchEvent` values to `ChatResponseStream`.
+  - Registers `@veyra`, `@claude`, `@codex`, and `@gemini` participants and renders `VeyraDispatchEvent` values to `ChatResponseStream`.
 - Modify `src/panel.ts`
   - Keeps webview creation and webview message translation.
-  - Delegates dispatch work to `GambitSessionService`.
+  - Delegates dispatch work to `VeyraSessionService`.
 - Modify `src/extension.ts`
-  - Creates shared agents, shared `FileBadgesController`, shared `GambitSessionService`, panel command, commit hook commands, and native chat participants.
+  - Creates shared agents, shared `FileBadgesController`, shared `VeyraSessionService`, panel command, commit hook commands, and native chat participants.
 - Modify `src/shared/protocol.ts`
   - Add no new protocol unless panel event translation requires a small compatibility shim.
 - Modify `package.json`
   - Add `onChatParticipant:*` activation events and `contributes.chatParticipants`.
-- Create `tests/gambitService.test.ts`
+- Create `tests/veyraService.test.ts`
   - Unit coverage for dispatch service behavior.
 - Create `tests/nativeChat.test.ts`
   - Unit coverage for participant registration and event rendering.
@@ -39,18 +39,18 @@
 ## Task 1: Extract Service Types And Pure Event Translation
 
 **Files:**
-- Create: `src/gambitService.ts`
-- Test: `tests/gambitService.test.ts`
+- Create: `src/veyraService.ts`
+- Test: `tests/veyraService.test.ts`
 
 - [ ] **Step 1: Add a failing test for forced target routing shape**
 
-Create `tests/gambitService.test.ts` with this initial test. This test defines the expected public contract before implementation.
+Create `tests/veyraService.test.ts` with this initial test. This test defines the expected public contract before implementation.
 
 ```ts
 import { describe, it, expect, vi } from 'vitest';
 import type { Agent } from '../src/agents/types.js';
 import type { AgentChunk, AgentId } from '../src/types.js';
-import { toRoutedInput } from '../src/gambitService.js';
+import { toRoutedInput } from '../src/veyraService.js';
 
 function fakeAgent(id: AgentId, chunks: AgentChunk[] = []): Agent {
   return {
@@ -71,7 +71,7 @@ describe('toRoutedInput', () => {
   });
 
   it('leaves orchestrator dispatch text unchanged', () => {
-    expect(toRoutedInput('decide who should handle this', 'gambit')).toBe('decide who should handle this');
+    expect(toRoutedInput('decide who should handle this', 'veyra')).toBe('decide who should handle this');
   });
 
   it('leaves unforced panel dispatch text unchanged', () => {
@@ -85,30 +85,30 @@ describe('toRoutedInput', () => {
 Run:
 
 ```powershell
-npm test -- gambitService
+npm test -- veyraService
 ```
 
-Expected: failure because `../src/gambitService.js` does not exist.
+Expected: failure because `../src/veyraService.js` does not exist.
 
 - [ ] **Step 3: Create the minimal service module**
 
-Create `src/gambitService.ts`:
+Create `src/veyraService.ts`:
 
 ```ts
 import type { AgentId } from './types.js';
 import type { AgentMessage, SystemMessage, UserMessage } from './shared/protocol.js';
 
-export type GambitDispatchSource = 'panel' | 'chat';
-export type GambitForcedTarget = AgentId | 'gambit';
+export type VeyraDispatchSource = 'panel' | 'chat';
+export type VeyraForcedTarget = AgentId | 'veyra';
 
-export interface GambitDispatchRequest {
+export interface VeyraDispatchRequest {
   text: string;
-  source: GambitDispatchSource;
-  forcedTarget?: GambitForcedTarget;
+  source: VeyraDispatchSource;
+  forcedTarget?: VeyraForcedTarget;
   cwd: string;
 }
 
-export type GambitDispatchEvent =
+export type VeyraDispatchEvent =
   | { kind: 'user-message'; message: UserMessage }
   | { kind: 'system-message'; message: SystemMessage }
   | { kind: 'dispatch-start'; agentId: AgentId; messageId: string; timestamp: number }
@@ -118,8 +118,8 @@ export type GambitDispatchEvent =
   | { kind: 'agent-error'; agentId: AgentId; messageId: string; message: string }
   | { kind: 'dispatch-end'; agentId: AgentId; message: AgentMessage };
 
-export function toRoutedInput(text: string, forcedTarget?: GambitForcedTarget): string {
-  if (!forcedTarget || forcedTarget === 'gambit') return text;
+export function toRoutedInput(text: string, forcedTarget?: VeyraForcedTarget): string {
+  if (!forcedTarget || forcedTarget === 'veyra') return text;
   return `@${forcedTarget} ${text}`.trim();
 }
 ```
@@ -129,7 +129,7 @@ export function toRoutedInput(text: string, forcedTarget?: GambitForcedTarget): 
 Run:
 
 ```powershell
-npm test -- gambitService
+npm test -- veyraService
 ```
 
 Expected: the `toRoutedInput` tests pass.
@@ -139,28 +139,28 @@ Expected: the `toRoutedInput` tests pass.
 Run:
 
 ```powershell
-git add src/gambitService.ts tests/gambitService.test.ts
-git commit -m "feat: add Gambit dispatch service contract"
+git add src/veyraService.ts tests/veyraService.test.ts
+git commit -m "feat: add Veyra dispatch service contract"
 ```
 
 If Git cannot create `.git/index.lock` due to local permissions, leave the files uncommitted and report the exact Git error.
 
 ---
 
-## Task 2: Move Dispatch Pipeline Into `GambitSessionService`
+## Task 2: Move Dispatch Pipeline Into `VeyraSessionService`
 
 **Files:**
-- Modify: `src/gambitService.ts`
-- Test: `tests/gambitService.test.ts`
+- Modify: `src/veyraService.ts`
+- Test: `tests/veyraService.test.ts`
 
 - [ ] **Step 1: Add failing service dispatch tests**
 
-Extend `tests/gambitService.test.ts` with service-level tests. Keep the existing `toRoutedInput` tests.
+Extend `tests/veyraService.test.ts` with service-level tests. Keep the existing `toRoutedInput` tests.
 
 ```ts
-import { GambitSessionService } from '../src/gambitService.js';
+import { VeyraSessionService } from '../src/veyraService.js';
 
-describe('GambitSessionService', () => {
+describe('VeyraSessionService', () => {
   it('dispatches a forced specialist request and emits persisted message events', async () => {
     const claude = fakeAgent('claude');
     const codex = fakeAgent('codex', [
@@ -169,7 +169,7 @@ describe('GambitSessionService', () => {
     ]);
     const gemini = fakeAgent('gemini');
 
-    const service = new GambitSessionService({
+    const service = new VeyraSessionService({
       workspacePath: '/fake/workspace',
       agents: { claude, codex, gemini },
       badgeController: undefined,
@@ -204,7 +204,7 @@ describe('GambitSessionService', () => {
   it('uses the facilitator for unforced orchestrator chat', async () => {
     const facilitator = vi.fn().mockResolvedValue({ agent: 'claude', reason: 'best reviewer' });
     const claude = fakeAgent('claude', [{ type: 'done' }]);
-    const service = new GambitSessionService({
+    const service = new VeyraSessionService({
       workspacePath: '/fake/workspace',
       agents: {
         claude,
@@ -225,7 +225,7 @@ describe('GambitSessionService', () => {
     for await (const _event of service.dispatch({
       text: 'who should review this?',
       source: 'chat',
-      forcedTarget: 'gambit',
+      forcedTarget: 'veyra',
       cwd: '/fake/workspace',
     })) {
       // drain
@@ -242,14 +242,14 @@ describe('GambitSessionService', () => {
 Run:
 
 ```powershell
-npm test -- gambitService
+npm test -- veyraService
 ```
 
-Expected: failure because `GambitSessionService` is not implemented.
+Expected: failure because `VeyraSessionService` is not implemented.
 
-- [ ] **Step 3: Implement `GambitSessionService` by moving panel logic**
+- [ ] **Step 3: Implement `VeyraSessionService` by moving panel logic**
 
-Update `src/gambitService.ts`. Move the logic from `ChatPanel.dispatchUserMessage` into this service. Keep public constructor dependencies injectable so tests do not need a real VS Code host.
+Update `src/veyraService.ts`. Move the logic from `ChatPanel.dispatchUserMessage` into this service. Keep public constructor dependencies injectable so tests do not need a real VS Code host.
 
 Required constructor shape:
 
@@ -271,7 +271,7 @@ import type { AgentId, AgentStatus } from './types.js';
 import type { AgentMessage, SystemMessage, UserMessage } from './shared/protocol.js';
 import type { FileBadgesController } from './fileBadges.js';
 
-export interface GambitServiceConfig {
+export interface VeyraServiceConfig {
   fileEmbedMaxLines: number;
   sharedContextWindow: number;
   commitSignatureEnabled: boolean;
@@ -283,13 +283,13 @@ export interface WorkspaceStateLike {
   update(key: string, value: unknown): Thenable<void>;
 }
 
-export interface GambitSessionServiceOptions {
+export interface VeyraSessionServiceOptions {
   workspacePath: string;
   agents: AgentRegistry;
   facilitator?: FacilitatorFn;
   badgeController?: Pick<FileBadgesController, 'registerEdit'>;
   workspaceState: WorkspaceStateLike;
-  config: GambitServiceConfig;
+  config: VeyraServiceConfig;
 }
 ```
 
@@ -298,7 +298,7 @@ Implementation requirements:
 - `load()` calls `SessionStore.load()`.
 - `snapshot()` returns `SessionStore.snapshot()`.
 - `dispatch()` performs the same steps as current `ChatPanel.dispatchUserMessage`.
-- `dispatch()` yields `GambitDispatchEvent` values instead of webview messages.
+- `dispatch()` yields `VeyraDispatchEvent` values instead of webview messages.
 - `cancelAll()` delegates to `MessageRouter.cancelAll()`.
 - `updateConfig(config)` rebuilds `SentinelWriter` and stores new config.
 - Write-class tool results use the existing `getEditedPath` helpers and `badgeController.registerEdit`.
@@ -306,7 +306,7 @@ Implementation requirements:
 The core dispatch loop should follow this structure:
 
 ```ts
-async *dispatch(request: GambitDispatchRequest): AsyncIterable<GambitDispatchEvent> {
+async *dispatch(request: VeyraDispatchRequest): AsyncIterable<VeyraDispatchEvent> {
   const routedInput = toRoutedInput(request.text, request.forcedTarget);
   const { filePaths, remainingText } = parseFileMentions(routedInput);
   const embedResult = embedFiles(filePaths, this.workspacePath, {
@@ -366,7 +366,7 @@ async *dispatch(request: GambitDispatchRequest): AsyncIterable<GambitDispatchEve
     composePromptForTarget,
     sharedContextForFacilitator,
   })) {
-    // Translate router events to GambitDispatchEvent values.
+    // Translate router events to VeyraDispatchEvent values.
   }
 }
 ```
@@ -387,10 +387,10 @@ When translating router events, copy the existing panel behavior for:
 Run:
 
 ```powershell
-npm test -- gambitService
+npm test -- veyraService
 ```
 
-Expected: all `gambitService` tests pass.
+Expected: all `veyraService` tests pass.
 
 - [ ] **Step 5: Run existing router and prompt tests**
 
@@ -407,8 +407,8 @@ Expected: all pass.
 Run:
 
 ```powershell
-git add src/gambitService.ts tests/gambitService.test.ts
-git commit -m "feat: extract Gambit dispatch service"
+git add src/veyraService.ts tests/veyraService.test.ts
+git commit -m "feat: extract Veyra dispatch service"
 ```
 
 ---
@@ -421,7 +421,7 @@ git commit -m "feat: extract Gambit dispatch service"
 
 - [ ] **Step 1: Update `ChatPanel.show` and constructor to accept a service**
 
-Change the panel constructor so it receives `GambitSessionService`. Keep `agentsOverride` only as a test convenience if needed, but prefer building the service in `extension.ts` in Task 5.
+Change the panel constructor so it receives `VeyraSessionService`. Keep `agentsOverride` only as a test convenience if needed, but prefer building the service in `extension.ts` in Task 5.
 
 Use this constructor direction:
 
@@ -430,7 +430,7 @@ private constructor(
   panel: vscode.WebviewPanel,
   private context: vscode.ExtensionContext,
   private workspacePath: string,
-  private service: GambitSessionService,
+  private service: VeyraSessionService,
 ) {
   this.panel = panel;
   this.extensionUri = context.extensionUri;
@@ -448,7 +448,7 @@ Remove direct `SessionStore` ownership from `ChatPanel`. Use `service.load()`, `
 private async dispatchUserMessage(text: string): Promise<void> {
   if (this.service.isFirstSession()) {
     await this.maybeShowGitignorePrompt(this.workspacePath);
-    await this.maybeShowGambitMdTip();
+    await this.maybeShowVeyraMdTip();
     await this.maybeShowCommitHookPrompt();
   }
 
@@ -469,7 +469,7 @@ private async dispatchUserMessage(text: string): Promise<void> {
 Add a private translator:
 
 ```ts
-private forwardServiceEvent(event: GambitDispatchEvent): void {
+private forwardServiceEvent(event: VeyraDispatchEvent): void {
   switch (event.kind) {
     case 'user-message':
       this.send({ kind: 'user-message-appended', message: event.message });
@@ -546,7 +546,7 @@ Run:
 
 ```powershell
 git add src/panel.ts tests/panel.test.ts
-git commit -m "refactor: route panel dispatch through Gambit service"
+git commit -m "refactor: route panel dispatch through Veyra service"
 ```
 
 ---
@@ -583,10 +583,10 @@ describe('registerNativeChatParticipants', () => {
     const service = { dispatch: vi.fn() };
     const disposables = registerNativeChatParticipants(service as any);
     expect(participants.map((p) => p.id)).toEqual([
-      'gambit',
-      'gambit.claude',
-      'gambit.codex',
-      'gambit.gemini',
+      'veyra',
+      'veyra.claude',
+      'veyra.codex',
+      'veyra.gemini',
     ]);
     expect(disposables).toHaveLength(4);
   });
@@ -611,25 +611,25 @@ Create `src/nativeChat.ts`:
 import * as vscode from 'vscode';
 import type { AgentId } from './types.js';
 import type {
-  GambitDispatchEvent,
-  GambitForcedTarget,
-  GambitSessionService,
-} from './gambitService.js';
+  VeyraDispatchEvent,
+  VeyraForcedTarget,
+  VeyraSessionService,
+} from './veyraService.js';
 
 type ParticipantSpec = {
   id: string;
-  target: GambitForcedTarget;
+  target: VeyraForcedTarget;
 };
 
 const PARTICIPANTS: ParticipantSpec[] = [
-  { id: 'gambit', target: 'gambit' },
-  { id: 'gambit.claude', target: 'claude' },
-  { id: 'gambit.codex', target: 'codex' },
-  { id: 'gambit.gemini', target: 'gemini' },
+  { id: 'veyra', target: 'veyra' },
+  { id: 'veyra.claude', target: 'claude' },
+  { id: 'veyra.codex', target: 'codex' },
+  { id: 'veyra.gemini', target: 'gemini' },
 ];
 
 export function registerNativeChatParticipants(
-  service: Pick<GambitSessionService, 'dispatch' | 'cancelAll'>,
+  service: Pick<VeyraSessionService, 'dispatch' | 'cancelAll'>,
 ): vscode.Disposable[] {
   return PARTICIPANTS.map((spec) => vscode.chat.createChatParticipant(
     spec.id,
@@ -640,8 +640,8 @@ export function registerNativeChatParticipants(
       try {
         const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         if (!workspacePath) {
-          response.markdown('Open a workspace folder before using Gambit.');
-          return { metadata: { gambit: true, status: 'no-workspace' } };
+          response.markdown('Open a workspace folder before using Veyra.');
+          return { metadata: { veyra: true, status: 'no-workspace' } };
         }
         for await (const event of service.dispatch({
           text: request.prompt,
@@ -651,7 +651,7 @@ export function registerNativeChatParticipants(
         })) {
           renderDispatchEvent(response, event);
         }
-        return { metadata: { gambit: true, participant: spec.id } };
+        return { metadata: { veyra: true, participant: spec.id } };
       } finally {
         cancelSub.dispose();
       }
@@ -661,7 +661,7 @@ export function registerNativeChatParticipants(
 
 export function renderDispatchEvent(
   response: Pick<vscode.ChatResponseStream, 'markdown' | 'progress'>,
-  event: GambitDispatchEvent,
+  event: VeyraDispatchEvent,
 ): void {
   switch (event.kind) {
     case 'system-message':
@@ -743,7 +743,7 @@ Run:
 
 ```powershell
 git add src/nativeChat.ts tests/nativeChat.test.ts
-git commit -m "feat: register Gambit native chat participants"
+git commit -m "feat: register Veyra native chat participants"
 ```
 
 ---
@@ -759,10 +759,10 @@ git commit -m "feat: register Gambit native chat participants"
 Add these activation events:
 
 ```json
-"onChatParticipant:gambit",
-"onChatParticipant:gambit.claude",
-"onChatParticipant:gambit.codex",
-"onChatParticipant:gambit.gemini"
+"onChatParticipant:veyra",
+"onChatParticipant:veyra.claude",
+"onChatParticipant:veyra.codex",
+"onChatParticipant:veyra.gemini"
 ```
 
 Add `contributes.chatParticipants`:
@@ -770,31 +770,31 @@ Add `contributes.chatParticipants`:
 ```json
 "chatParticipants": [
   {
-    "id": "gambit",
-    "name": "gambit",
-    "fullName": "Gambit",
+    "id": "veyra",
+    "name": "veyra",
+    "fullName": "Veyra",
     "description": "Coordinate Claude, Codex, and Gemini with shared context and visible edits.",
     "isSticky": true
   },
   {
-    "id": "gambit.claude",
+    "id": "veyra.claude",
     "name": "claude",
-    "fullName": "Gambit: Claude",
-    "description": "Ask Claude through Gambit's shared context and edit tracking.",
+    "fullName": "Veyra: Claude",
+    "description": "Ask Claude through Veyra's shared context and edit tracking.",
     "isSticky": true
   },
   {
-    "id": "gambit.codex",
+    "id": "veyra.codex",
     "name": "codex",
-    "fullName": "Gambit: Codex",
-    "description": "Ask Codex through Gambit's shared context and edit tracking.",
+    "fullName": "Veyra: Codex",
+    "description": "Ask Codex through Veyra's shared context and edit tracking.",
     "isSticky": true
   },
   {
-    "id": "gambit.gemini",
+    "id": "veyra.gemini",
     "name": "gemini",
-    "fullName": "Gambit: Gemini",
-    "description": "Ask Gemini through Gambit's shared context and edit tracking.",
+    "fullName": "Veyra: Gemini",
+    "description": "Ask Gemini through Veyra's shared context and edit tracking.",
     "isSticky": true
   }
 ]
@@ -809,7 +809,7 @@ import { ClaudeAgent } from './agents/claude.js';
 import { CodexAgent } from './agents/codex.js';
 import { GeminiAgent } from './agents/gemini.js';
 import { chooseFacilitatorAgent } from './facilitator.js';
-import { GambitSessionService } from './gambitService.js';
+import { VeyraSessionService } from './veyraService.js';
 import { registerNativeChatParticipants } from './nativeChat.js';
 ```
 
@@ -822,9 +822,9 @@ const agents = {
   gemini: new GeminiAgent(),
 };
 
-let service: GambitSessionService | undefined;
+let service: VeyraSessionService | undefined;
 if (folder) {
-  service = new GambitSessionService({
+  service = new VeyraSessionService({
     workspacePath: folder.uri.fsPath,
     agents,
     facilitator: chooseFacilitatorAgent,
@@ -840,8 +840,8 @@ if (folder) {
 Add helper:
 
 ```ts
-function readServiceConfig(): GambitServiceConfig {
-  const config = vscode.workspace.getConfiguration('gambit');
+function readServiceConfig(): VeyraServiceConfig {
+  const config = vscode.workspace.getConfiguration('veyra');
   return {
     fileEmbedMaxLines: config.get<number>('fileEmbedMaxLines', 500),
     sharedContextWindow: config.get<number>('sharedContextWindow', 25),
@@ -854,9 +854,9 @@ function readServiceConfig(): GambitServiceConfig {
 The panel command should pass the existing service:
 
 ```ts
-vscode.commands.registerCommand('gambit.openPanel', () => {
+vscode.commands.registerCommand('veyra.openPanel', () => {
   if (!service) {
-    vscode.window.showErrorMessage('Gambit requires an open workspace folder.');
+    vscode.window.showErrorMessage('Veyra requires an open workspace folder.');
     return;
   }
   return ChatPanel.show(context, service);
@@ -897,8 +897,8 @@ git commit -m "feat: wire native chat participants into activation"
 ## Task 6: Preserve Panel Behavior End To End
 
 **Files:**
-- Modify: `tests/gambitService.test.ts`
-- Modify: `src/gambitService.ts`
+- Modify: `tests/veyraService.test.ts`
+- Modify: `src/veyraService.ts`
 
 - [ ] **Step 1: Add a cross-surface session test**
 
@@ -915,7 +915,7 @@ it('shares session context between chat and panel dispatches', async () => {
       yield { type: 'done' };
     })()),
   };
-  const service = new GambitSessionService({
+  const service = new VeyraSessionService({
     workspacePath: '/fake/workspace',
     agents: { claude, codex: fakeAgent('codex'), gemini: fakeAgent('gemini') },
     badgeController: undefined,
@@ -952,7 +952,7 @@ it('shares session context between chat and panel dispatches', async () => {
 Run:
 
 ```powershell
-npm test -- gambitService panel nativeChat
+npm test -- veyraService panel nativeChat
 ```
 
 Expected: all focused tests pass.
@@ -975,7 +975,7 @@ Run:
 
 ```powershell
 git add src tests package.json
-git commit -m "test: verify native chat bridge preserves Gambit context"
+git commit -m "test: verify native chat bridge preserves Veyra context"
 ```
 
 ---
@@ -984,7 +984,7 @@ git commit -m "test: verify native chat bridge preserves Gambit context"
 
 Run these in a VS Code Extension Development Host after automated verification passes:
 
-- [ ] `@gambit hello` appears in native chat and routes through the facilitator or asks for explicit routing when no agent is available.
+- [ ] `@veyra hello` appears in native chat and routes through the facilitator or asks for explicit routing when no agent is available.
 - [ ] `@claude hello` dispatches only Claude.
 - [ ] `@codex hello` dispatches only Codex.
 - [ ] `@gemini hello` dispatches only Gemini.
@@ -992,7 +992,7 @@ Run these in a VS Code Extension Development Host after automated verification p
 - [ ] A native chat message appears in the context of a later panel dispatch.
 - [ ] `@codex review @src/foo.ts` embeds the file using existing file mention logic.
 - [ ] A write-class tool call from native chat creates or updates a file badge.
-- [ ] During a native chat dispatch, `.vscode/gambit/active-dispatch` appears and then clears.
+- [ ] During a native chat dispatch, `.vscode/veyra/active-dispatch` appears and then clears.
 - [ ] Cancelling a native chat response cancels the active agent dispatch.
 
 ---
@@ -1001,7 +1001,7 @@ Run these in a VS Code Extension Development Host after automated verification p
 
 - [ ] Every native bridge success criterion in the spec maps to a task above.
 - [ ] No task requires deleting or rewriting unrelated user files.
-- [ ] `GambitSessionService`, `GambitDispatchRequest`, `GambitDispatchEvent`, and `registerNativeChatParticipants` are named consistently.
+- [ ] `VeyraSessionService`, `VeyraDispatchRequest`, `VeyraDispatchEvent`, and `registerNativeChatParticipants` are named consistently.
 - [ ] Language Model Chat Provider support is not mixed into this implementation phase.
 - [ ] The plan preserves the current panel as a command center.
 - [ ] Full verification includes `npm run build`, `npm run typecheck`, and `npm test`.

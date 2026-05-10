@@ -14,9 +14,9 @@ export type FileEditRecord = {
 const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
 
 const AGENT_COLORS: Record<AgentId, string> = {
-  claude: 'gambit.claudeColor',
-  codex: 'gambit.codexColor',
-  gemini: 'gambit.geminiColor',
+  claude: 'veyra.claudeColor',
+  codex: 'veyra.codexColor',
+  gemini: 'veyra.geminiColor',
 };
 
 const AGENT_BADGES: Record<AgentId, string> = {
@@ -53,7 +53,7 @@ export function pruneStale(state: FileEditRecord[], now: number): FileEditRecord
   return state.filter((r) => now - r.editedAt < TWENTY_FOUR_HOURS);
 }
 
-const STATE_KEY = 'gambit.fileEdits';
+const STATE_KEY = 'veyra.fileEdits';
 
 export class FileBadgesController implements vscode.FileDecorationProvider {
   private records: FileEditRecord[] = [];

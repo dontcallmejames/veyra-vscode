@@ -30,7 +30,7 @@ beforeEach(() => {
 });
 
 const FOLDER = '/fake/workspace';
-const FILE = '/fake/workspace/.vscode/gambit/sessions.json';
+const FILE = '/fake/workspace/.vscode/veyra/sessions.json';
 
 const sampleUser: UserMessage = {
   id: 'u1',
@@ -110,7 +110,7 @@ describe('SessionStore', () => {
     const store = new SessionStore(FOLDER);
     await store.load();
 
-    expect(mockedMkdir).toHaveBeenCalledWith('/fake/workspace/.vscode/gambit', { recursive: true });
+    expect(mockedMkdir).toHaveBeenCalledWith('/fake/workspace/.vscode/veyra', { recursive: true });
   });
 
   it('onWriteError fires when scheduled write fails', async () => {

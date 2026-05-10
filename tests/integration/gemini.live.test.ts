@@ -9,7 +9,7 @@ vi.mock('vscode', () => ({
 
 import { GeminiAgent } from '../../src/agents/gemini.js';
 
-const describeLive = process.env.GAMBIT_RUN_LIVE === '1' ? describe : describe.skip;
+const describeLive = process.env.VEYRA_RUN_LIVE === '1' ? describe : describe.skip;
 
 describeLive('GeminiAgent - LIVE', () => {
   guardLiveModelPrompts();

@@ -16,18 +16,18 @@ import type { AgentRegistry } from './messageRouter.js';
 import type { AgentMessage, FileChange, FileChangeKind, Session, SystemMessage, ToolEvent, UserMessage } from './shared/protocol.js';
 import type { AgentChunk, AgentId, AgentStatus } from './types.js';
 
-export type GambitDispatchSource = 'panel' | 'native-chat' | 'language-model';
-export type GambitForcedTarget = AgentId | 'gambit';
+export type VeyraDispatchSource = 'panel' | 'native-chat' | 'language-model';
+export type VeyraForcedTarget = AgentId | 'veyra';
 
-export interface GambitDispatchRequest {
+export interface VeyraDispatchRequest {
   text: string;
-  source: GambitDispatchSource;
+  source: VeyraDispatchSource;
   cwd?: string;
-  forcedTarget?: GambitForcedTarget;
+  forcedTarget?: VeyraForcedTarget;
   readOnly?: boolean;
 }
 
-export type GambitDispatchEvent =
+export type VeyraDispatchEvent =
   | { kind: 'user-message'; message: UserMessage }
   | { kind: 'system-message'; message: SystemMessage }
   | { kind: 'dispatch-start'; agentId: AgentId; messageId: string; timestamp: number }
@@ -35,9 +35,9 @@ export type GambitDispatchEvent =
   | { kind: 'dispatch-end'; agentId: AgentId; message: AgentMessage }
   | { kind: 'file-edited'; path: string; agentId: AgentId; timestamp: number; changeKind: FileChangeKind };
 
-export type GambitDispatchEventSink = (event: GambitDispatchEvent) => void | Promise<void>;
+export type VeyraDispatchEventSink = (event: VeyraDispatchEvent) => void | Promise<void>;
 
-export interface GambitSessionOptions {
+export interface VeyraSessionOptions {
   watchdogMs?: number;
   hangSeconds?: number;
   fileEmbedMaxLines?: number;
@@ -73,8 +73,8 @@ const DEFAULT_HANG_SECONDS = 60;
 const DEFAULT_FILE_EMBED_MAX_LINES = 500;
 const DEFAULT_SHARED_CONTEXT_WINDOW = 25;
 
-export function toRoutedInput(text: string, forcedTarget?: GambitForcedTarget): string {
-  if (!forcedTarget || forcedTarget === 'gambit') {
+export function toRoutedInput(text: string, forcedTarget?: VeyraForcedTarget): string {
+  if (!forcedTarget || forcedTarget === 'veyra') {
     return text;
   }
 
@@ -83,7 +83,7 @@ export function toRoutedInput(text: string, forcedTarget?: GambitForcedTarget): 
   return `@${forcedTarget} ${promptText}`.trim();
 }
 
-export class GambitSessionService {
+export class VeyraSessionService {
   private readonly router: MessageRouter;
   private readonly store: SessionStore;
   private sentinel: SentinelWriter;
@@ -102,7 +102,7 @@ export class GambitSessionService {
   constructor(
     private readonly workspacePath: string,
     agents: AgentRegistry,
-    options: GambitSessionOptions = {},
+    options: VeyraSessionOptions = {},
   ) {
     this.router = new MessageRouter(
       agents,
@@ -148,7 +148,7 @@ export class GambitSessionService {
   }
 
   updateOptions(options: Pick<
-    GambitSessionOptions,
+    VeyraSessionOptions,
     'hangSeconds' | 'fileEmbedMaxLines' | 'sharedContextWindow' | 'commitSignatureEnabled' | 'badgeController'
   >): void {
     if (options.hangSeconds !== undefined) {
@@ -187,7 +187,7 @@ export class GambitSessionService {
     await this.router.cancelAll();
   }
 
-  dispatch(request: GambitDispatchRequest, emit: GambitDispatchEventSink): Promise<void> {
+  dispatch(request: VeyraDispatchRequest, emit: VeyraDispatchEventSink): Promise<void> {
     const generation = this.cancelGeneration;
     const queuedDispatch = this.dispatchQueue
       .catch(() => undefined)
@@ -199,7 +199,7 @@ export class GambitSessionService {
     return queuedDispatch;
   }
 
-  private async runDispatch(request: GambitDispatchRequest, emit: GambitDispatchEventSink): Promise<void> {
+  private async runDispatch(request: VeyraDispatchRequest, emit: VeyraDispatchEventSink): Promise<void> {
     void request.source;
     await this.loadSession();
 
@@ -434,7 +434,7 @@ export class GambitSessionService {
   private async recordWorkspaceChanges(
     inProgress: InProgressDispatch,
     agentId: AgentId,
-    emit: GambitDispatchEventSink,
+    emit: VeyraDispatchEventSink,
   ): Promise<void> {
     if (!this.workspaceChangeTracker || inProgress.changeSnapshot === undefined) return;
     try {
@@ -475,7 +475,7 @@ export class GambitSessionService {
   private async emitWorkspaceChangeError(
     agentId: AgentId,
     text: string,
-    emit: GambitDispatchEventSink,
+    emit: VeyraDispatchEventSink,
   ): Promise<void> {
     const sys: SystemMessage = {
       id: ulid(),
@@ -494,7 +494,7 @@ export class GambitSessionService {
     agentId: AgentId,
     filePath: string,
     changeKind: FileChangeKind,
-    emit: GambitDispatchEventSink,
+    emit: VeyraDispatchEventSink,
   ): Promise<void> {
     const normalizedPath = normalizeEditedPath(this.workspacePath, filePath);
     if (!inProgress.editedFiles.includes(normalizedPath)) {
@@ -535,7 +535,7 @@ export class GambitSessionService {
     agentId: AgentId,
     filePath: string,
     changeKind: FileChangeKind,
-    emit: GambitDispatchEventSink,
+    emit: VeyraDispatchEventSink,
   ): Promise<void> {
     if (!inProgress.readOnly) return;
 
@@ -557,7 +557,7 @@ export class GambitSessionService {
     agentId: AgentId,
     filePath: string,
     changeKind: FileChangeKind,
-    emit: GambitDispatchEventSink,
+    emit: VeyraDispatchEventSink,
   ): Promise<void> {
     const priorEditors = findPriorEditorsForFile(this.store.snapshot(), agentId, filePath);
     if (priorEditors.length === 0) return;
@@ -591,13 +591,13 @@ function agentRolePreamble(agentId: AgentId): string {
     gemini: 'edge cases, alternate interpretations, and adversarial review',
   };
   return [
-    '[Gambit agent role]',
-    `You are ${label} in this Gambit dispatch.`,
+    '[Veyra agent role]',
+    `You are ${label} in this Veyra dispatch.`,
     `Use your strengths: ${strengths[agentId]}.`,
     'Use your available model and CLI capabilities that fit this workflow.',
     'Follow any read-only or edit-permitted instructions in this prompt.',
     'Respect prior agents in [Conversation so far] and coordinate without overwriting their work.',
-    '[/Gambit agent role]',
+    '[/Veyra agent role]',
   ].join('\n');
 }
 
@@ -639,8 +639,8 @@ function inferToolResultChangeKind(output: unknown): FileChangeKind {
     : 'edited';
 }
 
-function userMentionsForRequest(text: string, forcedTarget?: GambitForcedTarget): AgentId[] {
-  if (forcedTarget && forcedTarget !== 'gambit') {
+function userMentionsForRequest(text: string, forcedTarget?: VeyraForcedTarget): AgentId[] {
+  if (forcedTarget && forcedTarget !== 'veyra') {
     return [forcedTarget];
   }
   return parseMentions(text).targets;

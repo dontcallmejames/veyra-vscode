@@ -9,7 +9,7 @@ For the broader active-goal audit, evidence checklist, and remaining live-backen
 - VS Code `1.118.0` or newer.
 - Node.js with the `node` command on PATH, required for JS bundle CLI paths and Extension Host launches.
 - Claude, Codex, and Gemini CLIs/accounts configured locally if you want to run live agent prompts.
-- If Windows npm global package paths are inaccessible from the extension host, run `Gambit: Configure Codex/Gemini CLI paths` or set `gambit.codexCliPath` and `gambit.geminiCliPath` to the JS bundle paths, native executables, or Windows npm shim paths. Gambit auto-detects native PATH executables first, then recognized PATH npm shims such as `codex.cmd` and `gemini.ps1`; shim paths are resolved to the underlying JS bundle before launch. Gambit skips stale PATH shims whose derived bundle targets are missing and falls back to `npm root -g`.
+- If Windows npm global package paths are inaccessible from the extension host, run `Veyra: Configure Codex/Gemini CLI paths` or set `veyra.codexCliPath` and `veyra.geminiCliPath` to the JS bundle paths, native executables, or Windows npm shim paths. Veyra auto-detects native PATH executables first, then recognized PATH npm shims such as `codex.cmd` and `gemini.ps1`; shim paths are resolved to the underlying JS bundle before launch. Veyra skips stale PATH shims whose derived bundle targets are missing and falls back to `npm root -g`.
 - `npm run build` has completed, or you will use the `Run Extension` launch configuration in `.vscode/launch.json`, whose `npm: build` prelaunch task builds first.
 
 ## Launch
@@ -20,7 +20,7 @@ For the automated activation/provider smoke test, run:
 npm run test:vscode-smoke
 ```
 
-That command builds the extension, launches VS Code with isolated `.vscode-test` user data, activates Gambit in an Extension Development Host, records native chat participant IDs plus slash workflow commands, records native chat registration evidence from activation, records native chat workflow diagnostics for `/review`, `/debate`, and `/implement`, sends deterministic no-paid smoke requests through the native chat handler path for direct `@gambit`, `/review`, `/debate`, `/implement`, `@claude`, `@codex`, and `@gemini`, verifies write-capable native chat smoke responses include visible file edit progress plus file references, verifies language model IDs, records language model metadata (`name, family, version, and maxInputTokens`), calls token counting on every Gambit language model, sends deterministic no-paid smoke requests through every Gambit language model, validates workflow-mode response markers for review, debate, implement, orchestrator, and direct models, verifies write-capable language model smoke responses include workspace file links for agent edits, verifies `.vscode/gambit/active-dispatch` appears during a smoke dispatch and clears afterward, executes core Gambit commands, verifies `Gambit: Open Panel` creates a `Gambit` webview tab, installs and removes the managed commit hook in the isolated smoke workspace, and verifies the hook adds a Gambit `Co-Authored-By` trailer to an actual smoke commit, then exits without sending paid model prompts.
+That command builds the extension, launches VS Code with isolated `.vscode-test` user data, activates Veyra in an Extension Development Host, records native chat participant IDs plus slash workflow commands, records native chat registration evidence from activation, records native chat workflow diagnostics for `/review`, `/debate`, and `/implement`, sends deterministic no-paid smoke requests through the native chat handler path for direct `@veyra`, `/review`, `/debate`, `/implement`, `@claude`, `@codex`, and `@gemini`, verifies write-capable native chat smoke responses include visible file edit progress plus file references, verifies language model IDs, records language model metadata (`name, family, version, and maxInputTokens`), calls token counting on every Veyra language model, sends deterministic no-paid smoke requests through every Veyra language model, validates workflow-mode response markers for review, debate, implement, orchestrator, and direct models, verifies write-capable language model smoke responses include workspace file links for agent edits, verifies `.vscode/veyra/active-dispatch` appears during a smoke dispatch and clears afterward, executes core Veyra commands, verifies `Veyra: Open Panel` creates a `Veyra` webview tab, installs and removes the managed commit hook in the isolated smoke workspace, and verifies the hook adds a Veyra `Co-Authored-By` trailer to an actual smoke commit, then exits without sending paid model prompts.
 
 For the interactive end-to-end checklist:
 
@@ -30,22 +30,22 @@ For the interactive end-to-end checklist:
 
 ## Command Palette
 
-1. Run `Gambit: Check agent status`.
+1. Run `Veyra: Check agent status`.
 2. Confirm it reports statuses for Claude, Codex, and Gemini.
-3. If Codex or Gemini reports inaccessible, misconfigured, or Node.js missing on Windows, run `Gambit: Configure Codex/Gemini CLI paths`. If detection cannot inspect the package tree, choose `Enter paths manually` and paste JS bundle paths, native executable paths, or npm shim paths such as `codex.cmd` and `gemini.ps1`. For Node.js missing, install Node.js or switch to native executable paths, then rerun `Gambit: Check agent status`.
-4. Run `Gambit: Open Panel`.
-5. Confirm the Gambit panel opens and shows the same three agent statuses.
+3. If Codex or Gemini reports inaccessible, misconfigured, or Node.js missing on Windows, run `Veyra: Configure Codex/Gemini CLI paths`. If detection cannot inspect the package tree, choose `Enter paths manually` and paste JS bundle paths, native executable paths, or npm shim paths such as `codex.cmd` and `gemini.ps1`. For Node.js missing, install Node.js or switch to native executable paths, then rerun `Veyra: Check agent status`.
+4. Run `Veyra: Open Panel`.
+5. Confirm the Veyra panel opens and shows the same three agent statuses.
 
 ## Native Chat
 
 Open VS Code Chat in the Extension Development Host and verify these participants are available:
 
-- `@gambit`
+- `@veyra`
 - `@claude`
 - `@codex`
 - `@gemini`
 
-Before sending prompts that can reach paid backends, run `Gambit: Show live validation guide` in VS Code or run the readiness gate from PowerShell:
+Before sending prompts that can reach paid backends, run `Veyra: Show live validation guide` in VS Code or run the readiness gate from PowerShell:
 
 ```powershell
 npm run verify:live-ready
@@ -56,22 +56,22 @@ Continue only when Claude, Codex, and Gemini all report `ready`; inaccessible en
 To run the full goal-completion gate once readiness is green, opt in to paid prompts and run:
 
 ```powershell
-$env:GAMBIT_RUN_LIVE = '1'
+$env:VEYRA_RUN_LIVE = '1'
 npm run verify:goal
-Remove-Item Env:\GAMBIT_RUN_LIVE -ErrorAction SilentlyContinue
+Remove-Item Env:\VEYRA_RUN_LIVE -ErrorAction SilentlyContinue
 ```
 
-Run `/debate` first in a disposable workspace, then continue only if it does not end with `Gambit completed with errors.`:
+Run `/debate` first in a disposable workspace, then continue only if it does not end with `Veyra completed with errors.`:
 
 ```text
-@gambit /debate choose a safe test-only change for this project
+@veyra /debate choose a safe test-only change for this project
 ```
 
 If `/debate` is clean, run the remaining prompts:
 
 ```text
-@gambit /review inspect this workspace and report risks only
-@gambit /implement make a tiny test-only change, then review it
+@veyra /review inspect this workspace and report risks only
+@veyra /implement make a tiny test-only change, then review it
 ```
 
 Expected behavior:
@@ -87,21 +87,21 @@ Expected behavior:
 
 ## Language Model Provider
 
-From another extension or VS Code API scratch harness, request models for vendor `gambit` and confirm these model IDs are returned:
+From another extension or VS Code API scratch harness, request models for vendor `veyra` and confirm these model IDs are returned:
 
-- `gambit-orchestrator`
-- `gambit-review`
-- `gambit-debate`
-- `gambit-implement`
-- `gambit-claude`
-- `gambit-codex`
-- `gambit-gemini`
+- `veyra-orchestrator`
+- `veyra-review`
+- `veyra-debate`
+- `veyra-implement`
+- `veyra-claude`
+- `veyra-codex`
+- `veyra-gemini`
 
-Send a minimal request to each model in a disposable workspace and confirm responses stream through Gambit. The review and debate models should behave like the read-only native chat workflows; the implement model may edit files.
+Send a minimal request to each model in a disposable workspace and confirm responses stream through Veyra. The review and debate models should behave like the read-only native chat workflows; the implement model may edit files.
 
 ## Commit Attribution
 
-1. Run `Gambit: Install commit hook`.
+1. Run `Veyra: Install commit hook`.
 2. Start an agent turn that edits a file.
-3. Confirm `.vscode/gambit/active-dispatch` exists only during the dispatch.
-4. Commit the agent-made change and confirm the commit message receives Gambit attribution.
+3. Confirm `.vscode/veyra/active-dispatch` exists only during the dispatch.
+4. Commit the agent-made change and confirm the commit message receives Veyra attribution.

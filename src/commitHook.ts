@@ -1,8 +1,8 @@
-﻿import * as fs from 'node:fs';
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { AgentId } from './types.js';
 
-const SENTINEL_DIR_REL = path.join('.vscode', 'gambit');
+const SENTINEL_DIR_REL = path.join('.vscode', 'veyra');
 const SENTINEL_NAME = 'active-dispatch';
 
 export interface SentinelWriterOptions {
@@ -60,14 +60,14 @@ export class SentinelWriter {
 
 export const COMMIT_HOOK_SNIPPET = [
   '#!/bin/sh',
-  '# GAMBIT-MANAGED',
-  '# Tags commits made during a Gambit dispatch with a Co-Authored-By trailer.',
-  'SENTINEL=".vscode/gambit/active-dispatch"',
+  '# VEYRA-MANAGED',
+  '# Tags commits made during a Veyra dispatch with a Co-Authored-By trailer.',
+  'SENTINEL=".vscode/veyra/active-dispatch"',
   'if [ -f "$SENTINEL" ]; then',
   '  AGENT_ID=$(cat "$SENTINEL" | tr -d \'[:space:]\')',
   '  if [ -n "$AGENT_ID" ]; then',
-  '    if ! grep -q "Co-Authored-By: Gambit" "$1"; then',
-  '      printf "\\nCo-Authored-By: Gambit (%s) <gambit@local>\\n" "$AGENT_ID" >> "$1"',
+  '    if ! grep -q "Co-Authored-By: Veyra" "$1"; then',
+  '      printf "\\nCo-Authored-By: Veyra (%s) <veyra@local>\\n" "$AGENT_ID" >> "$1"',
   '    fi',
   '  fi',
   'fi',
@@ -118,7 +118,7 @@ export function installCommitHook(workspacePath: string): InstallResult {
     } catch {
       return { status: 'refused-existing' };
     }
-    if (!existing.includes('GAMBIT-MANAGED')) {
+    if (!existing.includes('VEYRA-MANAGED')) {
       return { status: 'refused-existing' };
     }
   }
@@ -147,7 +147,7 @@ export function uninstallCommitHook(workspacePath: string): UninstallResult {
   } catch {
     return { status: 'refused-not-managed' };
   }
-  if (!existing.includes('GAMBIT-MANAGED')) {
+  if (!existing.includes('VEYRA-MANAGED')) {
     return { status: 'refused-not-managed' };
   }
   try {

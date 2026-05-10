@@ -30,7 +30,7 @@ describe('Composer', () => {
       send: vi.fn(),
       floorHolder: null,
       status: { claude: 'ready', codex: 'ready', gemini: 'ready' },
-      gambitMdPresent: true,
+      veyraMdPresent: true,
     });
 
     const text = collectText(vnode);
@@ -51,7 +51,7 @@ describe('Composer', () => {
       send: vi.fn(),
       floorHolder: null,
       status: { claude: 'ready', codex: 'ready', gemini: 'ready' },
-      gambitMdPresent: true,
+      veyraMdPresent: true,
     });
 
     expect(collectText(vnode)).not.toContain('Attached:');
@@ -66,7 +66,7 @@ describe('Composer', () => {
       send: vi.fn(),
       floorHolder: null,
       status: { claude: 'ready', codex: 'ready', gemini: 'ready' },
-      gambitMdPresent: true,
+      veyraMdPresent: true,
     });
 
     const text = collectText(vnode);
@@ -92,7 +92,7 @@ describe('Composer', () => {
       send: vi.fn(),
       floorHolder: null,
       status: { claude: 'ready', codex: 'ready', gemini: 'ready' },
-      gambitMdPresent: true,
+      veyraMdPresent: true,
     });
 
     const text = collectText(vnode);
@@ -110,7 +110,7 @@ describe('Composer', () => {
       send: vi.fn(),
       floorHolder: null,
       status: { claude: 'ready', codex: 'ready', gemini: 'ready' },
-      gambitMdPresent: true,
+      veyraMdPresent: true,
     });
 
     const text = collectText(vnode);

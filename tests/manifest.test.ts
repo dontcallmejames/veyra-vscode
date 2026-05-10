@@ -27,7 +27,7 @@ vi.mock('vscode', () => ({
 }));
 
 import { NATIVE_CHAT_PARTICIPANTS } from '../src/nativeChat.js';
-import { GAMBIT_LANGUAGE_MODELS } from '../src/languageModelProvider.js';
+import { VEYRA_LANGUAGE_MODELS } from '../src/languageModelProvider.js';
 
 describe('extension manifest', () => {
   it('declares the VS Code API floor used by native chat and language model providers', () => {
@@ -54,19 +54,19 @@ describe('extension manifest', () => {
     const manifestRecord = manifest as Record<string, unknown>;
     const icon = readFileSync(join(process.cwd(), 'resources', 'icon.png'));
 
-    expect(manifest.name).toBe('gambit-vscode');
-    expect(manifest.displayName).toBe('Gambit Agent Chat');
+    expect(manifest.name).toBe('veyra-vscode');
+    expect(manifest.displayName).toBe('Veyra');
     expect(manifestRecord.private).toBeUndefined();
     expect(manifest.preview).toBe(true);
     expect(manifest.license).toBe('SEE LICENSE IN LICENSE.txt');
     expect(manifest.repository).toEqual({
       type: 'git',
-      url: 'https://github.com/dontcallmejames/gambit-vscode.git',
+      url: 'https://github.com/dontcallmejames/veyra-vscode.git',
     });
     expect(manifest.bugs).toEqual({
-      url: 'https://github.com/dontcallmejames/gambit-vscode/issues',
+      url: 'https://github.com/dontcallmejames/veyra-vscode/issues',
     });
-    expect(manifest.homepage).toBe('https://github.com/dontcallmejames/gambit-vscode#readme');
+    expect(manifest.homepage).toBe('https://github.com/dontcallmejames/veyra-vscode#readme');
     expect(manifest.icon).toBe('resources/icon.png');
     expect(manifest.galleryBanner).toEqual({
       color: '#15171a',
@@ -155,7 +155,7 @@ describe('extension manifest', () => {
       'node scripts/require-live-opt-in.mjs && npm run verify:live-ready',
     );
     expect(manifest.scripts['test:integration:live']).toContain('--exclude ".vscode-test/**"');
-    expect(manifest.scripts['test:integration:live']).toContain('tests/integration/gambit.live.test.ts');
+    expect(manifest.scripts['test:integration:live']).toContain('tests/integration/veyra.live.test.ts');
 
     const readme = readFileSync(join(process.cwd(), 'README.md'), 'utf8');
     const audit = readFileSync(join(process.cwd(), 'docs', 'goal-completion-audit.md'), 'utf8');
@@ -166,22 +166,22 @@ describe('extension manifest', () => {
     expect(readme).toContain('Run Extension');
     expect(readme).toContain('F5');
     expect(readme).toContain('.vscode/launch.json');
-    expect(readme).toContain('Gambit: Show live validation guide');
-    expect(readme).toContain('Gambit: Configure Codex/Gemini CLI paths');
+    expect(readme).toContain('Veyra: Show live validation guide');
+    expect(readme).toContain('Veyra: Configure Codex/Gemini CLI paths');
     expect(readme).toContain('explicit JS bundle, native executable, or npm shim paths');
     expect(readme).toContain('stale PATH shims');
     expect(readme).toContain('falls back to `npm root -g`');
     expect(readme).toContain('shared-context relay');
     expect(readme).toContain('write-capable implementation');
-    expect(readme).toContain("Remove-Item Env:\\GAMBIT_RUN_LIVE -ErrorAction SilentlyContinue");
+    expect(readme).toContain("Remove-Item Env:\\VEYRA_RUN_LIVE -ErrorAction SilentlyContinue");
     expect(readme).toContain("stays set for the current terminal session");
     expect(audit).toContain('npm run verify:completion');
     expect(audit).toContain('npm run verify:goal');
-    expect(audit).toContain('Gambit: Show live validation guide');
-    expect(audit).toContain('Gambit: Configure Codex/Gemini CLI paths');
+    expect(audit).toContain('Veyra: Show live validation guide');
+    expect(audit).toContain('Veyra: Configure Codex/Gemini CLI paths');
     expect(smokeChecklist).toContain('paste JS bundle paths, native executable paths, or npm shim paths');
     expect(smokeChecklist).toContain('skips stale PATH shims');
-    expect(smokeChecklist).toContain('Gambit: Show live validation guide');
+    expect(smokeChecklist).toContain('Veyra: Show live validation guide');
     expect(smokeChecklist).toContain('reports inaccessible, misconfigured, or Node.js missing');
     expect(smokeChecklist).toContain('install Node.js or switch to native executable paths');
     expect(smokeChecklist).toContain('Before sending prompts that can reach paid backends');
@@ -189,17 +189,17 @@ describe('extension manifest', () => {
     expect(smokeChecklist).toContain('npm: build');
     expect(smokeChecklist).toContain('.vscode/launch.json');
     expect(smokeChecklist).toContain('Continue only when Claude, Codex, and Gemini all report `ready`');
-    expect(liveReadme).toContain('all-agent Gambit handoff');
-    expect(liveReadme).toContain('first requires the explicit `GAMBIT_RUN_LIVE=1` paid-prompt opt-in');
+    expect(liveReadme).toContain('all-agent Veyra handoff');
+    expect(liveReadme).toContain('first requires the explicit `VEYRA_RUN_LIVE=1` paid-prompt opt-in');
     expect(liveReadme).toContain('then automatically runs `npm run verify:live-ready`');
     expect(liveReadme).toContain('npm run verify:goal');
-    expect(liveReadme).toContain("$env:GAMBIT_RUN_LIVE = '1'");
+    expect(liveReadme).toContain("$env:VEYRA_RUN_LIVE = '1'");
     expect(liveReadme).toContain('In Bash-compatible shells');
-    expect(liveReadme).toContain('Remove-Item Env:\\GAMBIT_RUN_LIVE -ErrorAction SilentlyContinue');
-    expect(liveReadme).toContain('GAMBIT_CODEX_CLI_PATH');
-    expect(liveReadme).toContain('GAMBIT_GEMINI_CLI_PATH');
-    expect(liveReadme).toContain('gambit.codexCliPath');
-    expect(liveReadme).toContain('gambit.geminiCliPath');
+    expect(liveReadme).toContain('Remove-Item Env:\\VEYRA_RUN_LIVE -ErrorAction SilentlyContinue');
+    expect(liveReadme).toContain('VEYRA_CODEX_CLI_PATH');
+    expect(liveReadme).toContain('VEYRA_GEMINI_CLI_PATH');
+    expect(liveReadme).toContain('veyra.codexCliPath');
+    expect(liveReadme).toContain('veyra.geminiCliPath');
     expect(liveReadme).toContain('JS bundle paths, native executables, or Windows npm shim paths');
     expect(liveReadme).toContain('resolved to the underlying JS bundle');
     expect(liveReadme).toContain('Node.js');
@@ -213,11 +213,11 @@ describe('extension manifest', () => {
   it('contributes settings for explicit Codex and Gemini CLI bundle paths', () => {
     const properties = manifest.contributes.configuration.properties;
 
-    expect(properties['gambit.codexCliPath']).toMatchObject({
+    expect(properties['veyra.codexCliPath']).toMatchObject({
       type: 'string',
       default: '',
     });
-    const codexPattern = new RegExp(properties['gambit.codexCliPath'].pattern);
+    const codexPattern = new RegExp(properties['veyra.codexCliPath'].pattern);
     expect(codexPattern.test('')).toBe(true);
     expect(codexPattern.test('C:\\tools\\codex.js')).toBe(true);
     expect(codexPattern.test('C:\\tools\\codex.exe')).toBe(true);
@@ -225,18 +225,18 @@ describe('extension manifest', () => {
     expect(codexPattern.test('C:\\tools\\not-codex.exe')).toBe(false);
     expect(codexPattern.test('C:\\Users\\tester\\AppData\\Roaming\\npm\\codex.cmd')).toBe(true);
     expect(codexPattern.test('C:\\Users\\tester\\AppData\\Roaming\\npm\\codex.ps1')).toBe(true);
-    expect(properties['gambit.codexCliPath'].patternErrorMessage).toContain('codex.js, codex.exe, codex, codex.cmd, codex.bat, or codex.ps1');
-    expect(properties['gambit.codexCliPath'].description).toContain('GAMBIT_CODEX_CLI_PATH');
-    expect(properties['gambit.codexCliPath'].description).toContain('Windows');
-    expect(properties['gambit.codexCliPath'].description).toContain('.cmd');
-    expect(properties['gambit.codexCliPath'].description).toContain('JS bundle');
-    expect(properties['gambit.codexCliPath'].description).toContain('resolved to');
-    expect(properties['gambit.codexCliPath'].description).toContain('codex.exe');
-    expect(properties['gambit.geminiCliPath']).toMatchObject({
+    expect(properties['veyra.codexCliPath'].patternErrorMessage).toContain('codex.js, codex.exe, codex, codex.cmd, codex.bat, or codex.ps1');
+    expect(properties['veyra.codexCliPath'].description).toContain('VEYRA_CODEX_CLI_PATH');
+    expect(properties['veyra.codexCliPath'].description).toContain('Windows');
+    expect(properties['veyra.codexCliPath'].description).toContain('.cmd');
+    expect(properties['veyra.codexCliPath'].description).toContain('JS bundle');
+    expect(properties['veyra.codexCliPath'].description).toContain('resolved to');
+    expect(properties['veyra.codexCliPath'].description).toContain('codex.exe');
+    expect(properties['veyra.geminiCliPath']).toMatchObject({
       type: 'string',
       default: '',
     });
-    const geminiPattern = new RegExp(properties['gambit.geminiCliPath'].pattern);
+    const geminiPattern = new RegExp(properties['veyra.geminiCliPath'].pattern);
     expect(geminiPattern.test('')).toBe(true);
     expect(geminiPattern.test('C:\\tools\\gemini.js')).toBe(true);
     expect(geminiPattern.test('C:\\tools\\gemini.exe')).toBe(true);
@@ -244,30 +244,30 @@ describe('extension manifest', () => {
     expect(geminiPattern.test('C:\\tools\\not-gemini.exe')).toBe(false);
     expect(geminiPattern.test('C:\\Users\\tester\\AppData\\Roaming\\npm\\gemini.cmd')).toBe(true);
     expect(geminiPattern.test('C:\\Users\\tester\\AppData\\Roaming\\npm\\gemini.ps1')).toBe(true);
-    expect(properties['gambit.geminiCliPath'].patternErrorMessage).toContain('gemini.js, gemini.exe, gemini, gemini.cmd, gemini.bat, or gemini.ps1');
-    expect(properties['gambit.geminiCliPath'].description).toContain('GAMBIT_GEMINI_CLI_PATH');
-    expect(properties['gambit.geminiCliPath'].description).toContain('Windows');
-    expect(properties['gambit.geminiCliPath'].description).toContain('.cmd');
-    expect(properties['gambit.geminiCliPath'].description).toContain('JS bundle');
-    expect(properties['gambit.geminiCliPath'].description).toContain('resolved to');
-    expect(properties['gambit.geminiCliPath'].description).toContain('gemini.exe');
+    expect(properties['veyra.geminiCliPath'].patternErrorMessage).toContain('gemini.js, gemini.exe, gemini, gemini.cmd, gemini.bat, or gemini.ps1');
+    expect(properties['veyra.geminiCliPath'].description).toContain('VEYRA_GEMINI_CLI_PATH');
+    expect(properties['veyra.geminiCliPath'].description).toContain('Windows');
+    expect(properties['veyra.geminiCliPath'].description).toContain('.cmd');
+    expect(properties['veyra.geminiCliPath'].description).toContain('JS bundle');
+    expect(properties['veyra.geminiCliPath'].description).toContain('resolved to');
+    expect(properties['veyra.geminiCliPath'].description).toContain('gemini.exe');
   });
 
   it('contributes command-palette entries for panel, status, and commit-hook operations', () => {
     expect(manifest.contributes.commands.map((command) => command.command)).toEqual([
-      'gambit.openPanel',
-      'gambit.checkStatus',
-      'gambit.showSetupGuide',
-      'gambit.showLiveValidationGuide',
-      'gambit.configureCliPaths',
-      'gambit.installCommitHook',
-      'gambit.uninstallCommitHook',
-      'gambit.showCommitHookSnippet',
+      'veyra.openPanel',
+      'veyra.checkStatus',
+      'veyra.showSetupGuide',
+      'veyra.showLiveValidationGuide',
+      'veyra.configureCliPaths',
+      'veyra.installCommitHook',
+      'veyra.uninstallCommitHook',
+      'veyra.showCommitHookSnippet',
     ]);
-    expect(manifest.activationEvents).toContain('onCommand:gambit.checkStatus');
-    expect(manifest.activationEvents).toContain('onCommand:gambit.showSetupGuide');
-    expect(manifest.activationEvents).toContain('onCommand:gambit.showLiveValidationGuide');
-    expect(manifest.activationEvents).toContain('onCommand:gambit.configureCliPaths');
+    expect(manifest.activationEvents).toContain('onCommand:veyra.checkStatus');
+    expect(manifest.activationEvents).toContain('onCommand:veyra.showSetupGuide');
+    expect(manifest.activationEvents).toContain('onCommand:veyra.showLiveValidationGuide');
+    expect(manifest.activationEvents).toContain('onCommand:veyra.configureCliPaths');
   });
 
   it('activates and contributes every native chat participant', () => {
@@ -287,12 +287,12 @@ describe('extension manifest', () => {
     }
   });
 
-  it('contributes the Gambit slash workflows on the orchestrator participant', () => {
-    const gambit = manifest.contributes.chatParticipants.find(
-      (participant) => participant.id === 'gambit.gambit',
+  it('contributes the Veyra slash workflows on the orchestrator participant', () => {
+    const veyra = manifest.contributes.chatParticipants.find(
+      (participant) => participant.id === 'veyra.veyra',
     );
 
-    expect(gambit?.commands?.map((command) => command.name)).toEqual([
+    expect(veyra?.commands?.map((command) => command.name)).toEqual([
       'review',
       'debate',
       'implement',
@@ -300,11 +300,11 @@ describe('extension manifest', () => {
   });
 
   it('describes /review and /debate as read-only all-agent workflows', () => {
-    const gambit = manifest.contributes.chatParticipants.find(
-      (participant) => participant.id === 'gambit.gambit',
+    const veyra = manifest.contributes.chatParticipants.find(
+      (participant) => participant.id === 'veyra.veyra',
     );
-    const review = gambit?.commands?.find((command) => command.name === 'review');
-    const debate = gambit?.commands?.find((command) => command.name === 'debate');
+    const review = veyra?.commands?.find((command) => command.name === 'review');
+    const debate = veyra?.commands?.find((command) => command.name === 'debate');
 
     for (const command of [review, debate]) {
       expect(command?.description).toMatch(/Claude, Codex, and Gemini/);
@@ -313,37 +313,37 @@ describe('extension manifest', () => {
   });
 
   it('describes /implement as a serial all-agent workflow', () => {
-    const gambit = manifest.contributes.chatParticipants.find(
-      (participant) => participant.id === 'gambit.gambit',
+    const veyra = manifest.contributes.chatParticipants.find(
+      (participant) => participant.id === 'veyra.veyra',
     );
-    const implement = gambit?.commands?.find((command) => command.name === 'implement');
+    const implement = veyra?.commands?.find((command) => command.name === 'implement');
 
     expect(implement?.description).toMatch(/Claude, Codex, and Gemini/);
     expect(implement?.description).toMatch(/serial/i);
     expect(implement?.description).not.toMatch(/choose the right agent path/i);
   });
 
-  it('activates the Gambit language model provider and exposes all local models', () => {
-    expect(manifest.activationEvents).toContain('onLanguageModelChatProvider:gambit');
+  it('activates the Veyra language model provider and exposes all local models', () => {
+    expect(manifest.activationEvents).toContain('onLanguageModelChatProvider:veyra');
     expect(manifest.contributes.languageModelChatProviders).toContainEqual({
-      vendor: 'gambit',
-      displayName: 'Gambit',
+      vendor: 'veyra',
+      displayName: 'Veyra',
     });
-    expect(GAMBIT_LANGUAGE_MODELS.map((model) => [model.id, model.forcedTarget])).toEqual([
-      ['gambit-orchestrator', 'gambit'],
-      ['gambit-review', 'gambit'],
-      ['gambit-debate', 'gambit'],
-      ['gambit-implement', 'gambit'],
-      ['gambit-claude', 'claude'],
-      ['gambit-codex', 'codex'],
-      ['gambit-gemini', 'gemini'],
+    expect(VEYRA_LANGUAGE_MODELS.map((model) => [model.id, model.forcedTarget])).toEqual([
+      ['veyra-orchestrator', 'veyra'],
+      ['veyra-review', 'veyra'],
+      ['veyra-debate', 'veyra'],
+      ['veyra-implement', 'veyra'],
+      ['veyra-claude', 'claude'],
+      ['veyra-codex', 'codex'],
+      ['veyra-gemini', 'gemini'],
     ]);
   });
 
   it('keeps the VS Code smoke checklist aligned with every exposed language model id', () => {
     const smokeChecklist = readFileSync(join(process.cwd(), 'docs', 'vscode-smoke-test.md'), 'utf8');
 
-    for (const model of GAMBIT_LANGUAGE_MODELS) {
+    for (const model of VEYRA_LANGUAGE_MODELS) {
       expect(smokeChecklist).toContain(model.id);
     }
   });
@@ -394,9 +394,9 @@ describe('extension manifest', () => {
       'manual native chat prompt submission',
       'npm run verify:completion',
       'npm run verify:goal',
-      "$env:GAMBIT_RUN_LIVE = '1'",
-      'GAMBIT_RUN_LIVE=1 npm run test:integration:live',
-      'Remove-Item Env:\\GAMBIT_RUN_LIVE -ErrorAction SilentlyContinue',
+      "$env:VEYRA_RUN_LIVE = '1'",
+      'VEYRA_RUN_LIVE=1 npm run test:integration:live',
+      'Remove-Item Env:\\VEYRA_RUN_LIVE -ErrorAction SilentlyContinue',
       'stays set for the current terminal session',
     ]) {
       expect(audit).toContain(requiredText);

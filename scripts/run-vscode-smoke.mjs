@@ -37,8 +37,8 @@ export function buildCodeSmokeArgs(paths) {
 export function buildCodeSmokeEnv(paths, baseEnv = process.env) {
   return {
     ...baseEnv,
-    VSCODE_GAMBIT_SMOKE: '1',
-    VSCODE_GAMBIT_SMOKE_RESULT: paths.smokeResultPath,
+    VSCODE_VEYRA_SMOKE: '1',
+    VSCODE_VEYRA_SMOKE_RESULT: paths.smokeResultPath,
   };
 }
 
@@ -88,44 +88,44 @@ export function findMissingSmokePrerequisites(paths, fileExists = existsSync) {
 }
 
 export const requiredSmokeLanguageModels = {
-  'gambit-orchestrator': {
-    name: 'Gambit',
-    family: 'gambit',
+  'veyra-orchestrator': {
+    name: 'Veyra',
+    family: 'veyra',
     version: 'local-cli',
     maxInputTokens: 128000,
   },
-  'gambit-review': {
-    name: 'Gambit Review',
-    family: 'gambit',
+  'veyra-review': {
+    name: 'Veyra Review',
+    family: 'veyra',
     version: 'local-cli',
     maxInputTokens: 128000,
   },
-  'gambit-debate': {
-    name: 'Gambit Debate',
-    family: 'gambit',
+  'veyra-debate': {
+    name: 'Veyra Debate',
+    family: 'veyra',
     version: 'local-cli',
     maxInputTokens: 128000,
   },
-  'gambit-implement': {
-    name: 'Gambit Implement',
-    family: 'gambit',
+  'veyra-implement': {
+    name: 'Veyra Implement',
+    family: 'veyra',
     version: 'local-cli',
     maxInputTokens: 128000,
   },
-  'gambit-claude': {
-    name: 'Claude via Gambit',
+  'veyra-claude': {
+    name: 'Claude via Veyra',
     family: 'claude',
     version: 'local-cli',
     maxInputTokens: 128000,
   },
-  'gambit-codex': {
-    name: 'Codex via Gambit',
+  'veyra-codex': {
+    name: 'Codex via Veyra',
     family: 'codex',
     version: 'local-cli',
     maxInputTokens: 128000,
   },
-  'gambit-gemini': {
-    name: 'Gemini via Gambit',
+  'veyra-gemini': {
+    name: 'Gemini via Veyra',
     family: 'gemini',
     version: 'local-cli',
     maxInputTokens: 128000,
@@ -133,100 +133,100 @@ export const requiredSmokeLanguageModels = {
 };
 
 export const requiredSmokeChatParticipants = {
-  'gambit.gambit': {
-    name: 'gambit',
+  'veyra.veyra': {
+    name: 'veyra',
     commands: ['review', 'debate', 'implement'],
   },
-  'gambit.claude': {
+  'veyra.claude': {
     name: 'claude',
     commands: [],
   },
-  'gambit.codex': {
+  'veyra.codex': {
     name: 'codex',
     commands: [],
   },
-  'gambit.gemini': {
+  'veyra.gemini': {
     name: 'gemini',
     commands: [],
   },
 };
 
 export const requiredSmokeLanguageModelResponseMarkers = {
-  'gambit-orchestrator': [
+  'veyra-orchestrator': [
     'Routed to Codex',
-    '[smoke:codex] write-capable request reached Gambit provider.',
+    '[smoke:codex] write-capable request reached Veyra provider.',
   ],
-  'gambit-review': [
-    '[smoke:claude] read-only request reached Gambit provider.',
-    '[smoke:codex] read-only request reached Gambit provider.',
-    '[smoke:gemini] read-only request reached Gambit provider.',
+  'veyra-review': [
+    '[smoke:claude] read-only request reached Veyra provider.',
+    '[smoke:codex] read-only request reached Veyra provider.',
+    '[smoke:gemini] read-only request reached Veyra provider.',
   ],
-  'gambit-debate': [
-    '[smoke:claude] read-only request reached Gambit provider.',
-    '[smoke:codex] read-only request reached Gambit provider.',
-    '[smoke:gemini] read-only request reached Gambit provider.',
+  'veyra-debate': [
+    '[smoke:claude] read-only request reached Veyra provider.',
+    '[smoke:codex] read-only request reached Veyra provider.',
+    '[smoke:gemini] read-only request reached Veyra provider.',
   ],
-  'gambit-implement': [
-    '[smoke:claude] write-capable request reached Gambit provider.',
-    '[smoke:codex] write-capable request reached Gambit provider.',
-    '[smoke:gemini] write-capable request reached Gambit provider.',
+  'veyra-implement': [
+    '[smoke:claude] write-capable request reached Veyra provider.',
+    '[smoke:codex] write-capable request reached Veyra provider.',
+    '[smoke:gemini] write-capable request reached Veyra provider.',
   ],
-  'gambit-claude': [
-    '[smoke:claude] write-capable request reached Gambit provider.',
+  'veyra-claude': [
+    '[smoke:claude] write-capable request reached Veyra provider.',
   ],
-  'gambit-codex': [
-    '[smoke:codex] write-capable request reached Gambit provider.',
+  'veyra-codex': [
+    '[smoke:codex] write-capable request reached Veyra provider.',
   ],
-  'gambit-gemini': [
-    '[smoke:gemini] write-capable request reached Gambit provider.',
+  'veyra-gemini': [
+    '[smoke:gemini] write-capable request reached Veyra provider.',
   ],
 };
 
 export const requiredSmokeNativeWorkflows = {
-  review: { forcedTarget: 'gambit', readOnly: true },
-  debate: { forcedTarget: 'gambit', readOnly: true },
-  implement: { forcedTarget: 'gambit', readOnly: false },
+  review: { forcedTarget: 'veyra', readOnly: true },
+  debate: { forcedTarget: 'veyra', readOnly: true },
+  implement: { forcedTarget: 'veyra', readOnly: false },
 };
 
 export const requiredSmokeNativeChatResponseMarkers = {
-  'gambit.gambit': [
+  'veyra.veyra': [
     'Routed to Codex',
-    '[smoke:codex] write-capable request reached Gambit provider.',
+    '[smoke:codex] write-capable request reached Veyra provider.',
   ],
-  'gambit.gambit/review': [
-    '[smoke:claude] read-only request reached Gambit provider.',
-    '[smoke:codex] read-only request reached Gambit provider.',
-    '[smoke:gemini] read-only request reached Gambit provider.',
+  'veyra.veyra/review': [
+    '[smoke:claude] read-only request reached Veyra provider.',
+    '[smoke:codex] read-only request reached Veyra provider.',
+    '[smoke:gemini] read-only request reached Veyra provider.',
   ],
-  'gambit.gambit/debate': [
-    '[smoke:claude] read-only request reached Gambit provider.',
-    '[smoke:codex] read-only request reached Gambit provider.',
-    '[smoke:gemini] read-only request reached Gambit provider.',
+  'veyra.veyra/debate': [
+    '[smoke:claude] read-only request reached Veyra provider.',
+    '[smoke:codex] read-only request reached Veyra provider.',
+    '[smoke:gemini] read-only request reached Veyra provider.',
   ],
-  'gambit.gambit/implement': [
-    '[smoke:claude] write-capable request reached Gambit provider.',
-    '[smoke:codex] write-capable request reached Gambit provider.',
-    '[smoke:gemini] write-capable request reached Gambit provider.',
+  'veyra.veyra/implement': [
+    '[smoke:claude] write-capable request reached Veyra provider.',
+    '[smoke:codex] write-capable request reached Veyra provider.',
+    '[smoke:gemini] write-capable request reached Veyra provider.',
   ],
-  'gambit.claude': [
-    '[smoke:claude] write-capable request reached Gambit provider.',
+  'veyra.claude': [
+    '[smoke:claude] write-capable request reached Veyra provider.',
   ],
-  'gambit.codex': [
-    '[smoke:codex] write-capable request reached Gambit provider.',
+  'veyra.codex': [
+    '[smoke:codex] write-capable request reached Veyra provider.',
   ],
-  'gambit.gemini': [
-    '[smoke:gemini] write-capable request reached Gambit provider.',
+  'veyra.gemini': [
+    '[smoke:gemini] write-capable request reached Veyra provider.',
   ],
 };
 
-const readOnlySmokeLanguageModels = new Set(['gambit-review', 'gambit-debate']);
-const readOnlySmokeNativeChatRequests = new Set(['gambit.gambit/review', 'gambit.gambit/debate']);
+const readOnlySmokeLanguageModels = new Set(['veyra-review', 'veyra-debate']);
+const readOnlySmokeNativeChatRequests = new Set(['veyra.veyra/review', 'veyra.veyra/debate']);
 const smokeAgentEditFiles = {
-  claude: 'src/gambit-smoke-claude.ts',
-  codex: 'src/gambit-smoke-codex.ts',
-  gemini: 'src/gambit-smoke-gemini.ts',
+  claude: 'src/veyra-smoke-claude.ts',
+  codex: 'src/veyra-smoke-codex.ts',
+  gemini: 'src/veyra-smoke-gemini.ts',
 };
-const smokeConflictFilePath = 'src/gambit-smoke-conflict.ts';
+const smokeConflictFilePath = 'src/veyra-smoke-conflict.ts';
 const smokeAgentLabels = {
   claude: 'Claude',
   codex: 'Codex',
@@ -239,30 +239,30 @@ const requiredSharedContextMarkers = [
 const requiredToolContextMarker = '[smoke:codex] saw VS Code request tool workspaceSearch in provider context.';
 const requiredModelOptionsContextMarker = '[smoke:codex] saw VS Code model option temperature in provider context.';
 const requiredSmokeNativeVisibleEditEvidence = {
-  'gambit.gambit': ['codex'],
-  'gambit.gambit/implement': ['claude', 'codex', 'gemini'],
-  'gambit.claude': ['claude'],
-  'gambit.codex': ['codex'],
-  'gambit.gemini': ['gemini'],
+  'veyra.veyra': ['codex'],
+  'veyra.veyra/implement': ['claude', 'codex', 'gemini'],
+  'veyra.claude': ['claude'],
+  'veyra.codex': ['codex'],
+  'veyra.gemini': ['gemini'],
 };
 const requiredSmokeLanguageModelVisibleEditEvidence = {
-  'gambit-orchestrator': ['codex'],
-  'gambit-implement': ['claude', 'codex', 'gemini'],
-  'gambit-claude': ['claude'],
-  'gambit-codex': ['codex'],
-  'gambit-gemini': ['gemini'],
+  'veyra-orchestrator': ['codex'],
+  'veyra-implement': ['claude', 'codex', 'gemini'],
+  'veyra-claude': ['claude'],
+  'veyra-codex': ['codex'],
+  'veyra-gemini': ['gemini'],
 };
 
 export function validateSmokeResultContent(content) {
   const requiredCommands = [
-    'gambit.checkStatus',
-    'gambit.openPanel',
-    'gambit.showSetupGuide',
-    'gambit.showLiveValidationGuide',
-    'gambit.configureCliPaths',
-    'gambit.installCommitHook',
-    'gambit.uninstallCommitHook',
-    'gambit.showCommitHookSnippet',
+    'veyra.checkStatus',
+    'veyra.openPanel',
+    'veyra.showSetupGuide',
+    'veyra.showLiveValidationGuide',
+    'veyra.configureCliPaths',
+    'veyra.installCommitHook',
+    'veyra.uninstallCommitHook',
+    'veyra.showCommitHookSnippet',
   ];
   const errors = [];
   let result;
@@ -275,8 +275,8 @@ export function validateSmokeResultContent(content) {
   if (result.ok !== true) {
     errors.push('Smoke result did not report ok: true.');
   }
-  if (result.extensionId !== 'dontcallmejames.gambit-vscode') {
-    errors.push('Smoke result did not report extensionId dontcallmejames.gambit-vscode.');
+  if (result.extensionId !== 'dontcallmejames.veyra-vscode') {
+    errors.push('Smoke result did not report extensionId dontcallmejames.veyra-vscode.');
   }
 
   const executed = new Set(Array.isArray(result.executedCommands) ? result.executedCommands : []);
@@ -350,8 +350,8 @@ export function validateSmokeResultContent(content) {
     if (readOnlySmokeNativeChatRequests.has(requestKey) && containsSmokeEditFilePath(responseText)) {
       errors.push(`Unexpected native chat response evidence: ${requestKey} surfaced smoke edit evidence during a read-only workflow.`);
     }
-    if (containsGambitInternalStatePath(responseText)) {
-      errors.push(`Unexpected native chat response evidence: ${requestKey} exposed Gambit internal state path.`);
+    if (containsVeyraInternalStatePath(responseText)) {
+      errors.push(`Unexpected native chat response evidence: ${requestKey} exposed Veyra internal state path.`);
     }
     for (const agentId of requiredSmokeNativeVisibleEditEvidence[requestKey] ?? []) {
       const missingEvidence = missingNativeSmokeEditEvidence(requestKey, agentId, responseText);
@@ -378,8 +378,8 @@ export function validateSmokeResultContent(content) {
       if (readOnlySmokeLanguageModels.has(modelId) && containsSmokeEditFilePath(responseText)) {
         errors.push(`Unexpected language model response evidence: ${modelId} surfaced smoke edit evidence during a read-only workflow.`);
       }
-      if (containsGambitInternalStatePath(responseText)) {
-        errors.push(`Unexpected language model response evidence: ${modelId} exposed Gambit internal state path.`);
+      if (containsVeyraInternalStatePath(responseText)) {
+        errors.push(`Unexpected language model response evidence: ${modelId} exposed Veyra internal state path.`);
       }
       for (const agentId of requiredSmokeLanguageModelVisibleEditEvidence[modelId] ?? []) {
         const missingEvidence = missingLanguageModelSmokeEditEvidence(modelId, agentId, responseText);
@@ -409,8 +409,8 @@ export function validateSmokeResultContent(content) {
   if (result.commitHookLifecycle?.commitMessageAttributed !== true) {
     errors.push('Missing commit hook commit-message attribution evidence.');
   }
-  if (result.uiEvidence?.gambitPanelOpened !== true) {
-    errors.push('Missing Gambit panel-open evidence.');
+  if (result.uiEvidence?.veyraPanelOpened !== true) {
+    errors.push('Missing Veyra panel-open evidence.');
   }
   validateEditConflictEvidence(result.editConflictEvidence, errors);
   validateSharedContextEvidence(result.sharedContextEvidence, errors);
@@ -418,8 +418,8 @@ export function validateSmokeResultContent(content) {
   return errors;
 }
 
-function containsGambitInternalStatePath(value) {
-  return value.includes('.vscode/gambit/') || value.includes('.vscode\\gambit\\');
+function containsVeyraInternalStatePath(value) {
+  return value.includes('.vscode/veyra/') || value.includes('.vscode\\veyra\\');
 }
 
 function containsSmokeEditFilePath(value) {

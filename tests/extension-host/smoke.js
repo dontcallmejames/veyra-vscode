@@ -4,7 +4,7 @@ const { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } = require('
 const path = require('node:path');
 const vscode = require('vscode');
 
-const EXTENSION_ID = 'dontcallmejames.gambit-vscode';
+const EXTENSION_ID = 'dontcallmejames.veyra-vscode';
 
 async function run() {
   const executedCommands = [];
@@ -13,18 +13,18 @@ async function run() {
   assert.ok(extension, `Expected ${EXTENSION_ID} to be loaded as the development extension.`);
 
   await extension.activate();
-  assert.equal(extension.isActive, true, 'Gambit extension should activate in the Extension Development Host.');
+  assert.equal(extension.isActive, true, 'Veyra extension should activate in the Extension Development Host.');
 
   const commands = await vscode.commands.getCommands(true);
   for (const command of [
-    'gambit.openPanel',
-    'gambit.checkStatus',
-    'gambit.showSetupGuide',
-    'gambit.showLiveValidationGuide',
-    'gambit.configureCliPaths',
-    'gambit.installCommitHook',
-    'gambit.uninstallCommitHook',
-    'gambit.showCommitHookSnippet',
+    'veyra.openPanel',
+    'veyra.checkStatus',
+    'veyra.showSetupGuide',
+    'veyra.showLiveValidationGuide',
+    'veyra.configureCliPaths',
+    'veyra.installCommitHook',
+    'veyra.uninstallCommitHook',
+    'veyra.showCommitHookSnippet',
   ]) {
     assert.ok(commands.includes(command), `Expected command ${command} to be registered.`);
   }
@@ -36,10 +36,10 @@ async function run() {
       commands: (participant.commands ?? []).map((command) => command.name),
     })),
     [
-      { id: 'gambit.gambit', name: 'gambit', commands: ['review', 'debate', 'implement'] },
-      { id: 'gambit.claude', name: 'claude', commands: [] },
-      { id: 'gambit.codex', name: 'codex', commands: [] },
-      { id: 'gambit.gemini', name: 'gemini', commands: [] },
+      { id: 'veyra.veyra', name: 'veyra', commands: ['review', 'debate', 'implement'] },
+      { id: 'veyra.claude', name: 'claude', commands: [] },
+      { id: 'veyra.codex', name: 'codex', commands: [] },
+      { id: 'veyra.gemini', name: 'gemini', commands: [] },
     ],
     'Expected all native chat participants to be contributed.',
   );
@@ -49,31 +49,31 @@ async function run() {
     commands: (participant.commands ?? []).map((command) => command.name),
   }));
   const smokeDiagnostics = await withTimeout(
-    vscode.commands.executeCommand('gambit.internalSmokeDiagnostics'),
+    vscode.commands.executeCommand('veyra.internalSmokeDiagnostics'),
     10_000,
-    'Timed out collecting Gambit internal smoke diagnostics.',
+    'Timed out collecting Veyra internal smoke diagnostics.',
   );
 
-  const models = await vscode.lm.selectChatModels({ vendor: 'gambit' });
+  const models = await vscode.lm.selectChatModels({ vendor: 'veyra' });
   assert.deepEqual(
     models.map((model) => model.id).sort(),
     [
-      'gambit-claude',
-      'gambit-codex',
-      'gambit-debate',
-      'gambit-gemini',
-      'gambit-implement',
-      'gambit-orchestrator',
-      'gambit-review',
+      'veyra-claude',
+      'veyra-codex',
+      'veyra-debate',
+      'veyra-gemini',
+      'veyra-implement',
+      'veyra-orchestrator',
+      'veyra-review',
     ],
-    'Expected all Gambit language models to be selectable.',
+    'Expected all Veyra language models to be selectable.',
   );
   const languageModelTokenCounts = {};
   const languageModelMetadata = {};
   const languageModelResponses = {};
   for (const model of models) {
     const count = await withTimeout(
-      model.countTokens('Gambit provider smoke token count'),
+      model.countTokens('Veyra provider smoke token count'),
       10_000,
       `Timed out counting tokens for ${model.id} in the Extension Development Host.`,
     );
@@ -88,27 +88,27 @@ async function run() {
     };
     languageModelResponses[model.id] = await collectLanguageModelResponse(model);
   }
-  const implementModel = models.find((model) => model.id === 'gambit-implement');
-  assert.ok(implementModel, 'Expected gambit-implement language model for edit conflict smoke validation.');
-  const orchestratorModel = models.find((model) => model.id === 'gambit-orchestrator');
-  assert.ok(orchestratorModel, 'Expected gambit-orchestrator language model for request-tool context smoke validation.');
+  const implementModel = models.find((model) => model.id === 'veyra-implement');
+  assert.ok(implementModel, 'Expected veyra-implement language model for edit conflict smoke validation.');
+  const orchestratorModel = models.find((model) => model.id === 'veyra-orchestrator');
+  assert.ok(orchestratorModel, 'Expected veyra-orchestrator language model for request-tool context smoke validation.');
   const editConflictEvidence = {
-    nativeChat: smokeDiagnostics.nativeChatResponses?.['gambit.gambit/conflict'] ?? '',
+    nativeChat: smokeDiagnostics.nativeChatResponses?.['veyra.veyra/conflict'] ?? '',
     languageModel: await collectLanguageModelResponse(
       implementModel,
-      'Gambit Language Model edit conflict smoke request. [gambit-smoke-conflict]',
+      'Veyra Language Model edit conflict smoke request. [veyra-smoke-conflict]',
     ),
   };
   const sharedContextEvidence = {
-    nativeChat: smokeDiagnostics.nativeChatResponses?.['gambit.gambit/shared-context'] ?? '',
+    nativeChat: smokeDiagnostics.nativeChatResponses?.['veyra.veyra/shared-context'] ?? '',
     languageModel: await collectLanguageModelResponse(
       implementModel,
-      'Gambit Language Model shared context smoke request. [gambit-smoke-shared-context]',
+      'Veyra Language Model shared context smoke request. [veyra-smoke-shared-context]',
     ),
   };
   const languageModelToolContextEvidence = await collectLanguageModelResponse(
     orchestratorModel,
-    'Gambit Language Model request-tool context smoke request. [gambit-smoke-tool-context]',
+    'Veyra Language Model request-tool context smoke request. [veyra-smoke-tool-context]',
     {
       modelOptions: {
         temperature: 0.2,
@@ -130,12 +130,12 @@ async function run() {
   );
 
   for (const command of [
-    'gambit.checkStatus',
-    'gambit.openPanel',
-    'gambit.showSetupGuide',
-    'gambit.showLiveValidationGuide',
-    'gambit.configureCliPaths',
-    'gambit.showCommitHookSnippet',
+    'veyra.checkStatus',
+    'veyra.openPanel',
+    'veyra.showSetupGuide',
+    'veyra.showLiveValidationGuide',
+    'veyra.configureCliPaths',
+    'veyra.showCommitHookSnippet',
   ]) {
     await withTimeout(
       vscode.commands.executeCommand(command),
@@ -143,22 +143,22 @@ async function run() {
       `Timed out executing ${command} in the Extension Development Host.`,
     );
     executedCommands.push(command);
-    if (command === 'gambit.openPanel') {
-      uiEvidence.gambitPanelOpened = await waitFor(
-        () => hasOpenTabLabel('Gambit'),
+    if (command === 'veyra.openPanel') {
+      uiEvidence.veyraPanelOpened = await waitFor(
+        () => hasOpenTabLabel('Veyra'),
         5_000,
-        'Timed out waiting for the Gambit webview tab to open.',
+        'Timed out waiting for the Veyra webview tab to open.',
       );
-      assert.equal(uiEvidence.gambitPanelOpened, true, 'Expected Gambit: Open Panel to create a Gambit webview tab.');
+      assert.equal(uiEvidence.veyraPanelOpened, true, 'Expected Veyra: Open Panel to create a Veyra webview tab.');
     }
   }
 
   const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   assert.ok(workspacePath, 'Expected smoke test workspace folder to be open.');
   const hookPath = path.join(workspacePath, '.git', 'hooks', 'prepare-commit-msg');
-  const activeDispatchPath = path.join(workspacePath, '.vscode', 'gambit', 'active-dispatch');
+  const activeDispatchPath = path.join(workspacePath, '.vscode', 'veyra', 'active-dispatch');
   const dispatchSentinelObserved = await observeActiveDispatchSentinel(
-    models.find((model) => model.id === 'gambit-codex'),
+    models.find((model) => model.id === 'veyra-codex'),
     activeDispatchPath,
   );
   const dispatchSentinelCleared = await waitFor(
@@ -167,27 +167,27 @@ async function run() {
     'Timed out waiting for the active dispatch sentinel to clear after the smoke request.',
   );
   await withTimeout(
-    vscode.commands.executeCommand('gambit.installCommitHook'),
+    vscode.commands.executeCommand('veyra.installCommitHook'),
     10_000,
-    'Timed out executing gambit.installCommitHook in the Extension Development Host.',
+    'Timed out executing veyra.installCommitHook in the Extension Development Host.',
   );
-  executedCommands.push('gambit.installCommitHook');
+  executedCommands.push('veyra.installCommitHook');
   const installed = existsSync(hookPath);
   const commitMessageAttributed = installed
     ? verifyCommitHookAttribution(workspacePath, activeDispatchPath)
     : false;
 
   await withTimeout(
-    vscode.commands.executeCommand('gambit.uninstallCommitHook'),
+    vscode.commands.executeCommand('veyra.uninstallCommitHook'),
     10_000,
-    'Timed out executing gambit.uninstallCommitHook in the Extension Development Host.',
+    'Timed out executing veyra.uninstallCommitHook in the Extension Development Host.',
   );
-  executedCommands.push('gambit.uninstallCommitHook');
+  executedCommands.push('veyra.uninstallCommitHook');
   const removed = !existsSync(hookPath);
 
-  if (process.env.VSCODE_GAMBIT_SMOKE_RESULT) {
+  if (process.env.VSCODE_VEYRA_SMOKE_RESULT) {
     writeFileSync(
-      process.env.VSCODE_GAMBIT_SMOKE_RESULT,
+      process.env.VSCODE_VEYRA_SMOKE_RESULT,
       JSON.stringify({
         ok: true,
         extensionId: EXTENSION_ID,
@@ -240,15 +240,15 @@ function withTimeout(promise, timeoutMs, message) {
 }
 
 async function observeActiveDispatchSentinel(model, activeDispatchPath) {
-  assert.ok(model, 'Expected the gambit-codex language model to be available for sentinel smoke validation.');
+  assert.ok(model, 'Expected the veyra-codex language model to be available for sentinel smoke validation.');
   const cts = new vscode.CancellationTokenSource();
   try {
     const responsePromise = model.sendRequest(
       [
-        vscode.LanguageModelChatMessage.User('Gambit active-dispatch sentinel smoke request.'),
+        vscode.LanguageModelChatMessage.User('Veyra active-dispatch sentinel smoke request.'),
       ],
       {
-        justification: 'Validate Gambit active dispatch sentinel lifecycle in an Extension Development Host smoke test.',
+        justification: 'Validate Veyra active dispatch sentinel lifecycle in an Extension Development Host smoke test.',
       },
       cts.token,
     );
@@ -287,30 +287,30 @@ async function observeActiveDispatchSentinel(model, activeDispatchPath) {
 function verifyCommitHookAttribution(workspacePath, activeDispatchPath) {
   try {
     execFileSync('git', ['-C', workspacePath, 'init'], { stdio: 'pipe' });
-    execFileSync('git', ['-C', workspacePath, 'config', 'user.name', 'Gambit Smoke'], { stdio: 'pipe' });
-    execFileSync('git', ['-C', workspacePath, 'config', 'user.email', 'gambit-smoke@local'], { stdio: 'pipe' });
+    execFileSync('git', ['-C', workspacePath, 'config', 'user.name', 'Veyra Smoke'], { stdio: 'pipe' });
+    execFileSync('git', ['-C', workspacePath, 'config', 'user.email', 'veyra-smoke@local'], { stdio: 'pipe' });
 
     mkdirSync(path.dirname(activeDispatchPath), { recursive: true });
     writeFileSync(activeDispatchPath, 'codex\n');
 
-    const relativeFile = 'gambit-smoke-commit.txt';
-    writeFileSync(path.join(workspacePath, relativeFile), `Gambit smoke commit ${Date.now()}\n`);
+    const relativeFile = 'veyra-smoke-commit.txt';
+    writeFileSync(path.join(workspacePath, relativeFile), `Veyra smoke commit ${Date.now()}\n`);
     execFileSync('git', ['-C', workspacePath, 'add', relativeFile], { stdio: 'pipe' });
-    execFileSync('git', ['-C', workspacePath, 'commit', '-m', 'Gambit smoke commit'], {
+    execFileSync('git', ['-C', workspacePath, 'commit', '-m', 'Veyra smoke commit'], {
       stdio: 'pipe',
       env: {
         ...process.env,
-        GIT_AUTHOR_NAME: 'Gambit Smoke',
-        GIT_AUTHOR_EMAIL: 'gambit-smoke@local',
-        GIT_COMMITTER_NAME: 'Gambit Smoke',
-        GIT_COMMITTER_EMAIL: 'gambit-smoke@local',
+        GIT_AUTHOR_NAME: 'Veyra Smoke',
+        GIT_AUTHOR_EMAIL: 'veyra-smoke@local',
+        GIT_COMMITTER_NAME: 'Veyra Smoke',
+        GIT_COMMITTER_EMAIL: 'veyra-smoke@local',
       },
     });
     const commitBody = execFileSync('git', ['-C', workspacePath, 'log', '-1', '--pretty=%B'], {
       encoding: 'utf8',
       stdio: 'pipe',
     });
-    return commitBody.includes('Co-Authored-By: Gambit (codex) <gambit@local>');
+    return commitBody.includes('Co-Authored-By: Veyra (codex) <veyra@local>');
   } catch {
     return false;
   } finally {
@@ -320,7 +320,7 @@ function verifyCommitHookAttribution(workspacePath, activeDispatchPath) {
 
 async function collectLanguageModelResponse(
   model,
-  prompt = `Gambit Extension Host smoke request for ${model.id}.`,
+  prompt = `Veyra Extension Host smoke request for ${model.id}.`,
   requestOptions = {},
 ) {
   const cts = new vscode.CancellationTokenSource();
@@ -331,7 +331,7 @@ async function collectLanguageModelResponse(
           vscode.LanguageModelChatMessage.User(prompt),
         ],
         {
-          justification: 'Validate the Gambit language model provider in an Extension Development Host smoke test.',
+          justification: 'Validate the Veyra language model provider in an Extension Development Host smoke test.',
           ...requestOptions,
         },
         cts.token,

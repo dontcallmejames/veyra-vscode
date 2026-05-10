@@ -112,14 +112,14 @@ describe('SystemNotice', () => {
       id: 's6',
       role: 'system',
       kind: 'routing-needed',
-      text: 'Codex files are inaccessible. You can also run Gambit: Show setup guide or Gambit: Show live validation guide.',
+      text: 'Codex files are inaccessible. You can also run Veyra: Show setup guide or Veyra: Show live validation guide.',
       timestamp: 100,
     };
 
     const vnode = SystemNotice({ message, send });
     const button = findButtons(vnode).find((candidate) => flattenText(candidate).trim() === 'Open live validation guide');
 
-    expect(flattenText(vnode)).toContain('Gambit: Show live validation guide');
+    expect(flattenText(vnode)).toContain('Veyra: Show live validation guide');
     expect(button).toBeDefined();
 
     button!.props.onClick();
@@ -133,14 +133,14 @@ describe('SystemNotice', () => {
       id: 's8',
       role: 'system',
       kind: 'routing-needed',
-      text: 'Codex is not installed. Run Gambit: Show setup guide, then retry.',
+      text: 'Codex is not installed. Run Veyra: Show setup guide, then retry.',
       timestamp: 100,
     };
 
     const vnode = SystemNotice({ message, send });
     const button = findButtons(vnode).find((candidate) => flattenText(candidate).trim() === 'Open setup guide');
 
-    expect(flattenText(vnode)).toContain('Gambit: Show setup guide');
+    expect(flattenText(vnode)).toContain('Veyra: Show setup guide');
     expect(button).toBeDefined();
 
     button!.props.onClick();
@@ -154,14 +154,14 @@ describe('SystemNotice', () => {
       id: 's7',
       role: 'system',
       kind: 'routing-needed',
-      text: 'Codex files are inaccessible. Run Gambit: Configure Codex/Gemini CLI paths, then retry.',
+      text: 'Codex files are inaccessible. Run Veyra: Configure Codex/Gemini CLI paths, then retry.',
       timestamp: 100,
     };
 
     const vnode = SystemNotice({ message, send });
     const button = findButtons(vnode).find((candidate) => flattenText(candidate).trim() === 'Configure CLI paths');
 
-    expect(flattenText(vnode)).toContain('Gambit: Configure Codex/Gemini CLI paths');
+    expect(flattenText(vnode)).toContain('Veyra: Configure Codex/Gemini CLI paths');
     expect(button).toBeDefined();
 
     button!.props.onClick();
