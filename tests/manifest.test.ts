@@ -54,6 +54,8 @@ describe('extension manifest', () => {
     const manifestRecord = manifest as Record<string, unknown>;
     const icon = readFileSync(join(process.cwd(), 'resources', 'icon.png'));
 
+    expect(manifest.name).toBe('gambit-vscode');
+    expect(manifest.displayName).toBe('Gambit');
     expect(manifestRecord.private).toBeUndefined();
     expect(manifest.preview).toBe(true);
     expect(manifest.license).toBe('SEE LICENSE IN LICENSE.txt');

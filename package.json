@@ -1,5 +1,5 @@
 {
-  "name": "gambit",
+  "name": "gambit-vscode",
   "displayName": "Gambit",
   "description": "Gambit routes Claude, Codex, and Gemini through VS Code Chat and the Language Model provider.",
   "version": "0.0.1",

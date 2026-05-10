@@ -4,7 +4,7 @@ const { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } = require('
 const path = require('node:path');
 const vscode = require('vscode');
 
-const EXTENSION_ID = 'dontcallmejames.gambit';
+const EXTENSION_ID = 'dontcallmejames.gambit-vscode';
 
 async function run() {
   const executedCommands = [];

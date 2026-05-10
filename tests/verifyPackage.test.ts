@@ -128,12 +128,12 @@ describe('verify-package script', () => {
     const { contentTypesXml, createVsixManifest, vsixEntriesForPackage, vsixFileName } =
       await vsixPackagerModule();
 
-    expect(vsixFileName({ name: 'gambit', version: '0.0.1' })).toBe('gambit-0.0.1.vsix');
+    expect(vsixFileName({ name: 'gambit-vscode', version: '0.0.1' })).toBe('gambit-vscode-0.0.1.vsix');
     expect(vsixEntriesForPackage(allowedPackageFiles)).toContain('extension/package.json');
     expect(vsixEntriesForPackage(allowedPackageFiles)).toContain('extension/dist/extension.js');
 
     const manifest = createVsixManifest({
-      name: 'gambit',
+      name: 'gambit-vscode',
       displayName: 'Gambit',
       description: 'Routes agents through VS Code.',
       publisher: 'dontcallmejames',
@@ -143,7 +143,7 @@ describe('verify-package script', () => {
       categories: ['Other'],
       engines: { vscode: '^1.118.0' },
     });
-    expect(manifest).toContain('Id="gambit"');
+    expect(manifest).toContain('Id="gambit-vscode"');
     expect(manifest).toContain('Version="0.0.1"');
     expect(manifest).toContain('Publisher="dontcallmejames"');
     expect(manifest).toContain('Path="extension/package.json"');

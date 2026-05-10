@@ -275,8 +275,8 @@ export function validateSmokeResultContent(content) {
   if (result.ok !== true) {
     errors.push('Smoke result did not report ok: true.');
   }
-  if (result.extensionId !== 'dontcallmejames.gambit') {
-    errors.push('Smoke result did not report extensionId dontcallmejames.gambit.');
+  if (result.extensionId !== 'dontcallmejames.gambit-vscode') {
+    errors.push('Smoke result did not report extensionId dontcallmejames.gambit-vscode.');
   }
 
   const executed = new Set(Array.isArray(result.executedCommands) ? result.executedCommands : []);

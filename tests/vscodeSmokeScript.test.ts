@@ -178,7 +178,7 @@ describe('VS Code smoke runner script', () => {
 
     const completeSmokeResult = {
       ok: true,
-      extensionId: 'dontcallmejames.gambit',
+      extensionId: 'dontcallmejames.gambit-vscode',
       executedCommands: [
         'gambit.checkStatus',
         'gambit.openPanel',
@@ -456,13 +456,13 @@ describe('VS Code smoke runner script', () => {
 
     expect(validateSmokeResultContent(JSON.stringify({
       ok: true,
-      extensionId: 'dontcallmejames.gambit',
+      extensionId: 'dontcallmejames.gambit-vscode',
       executedCommands: ['gambit.showSetupGuide'],
     }))).toContain('Missing smoke command execution: gambit.checkStatus');
 
     expect(validateSmokeResultContent(JSON.stringify({
       ok: true,
-      extensionId: 'dontcallmejames.gambit',
+      extensionId: 'dontcallmejames.gambit-vscode',
       executedCommands: [
         'gambit.checkStatus',
         'gambit.openPanel',
@@ -481,7 +481,7 @@ describe('VS Code smoke runner script', () => {
 
     expect(validateSmokeResultContent(JSON.stringify({
       ok: true,
-      extensionId: 'dontcallmejames.gambit',
+      extensionId: 'dontcallmejames.gambit-vscode',
       executedCommands: [
         'gambit.checkStatus',
         'gambit.openPanel',
@@ -495,7 +495,7 @@ describe('VS Code smoke runner script', () => {
 
     expect(validateSmokeResultContent(JSON.stringify({
       ok: true,
-      extensionId: 'dontcallmejames.gambit',
+      extensionId: 'dontcallmejames.gambit-vscode',
       executedCommands: [
         'gambit.checkStatus',
         'gambit.openPanel',
@@ -518,7 +518,7 @@ describe('VS Code smoke runner script', () => {
 
     expect(validateSmokeResultContent(JSON.stringify({
       ok: true,
-      extensionId: 'dontcallmejames.gambit',
+      extensionId: 'dontcallmejames.gambit-vscode',
       executedCommands: [
         'gambit.checkStatus',
         'gambit.openPanel',
@@ -581,7 +581,7 @@ describe('VS Code smoke runner script', () => {
 
     expect(validateSmokeResultContent(JSON.stringify({
       ok: true,
-      extensionId: 'dontcallmejames.gambit',
+      extensionId: 'dontcallmejames.gambit-vscode',
       executedCommands: [
         'gambit.checkStatus',
         'gambit.openPanel',
@@ -663,7 +663,7 @@ describe('VS Code smoke runner script', () => {
 
     expect(validateSmokeResultContent(JSON.stringify({
       ok: true,
-      extensionId: 'dontcallmejames.gambit',
+      extensionId: 'dontcallmejames.gambit-vscode',
       executedCommands: [
         'gambit.checkStatus',
         'gambit.openPanel',
@@ -759,7 +759,7 @@ describe('VS Code smoke runner script', () => {
 
     expect(validateSmokeResultContent(JSON.stringify({
       ok: true,
-      extensionId: 'dontcallmejames.gambit',
+      extensionId: 'dontcallmejames.gambit-vscode',
       executedCommands: [
         'gambit.checkStatus',
         'gambit.openPanel',
@@ -864,7 +864,7 @@ describe('VS Code smoke runner script', () => {
 
     expect(validateSmokeResultContent(JSON.stringify({
       ok: true,
-      extensionId: 'dontcallmejames.gambit',
+      extensionId: 'dontcallmejames.gambit-vscode',
       executedCommands: [
         'gambit.checkStatus',
         'gambit.openPanel',
@@ -971,7 +971,7 @@ describe('VS Code smoke runner script', () => {
 
     expect(validateSmokeResultContent(JSON.stringify({
       ok: true,
-      extensionId: 'dontcallmejames.gambit',
+      extensionId: 'dontcallmejames.gambit-vscode',
       executedCommands: [
         'gambit.checkStatus',
         'gambit.openPanel',
