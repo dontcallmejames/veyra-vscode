@@ -178,6 +178,20 @@ describe('ChatPanel', () => {
     );
   });
 
+  it('checkpoint actions from webview invoke checkpoint commands', async () => {
+    await ChatPanel.show(ctx);
+    const onDidReceive = (vscode as any).__test.onDidReceive.handler;
+
+    await onDidReceive({ kind: 'create-checkpoint', label: 'before experiment' });
+    await onDidReceive({ kind: 'rollback-latest-checkpoint' });
+
+    expect((vscode as any).commands.executeCommand).toHaveBeenCalledWith(
+      'veyra.createCheckpoint',
+      'before experiment',
+    );
+    expect((vscode as any).commands.executeCommand).toHaveBeenCalledWith('veyra.rollbackLatestCheckpoint');
+  });
+
   it('open-external from webview opens https URLs', async () => {
     await ChatPanel.show(ctx);
     const onDidReceive = (vscode as any).__test.onDidReceive.handler;

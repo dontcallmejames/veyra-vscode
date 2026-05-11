@@ -352,6 +352,63 @@ describe('Veyra language model provider helpers', () => {
     }));
   });
 
+  it('streams concise checkpoint notices from the shared service', async () => {
+    const context = { subscriptions: [] as Array<{ dispose(): void }> };
+    const service = {
+      dispatch: vi.fn(async (_request, emit) => {
+        await emit({
+          kind: 'system-message',
+          message: {
+            id: 'sys1',
+            role: 'system',
+            kind: 'checkpoint',
+            text: 'Checkpoint saved: Before Codex dispatch.',
+            timestamp: 1,
+            agentId: 'codex',
+            checkpoint: {
+              id: 'checkpoint-1',
+              timestamp: 1,
+              source: 'automatic',
+              label: 'Before Codex dispatch',
+              promptSummary: '@codex edit',
+              status: 'available',
+              fileCount: 1,
+            },
+          },
+        });
+      }),
+      cancelAll: vi.fn(),
+    };
+
+    registerVeyraLanguageModelProvider(
+      context as any,
+      () => ({ service, workspacePath: '/workspace' } as any),
+    );
+
+    const provider = vscodeMocks.registerLanguageModelChatProvider.mock.calls[0]?.[1] as {
+      provideLanguageModelChatResponse(
+        model: unknown,
+        messages: unknown[],
+        options: unknown,
+        progress: { report(value: unknown): void },
+        token: unknown,
+      ): Promise<void>;
+    };
+    const progress = { report: vi.fn() };
+
+    await provider.provideLanguageModelChatResponse(
+      VEYRA_LANGUAGE_MODELS[0],
+      [{ role: 1, name: undefined, content: [{ value: 'Implement this.' }] }],
+      {},
+      progress,
+      cancellationToken(),
+    );
+
+    expect(progress.report).toHaveBeenCalledWith(expect.objectContaining({
+      value: 'Veyra checkpoint: Checkpoint saved: Before Codex dispatch.',
+    }));
+  });
+
   it('does not dispatch empty language model prompts', async () => {
     const context = { subscriptions: [] as Array<{ dispose(): void }> };
     const service = {

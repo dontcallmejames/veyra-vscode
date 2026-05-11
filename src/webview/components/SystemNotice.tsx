@@ -29,6 +29,7 @@ export function SystemNotice({
   if (message.kind === 'edit-conflict') classes.push('edit-conflict');
   if (message.kind === 'file-edited') classes.push('file-edited');
   if (message.kind === 'change-set') classes.push('change-set');
+  if (message.kind === 'checkpoint') classes.push('checkpoint');
   if (message.kind === 'change-set' && message.changeSet) {
     const changeSet = message.changeSet;
     return (
@@ -71,6 +72,18 @@ export function SystemNotice({
             </button>
           </div>
         )}
+      </div>
+    );
+  }
+  if (message.kind === 'checkpoint' && message.checkpoint) {
+    return (
+      <div class={classes.join(' ')}>
+        <div>{message.text}</div>
+        <div class="checkpoint-meta">
+          <span>{message.checkpoint.source}</span>
+          <span>{message.checkpoint.status}</span>
+          <span>{message.checkpoint.fileCount} {message.checkpoint.fileCount === 1 ? 'file' : 'files'}</span>
+        </div>
       </div>
     );
   }

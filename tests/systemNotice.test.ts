@@ -239,6 +239,32 @@ describe('SystemNotice', () => {
       changeSetId: 'change-set-1',
     });
   });
+
+  it('renders checkpoint notices with checkpoint metadata', () => {
+    const message: SystemMessage = {
+      id: 'checkpoint-system-1',
+      role: 'system',
+      kind: 'checkpoint',
+      text: 'Checkpoint saved: Before Codex dispatch.',
+      timestamp: 1,
+      checkpoint: {
+        id: 'checkpoint-1',
+        timestamp: 1,
+        source: 'automatic',
+        label: 'Before Codex dispatch',
+        promptSummary: '@codex edit',
+        status: 'available',
+        fileCount: 1,
+      },
+    };
+
+    const text = flattenText(SystemNotice({ message }));
+
+    expect(text).toContain('Checkpoint saved');
+    expect(text).toContain('automatic');
+    expect(text).toContain('available');
+    expect(text).toContain('1 file');
+  });
 });
 
 function findButtons(vnode: any): any[] {

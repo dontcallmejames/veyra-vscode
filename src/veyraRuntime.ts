@@ -8,6 +8,7 @@ import { VeyraSessionService } from './veyraService.js';
 import { createWorkspaceChangeTracker } from './workspaceChanges.js';
 import { WorkspaceContextProvider, type WorkspaceContextOptions } from './workspaceContext.js';
 import { ChangeLedger, type ChangeLedgerOptions } from './changeLedger.js';
+import { CheckpointLedger, type CheckpointLedgerOptions } from './checkpointLedger.js';
 import type { FacilitatorDecision, FacilitatorFn } from './facilitator.js';
 import type { AgentRegistry } from './messageRouter.js';
 import type { Agent, SendOptions } from './agents/types.js';
@@ -257,8 +258,20 @@ export function readDiffPreviewOptions(): ChangeLedgerOptions {
   };
 }
 
+export function readCheckpointOptions(): CheckpointLedgerOptions {
+  const config = vscode.workspace.getConfiguration('veyra');
+  return {
+    maxFileBytes: config.get<number>('checkpoints.maxFileBytes', 1_000_000),
+    maxCount: config.get<number>('checkpoints.maxCount', 20),
+  };
+}
+
 function diffPreviewEnabled(): boolean {
   return vscode.workspace.getConfiguration('veyra').get<boolean>('diffPreview.enabled', true);
+}
+
+function checkpointsEnabled(): boolean {
+  return vscode.workspace.getConfiguration('veyra').get<boolean>('checkpoints.enabled', true);
 }
 
 export function createVeyraSessionService(
@@ -277,6 +290,9 @@ export function createVeyraSessionService(
       changeLedger: diffPreviewEnabled()
         ? new ChangeLedger(workspacePath, readDiffPreviewOptions())
         : undefined,
+      checkpointLedger: checkpointsEnabled()
+        ? new CheckpointLedger(workspacePath, readCheckpointOptions())
+        : undefined,
     },
   );
 }
@@ -291,6 +307,9 @@ export function refreshVeyraSessionOptions(
     workspaceContextProvider: new WorkspaceContextProvider(workspacePath, readWorkspaceContextOptions()),
     changeLedger: diffPreviewEnabled()
       ? new ChangeLedger(workspacePath, readDiffPreviewOptions())
+      : undefined,
+    checkpointLedger: checkpointsEnabled()
+      ? new CheckpointLedger(workspacePath, readCheckpointOptions())
       : undefined,
   });
 }

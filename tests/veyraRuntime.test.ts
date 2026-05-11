@@ -171,6 +171,11 @@ describe('Veyra runtime smoke agents', () => {
         createChangeSet: expect.any(Function),
         listPendingChangeSets: expect.any(Function),
       }),
+      checkpointLedger: expect.objectContaining({
+        createCheckpoint: expect.any(Function),
+        finalizeAutomaticCheckpoint: expect.any(Function),
+        rollbackLatestCheckpoint: expect.any(Function),
+      }),
     }));
   });
 

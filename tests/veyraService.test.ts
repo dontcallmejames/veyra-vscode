@@ -6,6 +6,7 @@ import { VeyraSessionService, toRoutedInput } from '../src/veyraService.js';
 import type { Agent } from '../src/agents/types.js';
 import type { AgentChunk, AgentId } from '../src/types.js';
 import type { ChangeLedger } from '../src/changeLedger.js';
+import type { CheckpointLedger } from '../src/checkpointLedger.js';
 import type { WorkspaceContextProvider, WorkspaceContextResult } from '../src/workspaceContext.js';
 
 describe('toRoutedInput', () => {
@@ -1076,6 +1077,140 @@ describe('VeyraSessionService', () => {
     });
   });
 
+  it('creates and finalizes an automatic checkpoint for write-capable agent changes', async () => {
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
+    const tracker = {
+      snapshot: vi.fn().mockResolvedValue('before-turn'),
+      changedFilesSince: vi.fn(),
+      changedFileChangesSince: vi.fn().mockResolvedValue([
+        { path: 'src/a.ts', changeKind: 'edited' },
+      ]),
+    };
+    const checkpointLedger = fakeCheckpointLedger();
+    const service = new VeyraSessionService(
+      workspacePath,
+      {
+        claude: {
+          id: 'claude',
+          status: async () => 'ready',
+          cancel: async () => {},
+          async *send() {
+            yield { type: 'text', text: 'edited it' } as AgentChunk;
+            yield { type: 'done' } as AgentChunk;
+          },
+        },
+        codex: agentNoop('codex'),
+        gemini: agentNoop('gemini'),
+      },
+      { workspaceChangeTracker: tracker, checkpointLedger } as any,
+    );
+
+    const events: any[] = [];
+    await service.dispatch(
+      { text: '@claude edit this', source: 'panel', cwd: workspacePath },
+      (event) => {
+        events.push(event);
+      },
+    );
+
+    expect(checkpointLedger.createCheckpoint).toHaveBeenCalledWith(expect.objectContaining({
+      source: 'automatic',
+      label: 'Before Claude dispatch',
+      agentId: 'claude',
+      promptSummary: expect.stringContaining('@claude'),
+    }));
+    expect(checkpointLedger.finalizeAutomaticCheckpoint).toHaveBeenCalledWith(
+      'checkpoint-1',
+      [{ path: 'src/a.ts', changeKind: 'edited' }],
+    );
+    const checkpointNotice = events.find((event) =>
+      event.kind === 'system-message' &&
+      event.message.kind === 'checkpoint'
+    );
+    expect(checkpointNotice?.message.text).toBe('Checkpoint saved: Before Claude dispatch.');
+    expect(checkpointNotice?.message.checkpoint).toMatchObject({
+      id: 'checkpoint-1',
+      source: 'automatic',
+      fileCount: 1,
+    });
+  });
+
+  it('does not create automatic checkpoints for read-only dispatches', async () => {
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
+    const tracker = {
+      snapshot: vi.fn().mockResolvedValue('before-turn'),
+      changedFilesSince: vi.fn(),
+      changedFileChangesSince: vi.fn().mockResolvedValue([
+        { path: 'src/a.ts', changeKind: 'edited' },
+      ]),
+    };
+    const checkpointLedger = fakeCheckpointLedger();
+    const service = new VeyraSessionService(
+      workspacePath,
+      {
+        claude: {
+          id: 'claude',
+          status: async () => 'ready',
+          cancel: async () => {},
+          async *send() {
+            yield { type: 'text', text: 'reviewed it' } as AgentChunk;
+            yield { type: 'done' } as AgentChunk;
+          },
+        },
+        codex: agentNoop('codex'),
+        gemini: agentNoop('gemini'),
+      },
+      { workspaceChangeTracker: tracker, checkpointLedger } as any,
+    );
+
+    await service.dispatch(
+      { text: '@claude review this', source: 'panel', cwd: workspacePath, readOnly: true },
+      () => {},
+    );
+
+    expect(checkpointLedger.createCheckpoint).not.toHaveBeenCalled();
+    expect(checkpointLedger.finalizeAutomaticCheckpoint).not.toHaveBeenCalled();
+  });
+
+  it('exposes manual checkpoint list preview and rollback service methods', async () => {
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
+    const checkpointLedger = fakeCheckpointLedger();
+    const service = new VeyraSessionService(
+      workspacePath,
+      {
+        claude: agentNoop('claude'),
+        codex: agentNoop('codex'),
+        gemini: agentNoop('gemini'),
+      },
+      { checkpointLedger } as any,
+    );
+
+    const created = await service.createManualCheckpoint('before experiment');
+    const listed = await service.listCheckpoints();
+    const preview = await service.previewLatestCheckpointRollback();
+    const rollback = await service.rollbackLatestCheckpoint();
+
+    expect(checkpointLedger.createCheckpoint).toHaveBeenCalledWith(expect.objectContaining({
+      source: 'manual',
+      label: 'before experiment',
+      promptSummary: 'manual checkpoint',
+    }));
+    expect(created).toMatchObject({ id: 'checkpoint-1', label: 'before experiment' });
+    expect(listed).toEqual([expect.objectContaining({ id: 'checkpoint-1' })]);
+    expect(preview).toEqual({
+      checkpointId: 'checkpoint-1',
+      status: 'ready',
+      files: [{ path: 'src/a.ts', changeKind: 'edited' }],
+      staleFiles: [],
+    });
+    expect(rollback).toEqual({
+      checkpointId: 'checkpoint-1',
+      status: 'rolled-back',
+      staleFiles: [],
+      restoredFiles: ['src/a.ts'],
+    });
+  });
+
   it('updates a tool-reported generic edit when workspace diff proves a specific change kind', async () => {
     const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
     const tracker = {
@@ -1656,6 +1791,64 @@ function fakeChangeLedger(
     rejectChangeSet: vi.fn(),
   };
   return changeLedger;
+}
+
+function fakeCheckpointLedger(): Pick<
+  CheckpointLedger,
+  'createCheckpoint' | 'finalizeAutomaticCheckpoint' | 'listCheckpoints' | 'latestCheckpoint' | 'previewLatestRollback' | 'rollbackLatestCheckpoint'
+> {
+  const checkpoint = {
+    id: 'checkpoint-1',
+    timestamp: 100,
+    source: 'automatic' as const,
+    label: 'Before Claude dispatch',
+    promptSummary: '@claude edit',
+    status: 'available' as const,
+    fileCount: 0,
+    files: [],
+    agentId: 'claude' as const,
+    messageId: 'msg1',
+  };
+  const finalized = {
+    ...checkpoint,
+    fileCount: 1,
+    rollbackFiles: [{
+      path: 'src/a.ts',
+      changeKind: 'edited' as const,
+      beforeExists: true,
+      afterExists: true,
+      beforeHash: 'before-hash',
+      afterHash: 'after-hash',
+      beforeSnapshotPath: '/checkpoint/src/a.ts',
+      canRollback: true,
+    }],
+  };
+  return {
+    createCheckpoint: vi.fn(async (input: any) => ({
+      ...checkpoint,
+      source: input.source,
+      label: input.label,
+      promptSummary: input.promptSummary,
+      agentId: input.agentId,
+      messageId: input.messageId,
+      timestamp: input.timestamp,
+    })),
+    finalizeAutomaticCheckpoint: vi.fn(async () => finalized),
+    listCheckpoints: vi.fn(async () => [checkpoint]),
+    latestCheckpoint: vi.fn(async () => checkpoint),
+    previewLatestRollback: vi.fn(async () => ({
+      checkpointId: 'checkpoint-1',
+      status: 'ready' as const,
+      files: [{ path: 'src/a.ts', changeKind: 'edited' as const }],
+      staleFiles: [],
+    })),
+    rollbackLatestCheckpoint: vi.fn(async () => ({
+      checkpointId: 'checkpoint-1',
+      status: 'rolled-back' as const,
+      staleFiles: [],
+      restoredFiles: ['src/a.ts'],
+    })),
+  };
 }
 
 function agentNoop(id: AgentId): Agent {

@@ -294,6 +294,9 @@ function reportLanguageModelEvent(
         `Veyra pending changes: ${agentLabel(changeSet.agentId)} changed ${formatFileCount(changeSet.fileCount)}. Use Veyra: Open Pending Changes to inspect.`,
       ));
       return true;
+    } else if (event.message.kind === 'checkpoint') {
+      progress.report(new vscode.LanguageModelTextPart(`Veyra checkpoint: ${event.message.text}`));
+      return true;
     } else if (event.message.kind === 'edit-conflict') {
       const text = linkWorkspaceFile(workspacePath, event.message.text, event.message.filePath);
       progress.report(new vscode.LanguageModelTextPart(`\n\n_Edit conflict: ${text}_`));

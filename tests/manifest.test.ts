@@ -309,6 +309,43 @@ describe('extension manifest', () => {
     expect(readme).toContain('veyra.diffPreview.maxFileBytes');
   });
 
+  it('contributes checkpoint commands and settings', () => {
+    const properties = manifest.contributes.configuration.properties;
+    const commands = new Map(manifest.contributes.commands.map((command) => [command.command, command.title]));
+    const readme = readFileSync(join(process.cwd(), 'README.md'), 'utf8');
+
+    expect(manifest.contributes.commands.map((command) => command.command)).toContain('veyra.createCheckpoint');
+    expect(manifest.contributes.commands.map((command) => command.command)).toContain('veyra.listCheckpoints');
+    expect(manifest.contributes.commands.map((command) => command.command)).toContain('veyra.rollbackLatestCheckpoint');
+    expect(commands.get('veyra.createCheckpoint')).toBe('Veyra: Create Checkpoint');
+    expect(commands.get('veyra.listCheckpoints')).toBe('Veyra: List Checkpoints');
+    expect(commands.get('veyra.rollbackLatestCheckpoint')).toBe('Veyra: Roll Back Latest Checkpoint');
+    expect(manifest.activationEvents).toContain('onCommand:veyra.createCheckpoint');
+    expect(manifest.activationEvents).toContain('onCommand:veyra.listCheckpoints');
+    expect(manifest.activationEvents).toContain('onCommand:veyra.rollbackLatestCheckpoint');
+    expect(properties['veyra.checkpoints.enabled']).toMatchObject({
+      type: 'boolean',
+      default: true,
+    });
+    expect(properties['veyra.checkpoints.maxFileBytes']).toMatchObject({
+      type: 'number',
+      default: 1000000,
+      minimum: 1024,
+    });
+    expect(properties['veyra.checkpoints.maxCount']).toMatchObject({
+      type: 'number',
+      default: 20,
+      minimum: 1,
+      maximum: 100,
+    });
+    expect(readme).toContain('Veyra: Create Checkpoint');
+    expect(readme).toContain('Veyra: List Checkpoints');
+    expect(readme).toContain('Veyra: Roll Back Latest Checkpoint');
+    expect(readme).toContain('veyra.checkpoints.enabled');
+    expect(readme).toContain('veyra.checkpoints.maxFileBytes');
+    expect(readme).toContain('veyra.checkpoints.maxCount');
+  });
+
   it('contributes command-palette entries for panel, status, and commit-hook operations', () => {
     expect(manifest.contributes.commands.map((command) => command.command)).toEqual([
       'veyra.openPanel',
@@ -322,6 +359,9 @@ describe('extension manifest', () => {
       'veyra.openPendingChanges',
       'veyra.acceptPendingChanges',
       'veyra.rejectPendingChanges',
+      'veyra.createCheckpoint',
+      'veyra.listCheckpoints',
+      'veyra.rollbackLatestCheckpoint',
     ]);
     expect(manifest.activationEvents).toContain('onCommand:veyra.checkStatus');
     expect(manifest.activationEvents).toContain('onCommand:veyra.showSetupGuide');

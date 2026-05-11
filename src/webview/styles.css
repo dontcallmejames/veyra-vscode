@@ -132,6 +132,9 @@ body {
   align-self: stretch;
   font-style: normal;
 }
+.system-notice.checkpoint {
+  font-style: normal;
+}
 .change-set-files {
   margin-top: 6px;
   display: flex;
@@ -154,6 +157,12 @@ body {
   margin-top: 6px;
   display: flex;
   gap: 10px;
+}
+.checkpoint-meta {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+  opacity: 0.7;
 }
 .file-edited-link {
   border: 0;

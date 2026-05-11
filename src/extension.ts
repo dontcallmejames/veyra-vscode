@@ -10,6 +10,7 @@ import { checkClaude, checkCodex, checkGemini, clearStatusCache } from './status
 import { detectCliBundlePaths } from './cliPathDetection.js';
 import { cliPathMisconfiguration, normalizeCliPathOverride } from './cliPathValidation.js';
 import { registerDiffPreviewCommands } from './diffPreviewCommands.js';
+import { registerCheckpointCommands } from './checkpointCommands.js';
 import type { NativeChatRegistration } from './nativeChat.js';
 import type { AgentStatus } from './types.js';
 import type { DetectedCliBundlePath } from './cliPathDetection.js';
@@ -276,6 +277,7 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   registerDiffPreviewCommands(context, () => ensureNativeRegistration()?.service);
+  registerCheckpointCommands(context, () => ensureNativeRegistration()?.service);
 
   const nativeChatRegistrations = registerNativeChatParticipants(context, ensureNativeRegistration);
   if (process.env.VSCODE_VEYRA_SMOKE === '1') {
