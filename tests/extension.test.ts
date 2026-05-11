@@ -12,6 +12,10 @@ const mocks = vi.hoisted(() => {
     changeSetDiffInputs: vi.fn(),
     acceptChangeSet: vi.fn(),
     rejectChangeSet: vi.fn(),
+    createManualCheckpoint: vi.fn(),
+    listCheckpoints: vi.fn(),
+    previewLatestCheckpointRollback: vi.fn(),
+    rollbackLatestCheckpoint: vi.fn(),
   };
   const smokeAgents = { id: 'smoke-agents' };
   const fileDecorationProviderDisposable = { dispose: vi.fn() };
@@ -108,6 +112,40 @@ const mocks = vi.hoisted(() => {
       this.service.rejectChangeSet.mockReset();
       this.service.rejectChangeSet.mockResolvedValue({
         status: 'rejected',
+        staleFiles: [],
+        restoredFiles: ['src/a.ts'],
+      });
+      this.service.createManualCheckpoint.mockReset();
+      this.service.createManualCheckpoint.mockResolvedValue({
+        id: 'checkpoint-1',
+        timestamp: 1,
+        source: 'manual',
+        label: 'Manual checkpoint',
+        promptSummary: 'manual checkpoint',
+        status: 'available',
+        fileCount: 1,
+      });
+      this.service.listCheckpoints.mockReset();
+      this.service.listCheckpoints.mockResolvedValue([{
+        id: 'checkpoint-1',
+        timestamp: 1,
+        source: 'manual',
+        label: 'Manual checkpoint',
+        promptSummary: 'manual checkpoint',
+        status: 'available',
+        fileCount: 1,
+      }]);
+      this.service.previewLatestCheckpointRollback.mockReset();
+      this.service.previewLatestCheckpointRollback.mockResolvedValue({
+        checkpointId: 'checkpoint-1',
+        status: 'ready',
+        files: [{ path: 'src/a.ts', changeKind: 'edited' }],
+        staleFiles: [],
+      });
+      this.service.rollbackLatestCheckpoint.mockReset();
+      this.service.rollbackLatestCheckpoint.mockResolvedValue({
+        checkpointId: 'checkpoint-1',
+        status: 'rolled-back',
         staleFiles: [],
         restoredFiles: ['src/a.ts'],
       });
@@ -241,6 +279,9 @@ describe('activate', () => {
       'veyra.openPendingChanges',
       'veyra.acceptPendingChanges',
       'veyra.rejectPendingChanges',
+      'veyra.createCheckpoint',
+      'veyra.listCheckpoints',
+      'veyra.rollbackLatestCheckpoint',
     ]);
     expect(mocks.registerNativeChatParticipants).toHaveBeenCalledWith(ctx, expect.any(Function));
     expect(mocks.registerVeyraLanguageModelProvider).toHaveBeenCalledWith(ctx, expect.any(Function));
@@ -282,6 +323,27 @@ describe('activate', () => {
 
     expect(mocks.service.acceptChangeSet).toHaveBeenCalledWith('change-set-1');
     expect(mocks.service.rejectChangeSet).toHaveBeenCalledWith('change-set-1');
+  });
+
+  it('creates lists and rolls back checkpoints through the active Veyra service', async () => {
+    mocks.showWarningMessage.mockResolvedValueOnce('Roll back');
+    activate(context() as any);
+
+    const createCheckpoint = mocks.commandCallbacks.get('veyra.createCheckpoint');
+    const listCheckpoints = mocks.commandCallbacks.get('veyra.listCheckpoints');
+    const rollbackLatestCheckpoint = mocks.commandCallbacks.get('veyra.rollbackLatestCheckpoint');
+    expect(createCheckpoint).toBeTypeOf('function');
+    expect(listCheckpoints).toBeTypeOf('function');
+    expect(rollbackLatestCheckpoint).toBeTypeOf('function');
+
+    await createCheckpoint!();
+    await listCheckpoints!();
+    await rollbackLatestCheckpoint!();
+
+    expect(mocks.service.createManualCheckpoint).toHaveBeenCalled();
+    expect(mocks.service.listCheckpoints).toHaveBeenCalled();
+    expect(mocks.service.previewLatestCheckpointRollback).toHaveBeenCalled();
+    expect(mocks.service.rollbackLatestCheckpoint).toHaveBeenCalled();
   });
 
   it('registers a workspace file watcher for context invalidation', () => {
