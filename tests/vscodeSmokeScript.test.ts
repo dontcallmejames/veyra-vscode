@@ -46,6 +46,7 @@ async function smokeScriptModule() {
       codeCommand: string,
       platform: NodeJS.Platform,
       execFile: (command: string, args: string[], options: unknown) => Buffer | string,
+      fileExists?: (path: string) => boolean,
     ): string;
     prepareSmokeDirectories(paths: SmokePaths): void;
     findMissingSmokePrerequisites(paths: SmokePaths, fileExists: (path: string) => boolean): string[];
@@ -125,6 +126,17 @@ describe('VS Code smoke runner script', () => {
     )).toBe('C:/Users/tester/AppData/Local/Programs/Microsoft VS Code/bin/code.cmd');
   });
 
+  it('prefers the Windows code command script when PATH resolves code to Code.exe', async () => {
+    const { resolveCodeCommand } = await smokeScriptModule();
+
+    expect(normalizePathText(resolveCodeCommand(
+      'code',
+      'win32',
+      () => 'C:/Users/tester/AppData/Local/Programs/Microsoft VS Code/Code.exe\r\n',
+      (path) => normalizePathText(path) === 'C:/Users/tester/AppData/Local/Programs/Microsoft VS Code/bin/code.cmd',
+    ))).toBe('C:/Users/tester/AppData/Local/Programs/Microsoft VS Code/bin/code.cmd');
+  });
+
   it('reports missing build and smoke-test artifacts before launching VS Code', async () => {
     const { findMissingSmokePrerequisites, smokePaths } = await smokeScriptModule();
     const paths = smokePaths('C:/repo/veyra');
@@ -150,6 +162,7 @@ describe('VS Code smoke runner script', () => {
       expect(existsSync(staleSessionPath)).toBe(false);
       expect(existsSync(paths.workspaceDir)).toBe(true);
       expect(existsSync(join(paths.workspaceDir, '.git'))).toBe(true);
+      expect(existsSync(join(paths.workspaceDir, '.git', 'HEAD'))).toBe(true);
       expect(existsSync(join(paths.workspaceDir, 'src', 'codebase-context-smoke.ts'))).toBe(true);
       expect(existsSync(paths.userDataDir)).toBe(true);
       expect(existsSync(paths.extensionsDir)).toBe(true);

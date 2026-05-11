@@ -1,7 +1,7 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 
 export function smokePaths(rootDir = process.cwd()) {
   const testRoot = join(rootDir, '.vscode-test');
@@ -65,7 +65,12 @@ export function buildCodeSpawnInvocation(codeCommand, args, platform = process.p
   };
 }
 
-export function resolveCodeCommand(codeCommand, platform = process.platform, execFile = execFileSync) {
+export function resolveCodeCommand(
+  codeCommand,
+  platform = process.platform,
+  execFile = execFileSync,
+  fileExists = existsSync,
+) {
   if (platform !== 'win32' || codeCommand !== 'code') return codeCommand;
 
   try {
@@ -74,7 +79,11 @@ export function resolveCodeCommand(codeCommand, platform = process.platform, exe
       ['-NoProfile', '-Command', '(Get-Command code -ErrorAction Stop).Source'],
       { encoding: 'utf8', windowsHide: true },
     ).toString().trim();
-    return source || codeCommand;
+    if (!source) return codeCommand;
+    if (!/^code\.exe$/i.test(basename(source))) return source;
+
+    const commandScript = join(dirname(source), 'bin', 'code.cmd');
+    return fileExists(commandScript) ? commandScript : source;
   } catch {
     return codeCommand;
   }
@@ -535,7 +544,7 @@ export function prepareSmokeDirectories(paths) {
   mkdirSync(paths.extensionsDir, { recursive: true });
   rmSync(paths.workspaceDir, { recursive: true, force: true });
   mkdirSync(paths.workspaceDir, { recursive: true });
-  mkdirSync(join(paths.workspaceDir, '.git'), { recursive: true });
+  execFileSync('git', ['init'], { cwd: paths.workspaceDir, stdio: 'ignore', windowsHide: true });
   mkdirSync(join(paths.workspaceDir, 'src'), { recursive: true });
   writeFileSync(
     join(paths.workspaceDir, 'src', 'codebase-context-smoke.ts'),
