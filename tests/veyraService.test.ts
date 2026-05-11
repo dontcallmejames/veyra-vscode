@@ -1812,7 +1812,16 @@ function fakeCheckpointLedger(): Pick<
   const finalized = {
     ...checkpoint,
     fileCount: 1,
-    rollbackFiles: [{ path: 'src/a.ts', changeKind: 'edited' as const }],
+    rollbackFiles: [{
+      path: 'src/a.ts',
+      changeKind: 'edited' as const,
+      beforeExists: true,
+      afterExists: true,
+      beforeHash: 'before-hash',
+      afterHash: 'after-hash',
+      beforeSnapshotPath: '/checkpoint/src/a.ts',
+      canRollback: true,
+    }],
   };
   return {
     createCheckpoint: vi.fn(async (input: any) => ({
