@@ -112,6 +112,14 @@ describe('parseFileMentions', () => {
     expect(r.remainingText).toBe('upgrade @anthropic-ai/claude-agent-sdk and @openai/codex');
   });
 
+  it('does not treat PowerShell array literals as file attachments', () => {
+    const input = "Codex used shell: $paths = @('package.json','tsconfig.json','bun.lockb','bun.lock','README.md')";
+    const r = parseFileMentions(input);
+
+    expect(r.filePaths).toEqual([]);
+    expect(r.remainingText).toBe(input);
+  });
+
   it('extracts extensionless workspace paths with slashes', () => {
     const r = parseFileMentions('review @src/schema and @config/app');
 

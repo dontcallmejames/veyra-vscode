@@ -67,7 +67,7 @@ export function parseFileMentions(input: string): ParsedFileMentions {
 function removeFileMentionsFromLine(line: string, filePaths: string[]): string {
   return line.replace(/(^|\s[\([{<`]|\s|[\([{<`])(@\S+)/g, (match, _boundary: string, token: string) => {
     const mention = normalizeFileMentionToken(token.slice(1));
-    if (!mention || !looksLikeFile(mention) || looksLikeScopedPackage(mention)) {
+    if (!mention || startsWithGroupingPunctuation(mention) || !looksLikeFile(mention) || looksLikeScopedPackage(mention)) {
       return match;
     }
 
@@ -78,6 +78,10 @@ function removeFileMentionsFromLine(line: string, filePaths: string[]): string {
 
 function normalizeFileMentionToken(token: string): string {
   return token.replace(/[)\]}>,:;.`]+$/, '');
+}
+
+function startsWithGroupingPunctuation(token: string): boolean {
+  return /^[([{<`'"]/.test(token);
 }
 
 type FenceMarker = '```' | '~~~';

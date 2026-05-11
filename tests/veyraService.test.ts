@@ -876,6 +876,50 @@ describe('VeyraSessionService', () => {
     expect(systemError).toBeDefined();
   });
 
+  it('does not treat native chat transcript PowerShell arrays as file attachments', async () => {
+    let claudePrompt = '';
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
+    const service = new VeyraSessionService(
+      workspacePath,
+      {
+        claude: {
+          id: 'claude',
+          status: async () => 'ready',
+          cancel: async () => {},
+          async *send(prompt: string) {
+            claudePrompt = prompt;
+            yield { type: 'done' } as AgentChunk;
+          },
+        },
+        codex: agentNoop('codex'),
+        gemini: agentNoop('gemini'),
+      },
+      { hangSeconds: 0 },
+    );
+
+    const transcript = [
+      '[VS Code chat history]',
+      "Assistant (veyra.veyra): _Codex used shell: $paths = @('package.json','tsconfig.json','bun.lockb','bun.lock','README.md')_",
+      '[/VS Code chat history]',
+      '',
+      'continue from there',
+    ].join('\n');
+    const events: any[] = [];
+    await service.dispatch(
+      { text: transcript, source: 'native-chat', cwd: workspacePath, forcedTarget: 'claude' },
+      (event) => {
+        events.push(event);
+      },
+    );
+
+    expect(claudePrompt).not.toContain('[File attachment problems]');
+    expect(events.some((event) =>
+      event.kind === 'system-message' &&
+      event.message.kind === 'error' &&
+      event.message.text.includes('File not found')
+    )).toBe(false);
+  });
+
   it('carries file attachment failures into later shared context without repeating raw mentions', async () => {
     let codexPrompt = '';
     const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
