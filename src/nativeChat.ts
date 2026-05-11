@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import type { VeyraDispatchEvent, VeyraForcedTarget, VeyraSessionService } from './veyraService.js';
 import type { AgentId } from './types.js';
 import { veyraWorkflowPrompt, type VeyraWorkflowCommand } from './workflowPrompts.js';
+import { parseWorkspaceContextMention } from './workspaceContext.js';
 
 export interface NativeChatRegistration {
   service: VeyraSessionService;
@@ -360,7 +361,7 @@ function withWorkspaceContextQuery(
 }
 
 function hasCodebaseMention(prompt: string): boolean {
-  return /(^|[\s([{<`])@codebase\b/i.test(prompt);
+  return parseWorkspaceContextMention(prompt).enabled;
 }
 
 function renderNativeChatEvent(

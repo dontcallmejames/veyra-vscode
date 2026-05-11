@@ -40,6 +40,21 @@ describe('parseWorkspaceContextMention', () => {
       remainingText: 'review @src/auth.ts',
     });
   });
+
+  it('does not treat file-like @codebase mentions as workspace-context commands', () => {
+    expect(parseWorkspaceContextMention('@codebase.ts explain this file')).toEqual({
+      enabled: false,
+      remainingText: '@codebase.ts explain this file',
+    });
+    expect(parseWorkspaceContextMention('review @codebase/foo.ts before editing')).toEqual({
+      enabled: false,
+      remainingText: 'review @codebase/foo.ts before editing',
+    });
+    expect(parseWorkspaceContextMention('review @codebase-helper before editing')).toEqual({
+      enabled: false,
+      remainingText: 'review @codebase-helper before editing',
+    });
+  });
 });
 
 describe('WorkspaceContextProvider', () => {

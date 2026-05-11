@@ -116,11 +116,12 @@ const STOP_WORDS = new Set([
 
 const CONTENT_READ_CONCURRENCY = 16;
 const GIT_COMMAND_MAX_BUFFER_BYTES = 50 * 1024 * 1024;
+const WORKSPACE_CONTEXT_MENTION_PATTERN = /(^|[\s([{<`])@codebase(?=$|[^\w./-])([,:;]?)/gi;
 
 export function parseWorkspaceContextMention(input: string): WorkspaceContextMention {
   let enabled = false;
   const remainingText = input
-    .replace(/(^|[\s([{<`])@codebase\b[,:;]?/gi, (match, prefix: string) => {
+    .replace(WORKSPACE_CONTEXT_MENTION_PATTERN, (_match, prefix: string) => {
       enabled = true;
       return prefix;
     })
