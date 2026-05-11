@@ -36,6 +36,13 @@ Run \`Veyra: Check agent status\` from the Command Palette. All three agents sho
 
 On Windows, run \`Veyra: Configure Codex/Gemini CLI paths\` to detect native executables or npm global CLI bundle paths and save them to workspace settings. If detection cannot inspect the package tree, choose \`Enter paths manually\` and paste the JS bundle paths, native executable paths, or npm shim paths such as \`codex.cmd\` and \`gemini.ps1\`. Veyra resolves npm shim paths to the underlying JS bundle before launch.
 
+## Preview Quickstart
+
+1. Run \`Veyra: Check agent status\`.
+2. Start with read-only prompts such as \`@veyra /review @codebase inspect this change for risk\`, \`@veyra /debate choose a safe implementation approach\`, or \`@veyra /consensus decide which option to take\`.
+3. Use \`@veyra /implement ...\` only when you want write-capable agent work, then inspect changes with \`Veyra: Open Pending Changes\`.
+4. Follow \`docs/preview-demo-script.md\` for a repeatable demo covering setup, workflows, diff preview, checkpoints, and verification.
+
 ## Inaccessible Windows CLI Bundles
 
 If Codex or Gemini reports inaccessible files because Windows npm global package paths are sandboxed, rerun outside the sandbox or set explicit JS bundle paths, native executable paths, or Windows npm shim paths.

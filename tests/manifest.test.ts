@@ -542,6 +542,7 @@ describe('extension manifest', () => {
       'dist/webview.js',
       'dist/webview.js.map',
       'docs/goal-completion-audit.md',
+      'docs/preview-demo-script.md',
       'docs/vscode-smoke-test.md',
     ]);
     expect(packageVerifier).toContain("'LICENSE.txt'");
@@ -549,8 +550,13 @@ describe('extension manifest', () => {
     expect(packageVerifier).toContain("'resources/icon.png'");
     expect(packageVerifier).toContain("'docs/vscode-smoke-test.md'");
     expect(packageVerifier).toContain("'docs/goal-completion-audit.md'");
+    expect(packageVerifier).toContain("'docs/preview-demo-script.md'");
     expect(packageVerifier).toContain("'.vscode/'");
     expect(packageVerifier).toContain("'.vscode-test/'");
+
+    const readme = readFileSync(join(process.cwd(), 'README.md'), 'utf8');
+    expect(readme).toContain('Preview Quickstart');
+    expect(readme).toContain('docs/preview-demo-script.md');
 
     const npmIgnore = readFileSync(join(process.cwd(), '.npmignore'), 'utf8');
     for (const pattern of [

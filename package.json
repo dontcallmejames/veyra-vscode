@@ -46,6 +46,7 @@
     "dist/webview.js",
     "dist/webview.js.map",
     "docs/goal-completion-audit.md",
+    "docs/preview-demo-script.md",
     "docs/vscode-smoke-test.md"
   ],
   "categories": [
