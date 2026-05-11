@@ -175,6 +175,12 @@ describe('extension manifest', () => {
     expect(manifest.scripts['test:integration:live']).toContain('--exclude ".vscode-test/**"');
     expect(manifest.scripts['test:integration:live']).toContain('tests/integration/veyra.live.test.ts');
 
+    const vitestConfigPath = join(process.cwd(), 'vitest.config.mjs');
+    expect(existsSync(vitestConfigPath)).toBe(true);
+    const vitestConfig = readFileSync(vitestConfigPath, 'utf8');
+    expect(vitestConfig).toContain('configDefaults.exclude');
+    expect(vitestConfig).toContain("'**/.vscode/veyra/**'");
+
     const readme = readFileSync(join(process.cwd(), 'README.md'), 'utf8');
     const audit = readFileSync(join(process.cwd(), 'docs', 'goal-completion-audit.md'), 'utf8');
     const smokeChecklist = readFileSync(join(process.cwd(), 'docs', 'vscode-smoke-test.md'), 'utf8');
