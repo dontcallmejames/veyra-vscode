@@ -197,6 +197,7 @@ describe('VeyraSessionService', () => {
 
   it('emits a workspace context error and still dispatches when @codebase provider is unavailable', async () => {
     let codexStarted = false;
+    let codexPrompt = '';
     const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
     const service = new VeyraSessionService(
       workspacePath,
@@ -206,7 +207,8 @@ describe('VeyraSessionService', () => {
           id: 'codex',
           status: async () => 'ready',
           cancel: async () => {},
-          async *send() {
+          async *send(prompt: string) {
+            codexPrompt = prompt;
             codexStarted = true;
             yield { type: 'done' } as AgentChunk;
           },
@@ -235,10 +237,14 @@ describe('VeyraSessionService', () => {
     );
     expect(userIndex).toBeGreaterThanOrEqual(0);
     expect(diagnosticIndex).toBeGreaterThan(userIndex);
+    expect(codexPrompt).toContain('[Workspace context from @codebase]');
+    expect(codexPrompt).toContain('- Workspace context provider is unavailable.');
+    expect(codexPrompt).toContain('[/Workspace context]');
   });
 
   it('emits a workspace context error and still dispatches when @codebase retrieval fails', async () => {
     let codexStarted = false;
+    let codexPrompt = '';
     const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
     const workspaceContextProvider: Pick<WorkspaceContextProvider, 'retrieve' | 'invalidate'> = {
       invalidate: vi.fn(),
@@ -254,7 +260,8 @@ describe('VeyraSessionService', () => {
           id: 'codex',
           status: async () => 'ready',
           cancel: async () => {},
-          async *send() {
+          async *send(prompt: string) {
+            codexPrompt = prompt;
             codexStarted = true;
             yield { type: 'done' } as AgentChunk;
           },
@@ -282,10 +289,14 @@ describe('VeyraSessionService', () => {
       event.message.text.includes('index unavailable')
     );
     expect(diagnostic).toBeDefined();
+    expect(codexPrompt).toContain('[Workspace context from @codebase]');
+    expect(codexPrompt).toContain('- Unable to retrieve workspace context: index unavailable');
+    expect(codexPrompt).toContain('[/Workspace context]');
   });
 
   it('emits successful @codebase diagnostics and still dispatches when no files match', async () => {
     let codexStarted = false;
+    let codexPrompt = '';
     const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
     const workspaceContextProvider = fakeWorkspaceContextProvider('', {
       attached: [],
@@ -300,7 +311,8 @@ describe('VeyraSessionService', () => {
           id: 'codex',
           status: async () => 'ready',
           cancel: async () => {},
-          async *send() {
+          async *send(prompt: string) {
+            codexPrompt = prompt;
             codexStarted = true;
             yield { type: 'done' } as AgentChunk;
           },
@@ -327,6 +339,9 @@ describe('VeyraSessionService', () => {
       event.message.text.includes('No workspace files matched @codebase query.')
     );
     expect(diagnostic).toBeDefined();
+    expect(codexPrompt).toContain('[Workspace context from @codebase]');
+    expect(codexPrompt).toContain('- No workspace files matched @codebase query.');
+    expect(codexPrompt).toContain('[/Workspace context]');
   });
 
   it('passes prior agent edit summaries to later agents during @all dispatch', async () => {

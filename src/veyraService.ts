@@ -220,6 +220,9 @@ export class VeyraSessionService {
       workspaceContextMention.enabled,
       workspaceContextQuery,
     );
+    const workspaceContextBlock = workspaceContextResult.block.trim().length > 0
+      ? workspaceContextResult.block
+      : formatWorkspaceContextDiagnosticsBlock(workspaceContextResult);
     const embedResult = embedFiles(filePaths, this.workspacePath, { maxLines: this.fileEmbedMaxLines });
     const userMentions = userMentionsForRequest(request.text, request.forcedTarget);
     const attachedFiles = dedupeAttachedFiles([
@@ -298,7 +301,7 @@ export class VeyraSessionService {
         autonomyPolicy: DEFAULT_AUTONOMY_POLICY,
         sharedContext,
         editAwareness,
-        workspaceContext: workspaceContextResult.block,
+        workspaceContext: workspaceContextBlock,
         fileBlocks: embedResult.embedded,
         attachmentErrors: embedResult.errors,
         userText: baseText,
@@ -674,6 +677,16 @@ function emptyWorkspaceContextResult(
     selected: [],
     diagnostics,
   };
+}
+
+function formatWorkspaceContextDiagnosticsBlock(result: WorkspaceContextResult): string {
+  if (!result.enabled || result.diagnostics.length === 0) return '';
+  return [
+    '[Workspace context from @codebase]',
+    'Diagnostics:',
+    ...result.diagnostics.map((diagnostic) => `- ${diagnostic}`),
+    '[/Workspace context]',
+  ].join('\n');
 }
 
 function dedupeAttachedFiles(
