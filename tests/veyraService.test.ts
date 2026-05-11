@@ -5,6 +5,7 @@ import * as path from 'node:path';
 import { VeyraSessionService, toRoutedInput } from '../src/veyraService.js';
 import type { Agent } from '../src/agents/types.js';
 import type { AgentChunk, AgentId } from '../src/types.js';
+import type { WorkspaceContextProvider } from '../src/workspaceContext.js';
 
 describe('toRoutedInput', () => {
   it('leaves text unchanged when routing through Veyra', () => {
@@ -28,6 +29,89 @@ describe('toRoutedInput', () => {
 });
 
 describe('VeyraSessionService', () => {
+  it('retrieves @codebase context and includes it in direct agent prompts', async () => {
+    let codexPrompt = '';
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
+    const workspaceContextProvider = fakeWorkspaceContextProvider([
+      '[Workspace context from @codebase]',
+      'Selected files:',
+      '- src/auth/session.ts',
+      '[/Workspace context]',
+    ].join('\n'));
+    const service = new VeyraSessionService(
+      workspacePath,
+      {
+        claude: agentNoop('claude'),
+        codex: {
+          id: 'codex',
+          status: async () => 'ready',
+          cancel: async () => {},
+          async *send(prompt: string) {
+            codexPrompt = prompt;
+            yield { type: 'done' } as AgentChunk;
+          },
+        },
+        gemini: agentNoop('gemini'),
+      },
+      { hangSeconds: 0, workspaceContextProvider: workspaceContextProvider as WorkspaceContextProvider },
+    );
+
+    const events: any[] = [];
+    await service.dispatch(
+      { text: '@codex review @codebase auth flow', source: 'native-chat', cwd: workspacePath },
+      (event) => {
+        events.push(event);
+      },
+    );
+
+    expect(workspaceContextProvider.retrieve).toHaveBeenCalledWith('review auth flow');
+    expect(codexPrompt).toContain('[Workspace context from @codebase]');
+    expect(codexPrompt).toContain('- src/auth/session.ts');
+    expect(codexPrompt).not.toContain('review @codebase auth flow');
+    const userMessage = events.find((event) => event.kind === 'user-message')?.message;
+    expect(userMessage.attachedFiles).toEqual([{ path: 'src/auth/session.ts', lines: 4, truncated: true }]);
+  });
+
+  it('shares the same retrieved @codebase context across all agents in one workflow', async () => {
+    const prompts = new Map<AgentId, string>();
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
+    const workspaceContextProvider = fakeWorkspaceContextProvider([
+      '[Workspace context from @codebase]',
+      'Selected files:',
+      '- src/shared/router.ts',
+      '[/Workspace context]',
+    ].join('\n'));
+    const agent = (id: AgentId): Agent => ({
+      id,
+      status: async () => 'ready',
+      cancel: async () => {},
+      async *send(prompt: string) {
+        prompts.set(id, prompt);
+        yield { type: 'done' } as AgentChunk;
+      },
+    });
+    const service = new VeyraSessionService(
+      workspacePath,
+      {
+        claude: agent('claude'),
+        codex: agent('codex'),
+        gemini: agent('gemini'),
+      },
+      { hangSeconds: 0, workspaceContextProvider: workspaceContextProvider as WorkspaceContextProvider },
+    );
+
+    await service.dispatch(
+      { text: '@all debate @codebase routing design', source: 'panel', cwd: workspacePath },
+      () => {},
+    );
+
+    expect(workspaceContextProvider.retrieve).toHaveBeenCalledTimes(1);
+    expect(workspaceContextProvider.retrieve).toHaveBeenCalledWith('debate routing design');
+    expect(prompts.get('claude')).toContain('src/shared/router.ts');
+    expect(prompts.get('codex')).toContain('src/shared/router.ts');
+    expect(prompts.get('gemini')).toContain('src/shared/router.ts');
+  });
+
   it('passes prior agent edit summaries to later agents during @all dispatch', async () => {
     const prompts = new Map<AgentId, string>();
     const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
@@ -1064,6 +1148,27 @@ describe('VeyraSessionService', () => {
     expect(routing?.message.text).toBe('Codex is unauthenticated. Run `codex login`. If `codex` is missing, install it with `npm install -g @openai/codex`. You can also run Veyra: Show setup guide.');
   });
 });
+
+function fakeWorkspaceContextProvider(block: string): Pick<WorkspaceContextProvider, 'retrieve' | 'invalidate'> {
+  return {
+    invalidate: vi.fn(),
+    retrieve: vi.fn(async (query: string) => ({
+      enabled: true,
+      query,
+      block,
+      attached: [{ path: 'src/auth/session.ts', lines: 4, truncated: true }],
+      selected: [{
+        path: 'src/auth/session.ts',
+        score: 10,
+        reasons: ['path:auth'],
+        language: 'ts',
+        startLine: 1,
+        endLine: 4,
+      }],
+      diagnostics: [],
+    })),
+  };
+}
 
 function agentNoop(id: AgentId): Agent {
   return {

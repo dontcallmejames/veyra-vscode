@@ -11,6 +11,7 @@ import { buildEditAwareness, findPriorEditorsForFile, normalizeSessionFilePath }
 import { readWorkspaceRules } from './workspaceRules.js';
 import { parseFileMentions, embedFiles } from './fileMentions.js';
 import { DEFAULT_AUTONOMY_POLICY, composePrompt } from './composePrompt.js';
+import { parseWorkspaceContextMention, type WorkspaceContextProvider } from './workspaceContext.js';
 import type { FileBadgesController } from './fileBadges.js';
 import type { AgentRegistry } from './messageRouter.js';
 import type { AgentMessage, FileChange, FileChangeKind, Session, SystemMessage, ToolEvent, UserMessage } from './shared/protocol.js';
@@ -47,6 +48,7 @@ export interface VeyraSessionOptions {
   getEditedPathForAgent?: (agentId: AgentId, toolName: string, input: unknown) => string | null;
   workspaceChangeTracker?: WorkspaceChangeTracker;
   facilitator?: FacilitatorFn;
+  workspaceContextProvider?: WorkspaceContextProvider;
 }
 
 export interface WorkspaceChangeTracker {
@@ -95,6 +97,7 @@ export class VeyraSessionService {
   private badgeController?: FileBadgesController;
   private getEditedPathForAgent?: (agentId: AgentId, toolName: string, input: unknown) => string | null;
   private workspaceChangeTracker?: WorkspaceChangeTracker;
+  private workspaceContextProvider?: WorkspaceContextProvider;
   private loadPromise: Promise<Session> | null = null;
   private dispatchQueue: Promise<void> = Promise.resolve();
   private cancelGeneration = 0;
@@ -117,6 +120,7 @@ export class VeyraSessionService {
     this.badgeController = options.badgeController;
     this.getEditedPathForAgent = options.getEditedPathForAgent;
     this.workspaceChangeTracker = options.workspaceChangeTracker;
+    this.workspaceContextProvider = options.workspaceContextProvider;
     this.sentinel = new SentinelWriter(workspacePath, {
       enabled: this.commitSignatureEnabled,
     });
@@ -149,7 +153,7 @@ export class VeyraSessionService {
 
   updateOptions(options: Pick<
     VeyraSessionOptions,
-    'hangSeconds' | 'fileEmbedMaxLines' | 'sharedContextWindow' | 'commitSignatureEnabled' | 'badgeController'
+    'hangSeconds' | 'fileEmbedMaxLines' | 'sharedContextWindow' | 'commitSignatureEnabled' | 'badgeController' | 'workspaceContextProvider'
   >): void {
     if (options.hangSeconds !== undefined) {
       this.hangSeconds = options.hangSeconds;
@@ -171,6 +175,9 @@ export class VeyraSessionService {
     }
     if ('badgeController' in options) {
       this.badgeController = options.badgeController;
+    }
+    if ('workspaceContextProvider' in options) {
+      this.workspaceContextProvider = options.workspaceContextProvider;
     }
   }
 
@@ -203,17 +210,35 @@ export class VeyraSessionService {
     void request.source;
     await this.loadSession();
 
-    const { filePaths, remainingText } = parseFileMentions(request.text);
+    const workspaceContextMention = parseWorkspaceContextMention(request.text);
+    const textWithoutWorkspaceContext = workspaceContextMention.enabled
+      ? workspaceContextMention.remainingText
+      : request.text;
+    const { filePaths, remainingText } = parseFileMentions(textWithoutWorkspaceContext);
+    const workspaceContextQuery = parseMentions(remainingText).remainingText;
+    const workspaceContextResult = workspaceContextMention.enabled && this.workspaceContextProvider
+      ? await this.workspaceContextProvider.retrieve(workspaceContextQuery)
+      : {
+          enabled: workspaceContextMention.enabled,
+          query: workspaceContextQuery,
+          block: '',
+          attached: [],
+          selected: [],
+          diagnostics: workspaceContextMention.enabled
+            ? ['Workspace context provider is unavailable.']
+            : [],
+        };
     const embedResult = embedFiles(filePaths, this.workspacePath, { maxLines: this.fileEmbedMaxLines });
     const userMentions = userMentionsForRequest(request.text, request.forcedTarget);
+    const attachedFiles = [...workspaceContextResult.attached, ...embedResult.attached];
 
     const userMsg: UserMessage = {
       id: ulid(),
       role: 'user',
-      text: request.text,
+      text: textWithoutWorkspaceContext,
       timestamp: Date.now(),
       ...(userMentions.length > 0 ? { mentions: userMentions } : {}),
-      ...(embedResult.attached.length > 0 ? { attachedFiles: embedResult.attached } : {}),
+      ...(attachedFiles.length > 0 ? { attachedFiles } : {}),
     };
     this.store.appendUser(userMsg);
     await emit({ kind: 'user-message', message: userMsg });
@@ -266,6 +291,7 @@ export class VeyraSessionService {
         autonomyPolicy: DEFAULT_AUTONOMY_POLICY,
         sharedContext,
         editAwareness,
+        workspaceContext: workspaceContextResult.block,
         fileBlocks: embedResult.embedded,
         attachmentErrors: embedResult.errors,
         userText: baseText,
