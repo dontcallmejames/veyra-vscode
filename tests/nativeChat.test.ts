@@ -452,7 +452,7 @@ describe('native chat workflow prompts', () => {
     );
   });
 
-  it('treats low-intent @veyra prompts as read-only status checks without inherited chat history', async () => {
+  it('answers low-intent @veyra prompts locally without dispatching stale chat history', async () => {
     const context = { subscriptions: [] as Array<{ dispose(): void }> };
     const service = {
       dispatch: vi.fn(async (_request: unknown) => {}),
@@ -466,6 +466,7 @@ describe('native chat workflow prompts', () => {
 
     const handler = vscodeMocks.participantHandlers.get('veyra.veyra');
     expect(handler).toBeTypeOf('function');
+    const response = { markdown: vi.fn(), progress: vi.fn(), reference: vi.fn() };
     await handler!(
       { prompt: 'are you here?', command: undefined, references: [], toolReferences: [] },
       {
@@ -485,31 +486,42 @@ describe('native chat workflow prompts', () => {
           },
         ],
       },
-      { markdown: vi.fn(), progress: vi.fn(), reference: vi.fn() },
+      response,
       cancellationToken(),
     );
 
-    expect(service.dispatch).toHaveBeenCalledWith(
-      expect.objectContaining({
-        readOnly: true,
-        text: expect.stringContaining('are you here?'),
-      }),
-      expect.any(Function),
-    );
-    const dispatched = service.dispatch.mock.calls[0][0] as { text: string };
-    expect(dispatched.text).toContain('Low-intent Veyra prompt');
-    expect(dispatched.text).toContain('Do not act on prior chat history');
-    expect(dispatched.text).not.toContain('[VS Code chat history]');
-    expect(dispatched.text).not.toContain('make the UI more polished');
-    expect(dispatched.text).not.toContain('src/shared/agentPresentation.ts');
+    expect(service.dispatch).not.toHaveBeenCalled();
+    expect(response.markdown).toHaveBeenCalledWith('Yes, here.');
   });
 
-  it('also treats literal @veyra-prefixed heartbeat prompts as read-only status checks', async () => {
-    const veyra = NATIVE_CHAT_PARTICIPANTS.find((participant) => participant.name === 'veyra')!;
-    const routed = nativeChatPromptForRequest(
-      veyra,
-      { prompt: '@veyra are you here?', command: undefined, references: [], toolReferences: [] } as any,
-      '/workspace',
+  it('ignores automatic out-of-workspace references when detecting low-intent heartbeats', async () => {
+    const context = { subscriptions: [] as Array<{ dispose(): void }> };
+    const service = {
+      dispatch: vi.fn(async (_request: unknown) => {}),
+      cancelAll: vi.fn(),
+    };
+
+    registerNativeChatParticipants(
+      context as any,
+      () => ({ service, workspacePath: '/workspace' } as any),
+    );
+
+    const handler = vscodeMocks.participantHandlers.get('veyra.veyra');
+    expect(handler).toBeTypeOf('function');
+    const response = { markdown: vi.fn(), progress: vi.fn(), reference: vi.fn() };
+    await handler!(
+      {
+        prompt: 'are you here?',
+        command: undefined,
+        references: [
+          {
+            id: 'file',
+            range: [0, 0],
+            value: { fsPath: 'C:\\Users\\jford\\.claude\\CLAUDE.md' },
+          },
+        ],
+        toolReferences: [],
+      },
       {
         history: [
           {
@@ -526,15 +538,13 @@ describe('native chat workflow prompts', () => {
             result: {},
           },
         ],
-      } as any,
+      },
+      response,
+      cancellationToken(),
     );
 
-    expect(routed.readOnly).toBe(true);
-    expect(routed.text).toContain('@veyra are you here?');
-    expect(routed.text).toContain('Low-intent Veyra prompt');
-    expect(routed.text).not.toContain('[VS Code chat history]');
-    expect(routed.text).not.toContain('delete parser.test.ts');
-    expect(routed.text).not.toContain('coverage for foo.ts');
+    expect(service.dispatch).not.toHaveBeenCalled();
+    expect(response.markdown).toHaveBeenCalledWith('Yes, here.');
   });
 
   it('dispatches read-only native review workflows without auto-edit permission', async () => {
