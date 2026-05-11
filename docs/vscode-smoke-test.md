@@ -30,6 +30,25 @@ For the interactive end-to-end checklist:
 2. Press `F5` or run the `Run Extension` launch configuration from `.vscode/launch.json`.
 3. In the Extension Development Host, open a workspace folder you can safely modify.
 
+## External Tester Checklist
+
+Use this shorter checklist when validating the Marketplace extension outside the development host:
+
+1. Install or update Veyra from the VS Code Marketplace and confirm the version is `0.0.6` or newer.
+2. Run `Developer: Reload Window` after installing or updating.
+3. Open a real project folder, not an empty window.
+4. Run `Veyra: Open Panel` and confirm the panel opens.
+5. Run `Veyra: Check agent status` and capture the reported Claude, Codex, and Gemini statuses.
+6. In VS Code Chat, send `@veyra are you here?` and confirm Veyra answers locally.
+7. Try one read-only workflow such as `@veyra /review inspect this workspace and report risks only`.
+
+If anything fails, collect:
+
+- OS, VS Code version, and Veyra version.
+- The exact command or prompt that failed.
+- A screenshot if there is a VS Code error dialog.
+- `Developer: Show Logs...` -> `Extension Host` output around the failure.
+
 ## Command Palette
 
 1. Run `Veyra: Check agent status`.

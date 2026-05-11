@@ -579,7 +579,8 @@ describe('extension manifest', () => {
     expect(packageVerifier).toContain("'.vscode-test/'");
 
     const readme = readFileSync(join(process.cwd(), 'README.md'), 'utf8');
-    expect(readme).toContain('Preview Quickstart');
+    expect(readme).toContain('Tester Quickstart');
+    expect(readme).toContain('Tester Troubleshooting');
     expect(readme).toContain('docs/preview-demo-script.md');
 
     const npmIgnore = readFileSync(join(process.cwd(), '.npmignore'), 'utf8');

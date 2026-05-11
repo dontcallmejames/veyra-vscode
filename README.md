@@ -35,15 +35,31 @@ Veyra shells out through the local agent CLIs/adapters already configured on you
 
 Use the account, API key, or subscription setup required by each vendor's CLI. Veyra does not replace those credentials; it coordinates the agents inside VS Code.
 
-## Preview Quickstart
+## Tester Quickstart
 
-1. Install the local Claude, Codex, and Gemini tools listed above.
-2. Open a project in VS Code and run `Veyra: Check agent status`.
-3. If Codex or Gemini needs path recovery on Windows, run `Veyra: Configure Codex/Gemini CLI paths`.
-4. Start with read-only prompts such as `@veyra /review @codebase inspect this change for risk`, `@veyra /debate choose a safe implementation approach`, or `@veyra /consensus decide which option to take`.
-5. Use `@veyra /implement ...` only when you want write-capable agent work, then inspect changes with `Veyra: Open Pending Changes`.
+1. Install or update Veyra from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=dontcallmejames.veyra-vscode). Use version `0.0.6` or newer.
+2. Run `Developer: Reload Window` after installing or updating the extension.
+3. Open a real project folder in VS Code. Veyra needs an open workspace before it can route agent work.
+4. Run `Veyra: Open Panel` from the Command Palette and confirm the Veyra panel opens.
+5. Run `Veyra: Check agent status` and confirm Claude, Codex, and Gemini are installed and authenticated for the workflows you want to test.
+6. If Codex or Gemini needs path recovery on Windows, run `Veyra: Configure Codex/Gemini CLI paths`.
+7. Open VS Code Chat and send `@veyra are you here?`. Veyra should answer locally without contacting paid backends.
+8. Start with read-only prompts such as `@veyra /review @codebase inspect this change for risk`, `@veyra /debate choose a safe implementation approach`, or `@veyra /consensus decide which option to take`.
+9. Use `@veyra /implement ...` only when you want write-capable agent work, then inspect changes with `Veyra: Open Pending Changes`.
 
 For a repeatable walkthrough covering setup, read-only workflows, implementation, diff preview, checkpoints, and verification, see `docs/preview-demo-script.md`.
+
+## Tester Troubleshooting
+
+If `Veyra: Open Panel` reports `command 'veyra.openPanel' not found`, first confirm Veyra is updated to `0.0.6` or newer, then run `Developer: Reload Window`. If the command still fails, disable and re-enable Veyra from the Extensions view and retry in a normal workspace folder.
+
+For any tester report, please include:
+
+- OS and VS Code version.
+- Veyra version from the Extensions view.
+- Whether `Veyra: Open Panel`, `Veyra: Check agent status`, and `@veyra are you here?` worked.
+- The exact prompt or command that failed.
+- Logs from `Developer: Show Logs...` -> `Extension Host` around the failure.
 
 ## Development
 

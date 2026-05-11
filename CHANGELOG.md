@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.7
+
+- Adds a tester quickstart and troubleshooting checklist to the Marketplace/GitHub README.
+- Adds an external tester checklist to the VS Code smoke-test documentation.
+
 ## 0.0.6
 
 - Keeps the legacy Veyra panel command usable if optional native chat or language model provider registration fails during activation.
