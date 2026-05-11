@@ -19,9 +19,26 @@ import {
   type DispatchChangeSet,
   type RejectChangeSetResult,
 } from './changeLedger.js';
+import {
+  type Checkpoint,
+  type CheckpointLedger,
+  type RollbackPreviewFile,
+} from './checkpointLedger.js';
 import type { FileBadgesController } from './fileBadges.js';
 import type { AgentRegistry } from './messageRouter.js';
-import type { AgentMessage, DispatchChangeSetSummary, FileChange, FileChangeKind, Session, SystemMessage, ToolEvent, UserMessage } from './shared/protocol.js';
+import type {
+  AgentMessage,
+  CheckpointSummary,
+  DispatchChangeSetSummary,
+  FileChange,
+  FileChangeKind,
+  RollbackCheckpointPreview,
+  RollbackCheckpointResult,
+  Session,
+  SystemMessage,
+  ToolEvent,
+  UserMessage,
+} from './shared/protocol.js';
 import type { AgentChunk, AgentId, AgentStatus } from './types.js';
 
 export type VeyraDispatchSource = 'panel' | 'native-chat' | 'language-model';
@@ -58,6 +75,7 @@ export interface VeyraSessionOptions {
   facilitator?: FacilitatorFn;
   workspaceContextProvider?: WorkspaceContextProvider;
   changeLedger?: ChangeLedger;
+  checkpointLedger?: CheckpointLedger;
 }
 
 export interface WorkspaceChangeTracker {
@@ -74,6 +92,7 @@ interface InProgressDispatch {
   fileChanges: FileChange[];
   changeSnapshot?: unknown;
   changeBaseline?: ChangeLedgerBaseline;
+  checkpointId?: string;
   agentId: AgentId;
   timestamp: number;
   readOnly?: boolean;
@@ -109,6 +128,7 @@ export class VeyraSessionService {
   private workspaceChangeTracker?: WorkspaceChangeTracker;
   private workspaceContextProvider?: WorkspaceContextProvider;
   private changeLedger?: ChangeLedger;
+  private checkpointLedger?: CheckpointLedger;
   private loadPromise: Promise<Session> | null = null;
   private dispatchQueue: Promise<void> = Promise.resolve();
   private cancelGeneration = 0;
@@ -133,6 +153,7 @@ export class VeyraSessionService {
     this.workspaceChangeTracker = options.workspaceChangeTracker;
     this.workspaceContextProvider = options.workspaceContextProvider;
     this.changeLedger = options.changeLedger;
+    this.checkpointLedger = options.checkpointLedger;
     this.sentinel = new SentinelWriter(workspacePath, {
       enabled: this.commitSignatureEnabled,
     });
@@ -165,7 +186,7 @@ export class VeyraSessionService {
 
   updateOptions(options: Pick<
     VeyraSessionOptions,
-    'hangSeconds' | 'fileEmbedMaxLines' | 'sharedContextWindow' | 'commitSignatureEnabled' | 'badgeController' | 'workspaceContextProvider' | 'changeLedger'
+    'hangSeconds' | 'fileEmbedMaxLines' | 'sharedContextWindow' | 'commitSignatureEnabled' | 'badgeController' | 'workspaceContextProvider' | 'changeLedger' | 'checkpointLedger'
   >): void {
     if (options.hangSeconds !== undefined) {
       this.hangSeconds = options.hangSeconds;
@@ -193,6 +214,9 @@ export class VeyraSessionService {
     }
     if ('changeLedger' in options) {
       this.changeLedger = options.changeLedger;
+    }
+    if ('checkpointLedger' in options) {
+      this.checkpointLedger = options.checkpointLedger;
     }
   }
 
@@ -401,6 +425,26 @@ export class VeyraSessionService {
               );
             }
           }
+          let checkpointId: string | undefined;
+          if (!request.readOnly && this.checkpointLedger) {
+            try {
+              const checkpoint = await this.checkpointLedger.createCheckpoint({
+                source: 'automatic',
+                label: `Before ${agentLabel(event.agentId)} dispatch`,
+                promptSummary: summarizePrompt(request.text),
+                agentId: event.agentId,
+                messageId,
+                timestamp,
+              });
+              checkpointId = checkpoint.id;
+            } catch (err) {
+              await this.emitWorkspaceChangeError(
+                event.agentId,
+                `Unable to create checkpoint before ${agentLabel(event.agentId)} dispatch: ${errorMessage(err)}`,
+                emit,
+              );
+            }
+          }
           inProgressByAgent.set(event.agentId, {
             id: messageId,
             text: '',
@@ -409,6 +453,7 @@ export class VeyraSessionService {
             fileChanges: [],
             changeSnapshot,
             changeBaseline,
+            checkpointId,
             agentId: event.agentId,
             timestamp,
             readOnly: request.readOnly,
@@ -469,6 +514,7 @@ export class VeyraSessionService {
           const inProgress = inProgressByAgent.get(event.agentId);
           if (!inProgress) continue;
           await this.recordWorkspaceChanges(inProgress, event.agentId, emit);
+          await this.emitCheckpointNoticeIfNeeded(inProgress, event.agentId, emit);
           await this.emitChangeSetNoticeIfNeeded(inProgress, event.agentId, emit);
           const status: AgentMessage['status'] =
             inProgress.cancelled ? 'cancelled' : (inProgress.error ? 'errored' : 'complete');
@@ -532,6 +578,36 @@ export class VeyraSessionService {
   async changeSetDiffInputs(id: string, filePath: string): Promise<ChangeSetDiffInputs> {
     if (!this.changeLedger) throw new Error('Diff preview is unavailable.');
     return this.changeLedger.diffInputs(id, filePath);
+  }
+
+  async createManualCheckpoint(label?: string): Promise<CheckpointSummary> {
+    if (!this.checkpointLedger) throw new Error('Checkpoints are unavailable.');
+    const trimmed = label?.trim();
+    return checkpointSummary(await this.checkpointLedger.createCheckpoint({
+      source: 'manual',
+      label: trimmed && trimmed.length > 0 ? trimmed : 'Manual checkpoint',
+      promptSummary: 'manual checkpoint',
+      timestamp: Date.now(),
+    }));
+  }
+
+  async listCheckpoints(): Promise<CheckpointSummary[]> {
+    if (!this.checkpointLedger) return [];
+    return (await this.checkpointLedger.listCheckpoints()).map(checkpointSummary);
+  }
+
+  async previewLatestCheckpointRollback(): Promise<RollbackCheckpointPreview | null> {
+    if (!this.checkpointLedger) return null;
+    const preview = await this.checkpointLedger.previewLatestRollback();
+    return preview ? {
+      ...preview,
+      files: preview.files.map(checkpointFileChange),
+    } : null;
+  }
+
+  async rollbackLatestCheckpoint(): Promise<RollbackCheckpointResult> {
+    if (!this.checkpointLedger) throw new Error('Checkpoints are unavailable.');
+    return this.checkpointLedger.rollbackLatestCheckpoint();
   }
 
   private async retrieveWorkspaceContext(
@@ -605,6 +681,42 @@ export class VeyraSessionService {
       text,
       timestamp: Date.now(),
       agentId,
+    };
+    this.store.appendSystem(sys);
+    await emit({ kind: 'system-message', message: sys });
+  }
+
+  private async emitCheckpointNoticeIfNeeded(
+    inProgress: InProgressDispatch,
+    agentId: AgentId,
+    emit: VeyraDispatchEventSink,
+  ): Promise<void> {
+    if (!this.checkpointLedger || !inProgress.checkpointId) return;
+
+    let checkpoint: Checkpoint;
+    try {
+      checkpoint = await this.checkpointLedger.finalizeAutomaticCheckpoint(
+        inProgress.checkpointId,
+        inProgress.fileChanges,
+      );
+    } catch (err) {
+      await this.emitWorkspaceChangeError(
+        agentId,
+        `Unable to finalize checkpoint after ${agentLabel(agentId)} dispatch: ${errorMessage(err)}`,
+        emit,
+      );
+      return;
+    }
+
+    const summary = checkpointSummary(checkpoint);
+    const sys: SystemMessage = {
+      id: ulid(),
+      role: 'system',
+      kind: 'checkpoint',
+      text: `Checkpoint saved: ${checkpoint.label}.`,
+      timestamp: Date.now(),
+      agentId,
+      checkpoint: summary,
     };
     this.store.appendSystem(sys);
     await emit({ kind: 'system-message', message: sys });
@@ -777,6 +889,11 @@ function errorMessage(err: unknown): string {
   return String(err);
 }
 
+function summarizePrompt(text: string): string {
+  const compact = text.replace(/\s+/g, ' ').trim();
+  return compact.length > 120 ? `${compact.slice(0, 117)}...` : compact;
+}
+
 function emptyWorkspaceContextResult(
   enabled: boolean,
   query: string,
@@ -898,5 +1015,27 @@ function changeSetSummary(changeSet: DispatchChangeSet): DispatchChangeSetSummar
     status: changeSet.status,
     fileCount: changeSet.fileCount ?? files.length,
     files,
+  };
+}
+
+function checkpointSummary(checkpoint: Checkpoint): CheckpointSummary {
+  return {
+    id: checkpoint.id,
+    timestamp: checkpoint.timestamp,
+    source: checkpoint.source,
+    label: checkpoint.label,
+    promptSummary: checkpoint.promptSummary,
+    status: checkpoint.status,
+    fileCount: checkpoint.fileCount,
+    ...(checkpoint.agentId ? { agentId: checkpoint.agentId } : {}),
+    ...(checkpoint.messageId ? { messageId: checkpoint.messageId } : {}),
+    ...(checkpoint.workflow ? { workflow: checkpoint.workflow } : {}),
+  };
+}
+
+function checkpointFileChange(file: RollbackPreviewFile): FileChange {
+  return {
+    path: file.path,
+    changeKind: file.changeKind,
   };
 }
