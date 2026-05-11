@@ -36,7 +36,7 @@ async function run() {
       commands: (participant.commands ?? []).map((command) => command.name),
     })),
     [
-      { id: 'veyra.veyra', name: 'veyra', commands: ['review', 'debate', 'implement'] },
+      { id: 'veyra.veyra', name: 'veyra', commands: ['review', 'debate', 'consensus', 'implement'] },
       { id: 'veyra.claude', name: 'claude', commands: [] },
       { id: 'veyra.codex', name: 'codex', commands: [] },
       { id: 'veyra.gemini', name: 'gemini', commands: [] },
@@ -60,6 +60,7 @@ async function run() {
     [
       'veyra-claude',
       'veyra-codex',
+      'veyra-consensus',
       'veyra-debate',
       'veyra-gemini',
       'veyra-implement',

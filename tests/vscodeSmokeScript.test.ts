@@ -189,6 +189,7 @@ describe('VS Code smoke runner script', () => {
   it('keeps smoke metadata expectations aligned with the language model provider source', async () => {
     const { requiredSmokeLanguageModels } = await smokeScriptModule();
 
+    expect(Object.keys(requiredSmokeLanguageModels)).toContain('veyra-consensus');
     expect(requiredSmokeLanguageModels).toEqual(Object.fromEntries(
       VEYRA_LANGUAGE_MODELS.map((model) => [
         model.id,
@@ -222,6 +223,7 @@ describe('VS Code smoke runner script', () => {
         'veyra-orchestrator': 3,
         'veyra-review': 3,
         'veyra-debate': 3,
+        'veyra-consensus': 3,
         'veyra-implement': 3,
         'veyra-claude': 3,
         'veyra-codex': 3,
@@ -242,6 +244,12 @@ describe('VS Code smoke runner script', () => {
         },
         'veyra-debate': {
           name: 'Veyra Debate',
+          family: 'veyra',
+          version: 'local-cli',
+          maxInputTokens: 128000,
+        },
+        'veyra-consensus': {
+          name: 'Veyra Consensus',
           family: 'veyra',
           version: 'local-cli',
           maxInputTokens: 128000,
@@ -279,6 +287,7 @@ describe('VS Code smoke runner script', () => {
         ].join('\n'),
         'veyra-review': '[smoke:claude] read-only request reached Veyra provider.\n[smoke:codex] read-only request reached Veyra provider.\n[smoke:gemini] read-only request reached Veyra provider.',
         'veyra-debate': '[smoke:claude] read-only request reached Veyra provider.\n[smoke:codex] read-only request reached Veyra provider.\n[smoke:gemini] read-only request reached Veyra provider.',
+        'veyra-consensus': '[smoke:claude] read-only request reached Veyra provider.\n[smoke:codex] read-only request reached Veyra provider.\n[smoke:gemini] read-only request reached Veyra provider.',
         'veyra-implement': [
           '[smoke:claude] write-capable request reached Veyra provider.',
           languageModelSmokeEditEvidence('Claude', 'src/veyra-smoke-claude.ts'),
@@ -304,7 +313,7 @@ describe('VS Code smoke runner script', () => {
         {
           id: 'veyra.veyra',
           name: 'veyra',
-          commands: ['review', 'debate', 'implement'],
+          commands: ['review', 'debate', 'consensus', 'implement'],
         },
         {
           id: 'veyra.claude',
@@ -341,6 +350,12 @@ describe('VS Code smoke runner script', () => {
           containsAllMention: true,
           containsWorkflowMarker: true,
         },
+        consensus: {
+          forcedTarget: 'veyra',
+          readOnly: true,
+          containsAllMention: true,
+          containsWorkflowMarker: true,
+        },
         implement: {
           forcedTarget: 'veyra',
           readOnly: false,
@@ -357,6 +372,7 @@ describe('VS Code smoke runner script', () => {
         'veyra.veyra/codebase': '[smoke:codex] saw @codebase workspace context.',
         'veyra.veyra/review': '[smoke:claude] read-only request reached Veyra provider.\n[smoke:codex] read-only request reached Veyra provider.\n[smoke:gemini] read-only request reached Veyra provider.',
         'veyra.veyra/debate': '[smoke:claude] read-only request reached Veyra provider.\n[smoke:codex] read-only request reached Veyra provider.\n[smoke:gemini] read-only request reached Veyra provider.',
+        'veyra.veyra/consensus': '[smoke:claude] read-only request reached Veyra provider.\n[smoke:codex] read-only request reached Veyra provider.\n[smoke:gemini] read-only request reached Veyra provider.',
         'veyra.veyra/implement': [
           '[smoke:claude] write-capable request reached Veyra provider.',
           nativeSmokeEditEvidence('Claude', 'src/veyra-smoke-claude.ts'),

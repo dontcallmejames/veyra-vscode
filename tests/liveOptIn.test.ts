@@ -36,11 +36,13 @@ describe('live integration npm opt-in guard', () => {
 
     const debateIndex = output.indexOf('@veyra /debate choose a safe test-only change for this project');
     const reviewIndex = output.indexOf('@veyra /review inspect this workspace and report risks only');
+    const consensusIndex = output.indexOf('@veyra /consensus decide whether the test-only change should be made now');
     const implementIndex = output.indexOf('@veyra /implement make a tiny test-only change, then review it');
 
     expect(debateIndex).toBeGreaterThanOrEqual(0);
     expect(reviewIndex).toBeGreaterThan(debateIndex);
-    expect(implementIndex).toBeGreaterThan(reviewIndex);
+    expect(consensusIndex).toBeGreaterThan(reviewIndex);
+    expect(implementIndex).toBeGreaterThan(consensusIndex);
     expect(output).toContain('If /debate does not end with "Veyra completed with errors.", continue with:');
     expect(output).toContain('Manual evidence to paste back:');
     expect(output).toContain('/debate final error gone');
@@ -49,7 +51,7 @@ describe('live integration npm opt-in guard', () => {
     expect(output).toContain('Extension Development Host');
     expect(output).toContain('throwaway folder');
     expect(output).toContain('all-agent routing');
-    expect(output).toContain('read-only review/debate');
+    expect(output).toContain('read-only review/debate/consensus');
     expect(output).toContain('visible file edits');
     expect(output).toContain('edit-conflict surfacing');
   });
@@ -64,6 +66,7 @@ describe('live integration npm opt-in guard', () => {
     expect(output).toContain('Manual Extension Host check instructions.');
     expect(output).toContain('Do this in VS Code, not PowerShell.');
     expect(output).toContain('@veyra /debate choose a safe test-only change for this project');
+    expect(output).toContain('@veyra /consensus decide whether the test-only change should be made now');
     expect(output).toContain('@veyra /implement make a tiny test-only change, then review it');
     expect(output).toContain('If /debate does not end with "Veyra completed with errors.", continue with:');
     expect(output).toContain('Manual evidence to paste back:');

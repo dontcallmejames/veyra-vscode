@@ -1,4 +1,4 @@
-export type VeyraWorkflowCommand = 'review' | 'debate' | 'implement';
+export type VeyraWorkflowCommand = 'review' | 'debate' | 'consensus' | 'implement';
 
 export function veyraWorkflowPrompt(command: VeyraWorkflowCommand, prompt: string): string {
   if (command === 'review') {
@@ -27,6 +27,21 @@ export function veyraWorkflowPrompt(command: VeyraWorkflowCommand, prompt: strin
       'Read-only workflow: Do not create, edit, rename, or delete files.',
       'Each agent should use these headings: Recommendation, Tradeoffs, Concerns with prior replies, Next action.',
       'Gemini runs last. After its own position, Gemini must add a Veyra Synthesis section with Recommended approach, Why, Risks, and Next action.',
+      prompt,
+    ].join('\n\n');
+  }
+
+  if (command === 'consensus') {
+    return [
+      '@all',
+      'Workflow: consensus',
+      'Reach a concrete recommendation before implementation.',
+      'Claude: identify architecture, product, and correctness constraints.',
+      'Codex: identify implementation cost, tests, migration risk, and operational failure modes.',
+      'Gemini: compare prior positions, challenge assumptions, and produce the final recommendation.',
+      'Read-only workflow: Do not create, edit, rename, or delete files.',
+      'Each agent should use these headings: Position, Evidence, Risks, Next action.',
+      'Gemini runs last. After its own position, Gemini must add a Consensus Recommendation section with Decision, Rationale, Tradeoffs, Risks, and Next action.',
       prompt,
     ].join('\n\n');
   }

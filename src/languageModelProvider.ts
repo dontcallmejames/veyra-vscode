@@ -55,6 +55,19 @@ export const VEYRA_LANGUAGE_MODELS: readonly VeyraLanguageModelInfo[] = [
     workflowCommand: 'debate',
   },
   {
+    id: 'veyra-consensus',
+    name: 'Veyra Consensus',
+    family: 'veyra',
+    version: 'local-cli',
+    maxInputTokens: 128_000,
+    maxOutputTokens: 32_000,
+    tooltip: 'Run a read-only all-agent consensus workflow through Claude, Codex, and Gemini.',
+    detail: 'Workflow',
+    capabilities: {},
+    forcedTarget: 'veyra',
+    workflowCommand: 'consensus',
+  },
+  {
     id: 'veyra-implement',
     name: 'Veyra Implement',
     family: 'veyra',
@@ -176,7 +189,9 @@ class VeyraLanguageModelProvider implements vscode.LanguageModelChatProvider<Vey
     const routedText = selectedModel.workflowCommand
       ? veyraWorkflowPrompt(selectedModel.workflowCommand, prompt)
       : prompt;
-    const readOnly = selectedModel.workflowCommand === 'review' || selectedModel.workflowCommand === 'debate';
+    const readOnly = selectedModel.workflowCommand === 'review' ||
+      selectedModel.workflowCommand === 'debate' ||
+      selectedModel.workflowCommand === 'consensus';
     const workspaceContextQuery = languageModelWorkspaceContextQuery(messages);
 
     let reportedOutput = false;

@@ -32,7 +32,7 @@ Veyra coordinates Claude, Codex, and Gemini through their local authenticated to
 
 ## Verify
 
-Run \`Veyra: Check agent status\` from the Command Palette. All three agents should report ready before starting \`@veyra /review\`, \`@veyra /debate\`, or \`@veyra /implement\`.
+Run \`Veyra: Check agent status\` from the Command Palette. All three agents should report ready before starting \`@veyra /review\`, \`@veyra /debate\`, \`@veyra /consensus\`, or \`@veyra /implement\`.
 
 On Windows, run \`Veyra: Configure Codex/Gemini CLI paths\` to detect native executables or npm global CLI bundle paths and save them to workspace settings. If detection cannot inspect the package tree, choose \`Enter paths manually\` and paste the JS bundle paths, native executable paths, or npm shim paths such as \`codex.cmd\` and \`gemini.ps1\`. Veyra resolves npm shim paths to the underlying JS bundle before launch.
 

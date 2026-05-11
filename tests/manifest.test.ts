@@ -403,18 +403,20 @@ describe('extension manifest', () => {
     expect(veyra?.commands?.map((command) => command.name)).toEqual([
       'review',
       'debate',
+      'consensus',
       'implement',
     ]);
   });
 
-  it('describes /review and /debate as read-only all-agent workflows', () => {
+  it('describes /review, /debate, and /consensus as read-only all-agent workflows', () => {
     const veyra = manifest.contributes.chatParticipants.find(
       (participant) => participant.id === 'veyra.veyra',
     );
     const review = veyra?.commands?.find((command) => command.name === 'review');
     const debate = veyra?.commands?.find((command) => command.name === 'debate');
+    const consensus = veyra?.commands?.find((command) => command.name === 'consensus');
 
-    for (const command of [review, debate]) {
+    for (const command of [review, debate, consensus]) {
       expect(command?.description).toMatch(/Claude, Codex, and Gemini/);
       expect(command?.description).toMatch(/read-only/i);
     }
@@ -441,6 +443,7 @@ describe('extension manifest', () => {
       ['veyra-orchestrator', 'veyra'],
       ['veyra-review', 'veyra'],
       ['veyra-debate', 'veyra'],
+      ['veyra-consensus', 'veyra'],
       ['veyra-implement', 'veyra'],
       ['veyra-claude', 'claude'],
       ['veyra-codex', 'codex'],
@@ -494,6 +497,7 @@ describe('extension manifest', () => {
       'Language Model Chat Provider API',
       '/review',
       '/debate',
+      '/consensus',
       '/implement',
       'bounded intervention',
       'shared-context relay',

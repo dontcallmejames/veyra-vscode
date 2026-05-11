@@ -115,6 +115,12 @@ export const requiredSmokeLanguageModels = {
     version: 'local-cli',
     maxInputTokens: 128000,
   },
+  'veyra-consensus': {
+    name: 'Veyra Consensus',
+    family: 'veyra',
+    version: 'local-cli',
+    maxInputTokens: 128000,
+  },
   'veyra-implement': {
     name: 'Veyra Implement',
     family: 'veyra',
@@ -144,7 +150,7 @@ export const requiredSmokeLanguageModels = {
 export const requiredSmokeChatParticipants = {
   'veyra.veyra': {
     name: 'veyra',
-    commands: ['review', 'debate', 'implement'],
+    commands: ['review', 'debate', 'consensus', 'implement'],
   },
   'veyra.claude': {
     name: 'claude',
@@ -175,6 +181,11 @@ export const requiredSmokeLanguageModelResponseMarkers = {
     '[smoke:codex] read-only request reached Veyra provider.',
     '[smoke:gemini] read-only request reached Veyra provider.',
   ],
+  'veyra-consensus': [
+    '[smoke:claude] read-only request reached Veyra provider.',
+    '[smoke:codex] read-only request reached Veyra provider.',
+    '[smoke:gemini] read-only request reached Veyra provider.',
+  ],
   'veyra-implement': [
     '[smoke:claude] write-capable request reached Veyra provider.',
     '[smoke:codex] write-capable request reached Veyra provider.',
@@ -194,6 +205,7 @@ export const requiredSmokeLanguageModelResponseMarkers = {
 export const requiredSmokeNativeWorkflows = {
   review: { forcedTarget: 'veyra', readOnly: true },
   debate: { forcedTarget: 'veyra', readOnly: true },
+  consensus: { forcedTarget: 'veyra', readOnly: true },
   implement: { forcedTarget: 'veyra', readOnly: false },
 };
 
@@ -215,6 +227,11 @@ export const requiredSmokeNativeChatResponseMarkers = {
     '[smoke:codex] read-only request reached Veyra provider.',
     '[smoke:gemini] read-only request reached Veyra provider.',
   ],
+  'veyra.veyra/consensus': [
+    '[smoke:claude] read-only request reached Veyra provider.',
+    '[smoke:codex] read-only request reached Veyra provider.',
+    '[smoke:gemini] read-only request reached Veyra provider.',
+  ],
   'veyra.veyra/implement': [
     '[smoke:claude] write-capable request reached Veyra provider.',
     '[smoke:codex] write-capable request reached Veyra provider.',
@@ -231,8 +248,8 @@ export const requiredSmokeNativeChatResponseMarkers = {
   ],
 };
 
-const readOnlySmokeLanguageModels = new Set(['veyra-review', 'veyra-debate']);
-const readOnlySmokeNativeChatRequests = new Set(['veyra.veyra/review', 'veyra.veyra/debate']);
+const readOnlySmokeLanguageModels = new Set(['veyra-review', 'veyra-debate', 'veyra-consensus']);
+const readOnlySmokeNativeChatRequests = new Set(['veyra.veyra/review', 'veyra.veyra/debate', 'veyra.veyra/consensus']);
 const smokeAgentEditFiles = {
   claude: 'src/veyra-smoke-claude.ts',
   codex: 'src/veyra-smoke-codex.ts',
