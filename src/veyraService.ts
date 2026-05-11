@@ -463,6 +463,10 @@ export class VeyraSessionService {
     }
   }
 
+  invalidateWorkspaceContext(): void {
+    this.workspaceContextProvider?.invalidate();
+  }
+
   flush(): Promise<void> {
     return this.store.flush();
   }

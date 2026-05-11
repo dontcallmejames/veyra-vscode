@@ -4,7 +4,11 @@ const mocks = vi.hoisted(() => {
   const commandCallbacks = new Map<string, (...args: unknown[]) => unknown>();
   let configListener: ((event: { affectsConfiguration(key: string): boolean }) => void) | undefined;
   const defaultWorkspaceFolders = [{ uri: { fsPath: '/workspace' } }];
-  const service = { id: 'service', flush: vi.fn().mockResolvedValue(undefined) };
+  const service = {
+    id: 'service',
+    flush: vi.fn().mockResolvedValue(undefined),
+    invalidateWorkspaceContext: vi.fn(),
+  };
   const smokeAgents = { id: 'smoke-agents' };
   const fileDecorationProviderDisposable = { dispose: vi.fn() };
   return {
@@ -46,6 +50,12 @@ const mocks = vi.hoisted(() => {
       configListener = listener;
       return { dispose: vi.fn() };
     }),
+    createFileSystemWatcher: vi.fn(() => ({
+      onDidCreate: vi.fn(() => ({ dispose: vi.fn() })),
+      onDidChange: vi.fn(() => ({ dispose: vi.fn() })),
+      onDidDelete: vi.fn(() => ({ dispose: vi.fn() })),
+      dispose: vi.fn(),
+    })),
     getConfigListener: () => configListener,
     reset() {
       commandCallbacks.clear();
@@ -68,6 +78,7 @@ const mocks = vi.hoisted(() => {
       this.chatPanelShow.mockClear();
       this.service.flush.mockClear();
       this.service.flush.mockResolvedValue(undefined);
+      this.service.invalidateWorkspaceContext.mockClear();
       this.createVeyraSessionService.mockClear();
       this.createSmokeAgents.mockClear();
       this.shouldUseSmokeAgents.mockClear();
@@ -85,6 +96,7 @@ const mocks = vi.hoisted(() => {
         gemini: { status: 'missing', path: 'C:\\npm-root\\@google\\gemini-cli\\bundle\\gemini.js', detail: 'Gemini missing' },
       });
       this.onDidChangeConfiguration.mockClear();
+      this.createFileSystemWatcher.mockClear();
     },
   };
 });
@@ -98,6 +110,7 @@ vi.mock('vscode', () => ({
     },
     getConfiguration: vi.fn(() => ({ get: mocks.configGet, update: mocks.configUpdate })),
     onDidChangeConfiguration: mocks.onDidChangeConfiguration,
+    createFileSystemWatcher: mocks.createFileSystemWatcher,
     openTextDocument: mocks.openTextDocument,
   },
   ConfigurationTarget: {
@@ -193,6 +206,27 @@ describe('activate', () => {
     expect(mocks.registerNativeChatParticipants).toHaveBeenCalledWith(ctx, expect.any(Function));
     expect(mocks.registerVeyraLanguageModelProvider).toHaveBeenCalledWith(ctx, expect.any(Function));
     expect(mocks.registerFileDecorationProvider).toHaveBeenCalledTimes(1);
+  });
+
+  it('registers a workspace file watcher for context invalidation', () => {
+    activate(context() as any);
+
+    expect(mocks.createFileSystemWatcher).toHaveBeenCalledWith('**/*');
+    const watcher = mocks.createFileSystemWatcher.mock.results[0]?.value;
+    expect(watcher.onDidCreate).toHaveBeenCalledTimes(1);
+    expect(watcher.onDidChange).toHaveBeenCalledTimes(1);
+    expect(watcher.onDidDelete).toHaveBeenCalledTimes(1);
+
+    const onDidCreate = watcher.onDidCreate.mock.calls[0]?.[0];
+    expect(onDidCreate).toBeTypeOf('function');
+    onDidCreate();
+    expect(mocks.service.invalidateWorkspaceContext).not.toHaveBeenCalled();
+
+    const openPanel = mocks.commandCallbacks.get('veyra.openPanel');
+    expect(openPanel).toBeTypeOf('function');
+    openPanel!();
+    onDidCreate();
+    expect(mocks.service.invalidateWorkspaceContext).toHaveBeenCalledTimes(1);
   });
 
   it('auto-configures detected Codex and Gemini CLI bundle paths from the command palette', async () => {

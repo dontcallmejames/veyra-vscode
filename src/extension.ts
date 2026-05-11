@@ -152,6 +152,17 @@ export function activate(context: vscode.ExtensionContext): void {
     return nativeRegistration;
   };
 
+  const contextWatcher = vscode.workspace.createFileSystemWatcher('**/*');
+  const invalidateWorkspaceContext = (): void => {
+    nativeRegistration?.service.invalidateWorkspaceContext();
+  };
+  context.subscriptions.push(
+    contextWatcher,
+    contextWatcher.onDidCreate(invalidateWorkspaceContext),
+    contextWatcher.onDidChange(invalidateWorkspaceContext),
+    contextWatcher.onDidDelete(invalidateWorkspaceContext),
+  );
+
   context.subscriptions.push(
     vscode.commands.registerCommand('veyra.openPanel', () => {
       const registration = ensureNativeRegistration();

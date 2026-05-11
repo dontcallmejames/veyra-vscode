@@ -6,6 +6,7 @@ import { CodexAgent, getEditedPath as getCodexEditedPath } from './agents/codex.
 import { GeminiAgent, getEditedPath as getGeminiEditedPath } from './agents/gemini.js';
 import { VeyraSessionService } from './veyraService.js';
 import { createWorkspaceChangeTracker } from './workspaceChanges.js';
+import { WorkspaceContextProvider, type WorkspaceContextOptions } from './workspaceContext.js';
 import type { FacilitatorDecision, FacilitatorFn } from './facilitator.js';
 import type { AgentRegistry } from './messageRouter.js';
 import type { Agent, SendOptions } from './agents/types.js';
@@ -217,6 +218,15 @@ export function readVeyraSessionOptions(
   };
 }
 
+export function readWorkspaceContextOptions(): WorkspaceContextOptions {
+  const config = vscode.workspace.getConfiguration('veyra');
+  return {
+    maxFiles: config.get<number>('workspaceContext.maxFiles', 8),
+    maxSnippetLines: config.get<number>('workspaceContext.maxSnippetLines', 80),
+    maxFileBytes: config.get<number>('workspaceContext.maxFileBytes', 1_000_000),
+  };
+}
+
 export function createVeyraSessionService(
   workspacePath: string,
   badgeController?: FileBadgesController,
@@ -229,6 +239,7 @@ export function createVeyraSessionService(
       ...readVeyraSessionOptions(badgeController),
       facilitator: shouldUseSmokeAgents() ? smokeFacilitator : undefined,
       workspaceChangeTracker: createWorkspaceChangeTracker(workspacePath),
+      workspaceContextProvider: new WorkspaceContextProvider(workspacePath, readWorkspaceContextOptions()),
     },
   );
 }
