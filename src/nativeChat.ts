@@ -393,6 +393,27 @@ function renderNativeChatEvent(
       });
       return { sawText: true, sawError: false };
     }
+    if (event.message.kind === 'change-set' && event.message.changeSet) {
+      response.markdown(`\n\n${event.message.text}`);
+      if (event.message.changeSet.status === 'pending') {
+        emitNativeChatButton(response, {
+          command: 'veyra.openPendingChanges',
+          title: 'Open pending changes',
+          arguments: [event.message.changeSet.id],
+        });
+        emitNativeChatButton(response, {
+          command: 'veyra.acceptPendingChanges',
+          title: 'Accept pending changes',
+          arguments: [event.message.changeSet.id],
+        });
+        emitNativeChatButton(response, {
+          command: 'veyra.rejectPendingChanges',
+          title: 'Reject pending changes',
+          arguments: [event.message.changeSet.id],
+        });
+      }
+      return { sawText: true, sawError: false };
+    }
     if (event.message.kind === 'edit-conflict') {
       if (event.message.filePath) {
         response.reference(editedFileUri(workspacePath, event.message.filePath));
@@ -459,6 +480,13 @@ function renderNativeChatEvent(
   }
 
   return { sawText: false, sawError: false };
+}
+
+function emitNativeChatButton(response: vscode.ChatResponseStream, command: vscode.Command): void {
+  const button = (response as { button?: (command: vscode.Command) => void }).button;
+  if (typeof button === 'function') {
+    button.call(response, command);
+  }
 }
 
 function createNativeChatSmokeResponseCollector(): { response: vscode.ChatResponseStream; text(): string } {

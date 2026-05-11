@@ -202,6 +202,15 @@ export class ChatPanel {
       case 'configure-cli-paths':
         await vscode.commands.executeCommand('veyra.configureCliPaths');
         break;
+      case 'open-change-set-diff':
+        await vscode.commands.executeCommand('veyra.openPendingChanges', msg.changeSetId, msg.filePath);
+        break;
+      case 'accept-change-set':
+        await vscode.commands.executeCommand('veyra.acceptPendingChanges', msg.changeSetId);
+        break;
+      case 'reject-change-set':
+        await vscode.commands.executeCommand('veyra.rejectPendingChanges', msg.changeSetId);
+        break;
       case 'open-external':
         await this.openExternalUrl(msg.url);
         break;

@@ -118,4 +118,7 @@ export type FromWebview =
   | { kind: 'show-setup-guide' }
   | { kind: 'show-live-validation-guide' }
   | { kind: 'open-external'; url: string }
-  | { kind: 'open-workspace-file'; relativePath: string };
+  | { kind: 'open-workspace-file'; relativePath: string }
+  | { kind: 'open-change-set-diff'; changeSetId: string; filePath?: string }
+  | { kind: 'accept-change-set'; changeSetId: string }
+  | { kind: 'reject-change-set'; changeSetId: string };

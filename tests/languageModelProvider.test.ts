@@ -291,6 +291,67 @@ describe('Veyra language model provider helpers', () => {
     }));
   });
 
+  it('streams concise pending change-set notices from the shared service', async () => {
+    const context = { subscriptions: [] as Array<{ dispose(): void }> };
+    const service = {
+      dispatch: vi.fn(async (_request, emit) => {
+        await emit({
+          kind: 'system-message',
+          message: {
+            id: 'sys1',
+            role: 'system',
+            kind: 'change-set',
+            text: 'Codex changed 2 files. Review pending changes before continuing.',
+            timestamp: 1,
+            agentId: 'codex',
+            changeSet: {
+              id: 'change-set-1',
+              agentId: 'codex',
+              messageId: 'msg1',
+              timestamp: 1,
+              readOnly: false,
+              status: 'pending',
+              fileCount: 2,
+              files: [
+                { path: 'src/a.ts', changeKind: 'edited' },
+                { path: 'src/b.ts', changeKind: 'created' },
+              ],
+            },
+          },
+        });
+      }),
+      cancelAll: vi.fn(),
+    };
+
+    registerVeyraLanguageModelProvider(
+      context as any,
+      () => ({ service, workspacePath: '/workspace' } as any),
+    );
+
+    const provider = vscodeMocks.registerLanguageModelChatProvider.mock.calls[0]?.[1] as {
+      provideLanguageModelChatResponse(
+        model: unknown,
+        messages: unknown[],
+        options: unknown,
+        progress: { report(value: unknown): void },
+        token: unknown,
+      ): Promise<void>;
+    };
+    const progress = { report: vi.fn() };
+
+    await provider.provideLanguageModelChatResponse(
+      VEYRA_LANGUAGE_MODELS[0],
+      [{ role: 1, name: undefined, content: [{ value: 'Implement this.' }] }],
+      {},
+      progress,
+      cancellationToken(),
+    );
+
+    expect(progress.report).toHaveBeenCalledWith(expect.objectContaining({
+      value: 'Veyra pending changes: Codex changed 2 files. Use Veyra: Open Pending Changes to inspect.',
+    }));
+  });
+
   it('does not dispatch empty language model prompts', async () => {
     const context = { subscriptions: [] as Array<{ dispose(): void }> };
     const service = {

@@ -87,6 +87,39 @@ describe('webview state reducer', () => {
     expect(state.session.messages).toHaveLength(1);
   });
 
+  it('system-message appends visible change-set notices', () => {
+    const state = reduce(initialState(), {
+      kind: 'system-message',
+      message: {
+        id: 's2',
+        role: 'system',
+        kind: 'change-set',
+        text: 'Codex changed 1 file. Review pending changes before continuing.',
+        timestamp: 1,
+        agentId: 'codex',
+        changeSet: {
+          id: 'change-set-1',
+          agentId: 'codex',
+          messageId: 'msg1',
+          timestamp: 1,
+          readOnly: false,
+          status: 'pending',
+          fileCount: 1,
+          files: [{ path: 'src/a.ts', changeKind: 'edited' }],
+        },
+      },
+    });
+
+    expect(state.session.messages).toContainEqual(expect.objectContaining({
+      role: 'system',
+      kind: 'change-set',
+      changeSet: expect.objectContaining({
+        id: 'change-set-1',
+        files: [{ path: 'src/a.ts', changeKind: 'edited' }],
+      }),
+    }));
+  });
+
   it('floor-changed updates floorHolder', () => {
     const state = reduce(initialState(), { kind: 'floor-changed', holder: 'codex' });
     expect(state.floorHolder).toBe('codex');

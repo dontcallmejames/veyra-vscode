@@ -28,6 +28,52 @@ export function SystemNotice({
   if (message.kind === 'error') classes.push('error');
   if (message.kind === 'edit-conflict') classes.push('edit-conflict');
   if (message.kind === 'file-edited') classes.push('file-edited');
+  if (message.kind === 'change-set') classes.push('change-set');
+  if (message.kind === 'change-set' && message.changeSet) {
+    const changeSet = message.changeSet;
+    return (
+      <div class={classes.join(' ')}>
+        <div>{message.text}</div>
+        <div class="change-set-files">
+          {changeSet.files.map((file) => (
+            <div class="change-set-file" key={file.path}>
+              <span class="change-set-file-path">{file.path}</span>
+              <span class="change-set-file-kind">{file.changeKind}</span>
+              <button
+                type="button"
+                class="file-edited-link"
+                onClick={() => send?.({
+                  kind: 'open-change-set-diff',
+                  changeSetId: changeSet.id,
+                  filePath: file.path,
+                })}
+              >
+                Open diff
+              </button>
+            </div>
+          ))}
+        </div>
+        {changeSet.status === 'pending' && (
+          <div class="change-set-actions">
+            <button
+              type="button"
+              class="file-edited-link"
+              onClick={() => send?.({ kind: 'accept-change-set', changeSetId: changeSet.id })}
+            >
+              Accept
+            </button>
+            <button
+              type="button"
+              class="file-edited-link"
+              onClick={() => send?.({ kind: 'reject-change-set', changeSetId: changeSet.id })}
+            >
+              Reject
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
   if ((message.kind === 'file-edited' || message.kind === 'edit-conflict') && message.filePath) {
     const label = message.agentId === 'claude'
       ? 'Claude'
