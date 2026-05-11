@@ -11,7 +11,7 @@ import { buildEditAwareness, findPriorEditorsForFile, normalizeSessionFilePath }
 import { readWorkspaceRules } from './workspaceRules.js';
 import { parseFileMentions, embedFiles } from './fileMentions.js';
 import { DEFAULT_AUTONOMY_POLICY, composePrompt } from './composePrompt.js';
-import { parseWorkspaceContextMention, type WorkspaceContextProvider } from './workspaceContext.js';
+import { parseWorkspaceContextMention, type WorkspaceContextProvider, type WorkspaceContextResult } from './workspaceContext.js';
 import type { FileBadgesController } from './fileBadges.js';
 import type { AgentRegistry } from './messageRouter.js';
 import type { AgentMessage, FileChange, FileChangeKind, Session, SystemMessage, ToolEvent, UserMessage } from './shared/protocol.js';
@@ -216,21 +216,16 @@ export class VeyraSessionService {
       : request.text;
     const { filePaths, remainingText } = parseFileMentions(textWithoutWorkspaceContext);
     const workspaceContextQuery = parseMentions(remainingText).remainingText;
-    const workspaceContextResult = workspaceContextMention.enabled && this.workspaceContextProvider
-      ? await this.workspaceContextProvider.retrieve(workspaceContextQuery)
-      : {
-          enabled: workspaceContextMention.enabled,
-          query: workspaceContextQuery,
-          block: '',
-          attached: [],
-          selected: [],
-          diagnostics: workspaceContextMention.enabled
-            ? ['Workspace context provider is unavailable.']
-            : [],
-        };
+    const workspaceContextResult = await this.retrieveWorkspaceContext(
+      workspaceContextMention.enabled,
+      workspaceContextQuery,
+    );
     const embedResult = embedFiles(filePaths, this.workspacePath, { maxLines: this.fileEmbedMaxLines });
     const userMentions = userMentionsForRequest(request.text, request.forcedTarget);
-    const attachedFiles = [...workspaceContextResult.attached, ...embedResult.attached];
+    const attachedFiles = dedupeAttachedFiles([
+      ...workspaceContextResult.attached,
+      ...embedResult.attached,
+    ]);
 
     const userMsg: UserMessage = {
       id: ulid(),
@@ -242,6 +237,18 @@ export class VeyraSessionService {
     };
     this.store.appendUser(userMsg);
     await emit({ kind: 'user-message', message: userMsg });
+
+    for (const diagnostic of workspaceContextResult.diagnostics) {
+      const sys: SystemMessage = {
+        id: ulid(),
+        role: 'system',
+        kind: 'error',
+        text: `Workspace context (@codebase): ${diagnostic}`,
+        timestamp: Date.now(),
+      };
+      this.store.appendSystem(sys);
+      await emit({ kind: 'system-message', message: sys });
+    }
 
     for (const e of embedResult.errors) {
       const sys: SystemMessage = {
@@ -457,6 +464,24 @@ export class VeyraSessionService {
     return this.store.flush();
   }
 
+  private async retrieveWorkspaceContext(
+    enabled: boolean,
+    query: string,
+  ): Promise<WorkspaceContextResult> {
+    if (!enabled) {
+      return emptyWorkspaceContextResult(false, query, []);
+    }
+    if (!this.workspaceContextProvider) {
+      return emptyWorkspaceContextResult(true, query, ['Workspace context provider is unavailable.']);
+    }
+
+    try {
+      return await this.workspaceContextProvider.retrieve(query);
+    } catch (err) {
+      return emptyWorkspaceContextResult(true, query, [`Unable to retrieve workspace context: ${errorMessage(err)}`]);
+    }
+  }
+
   private async recordWorkspaceChanges(
     inProgress: InProgressDispatch,
     agentId: AgentId,
@@ -634,6 +659,35 @@ function formatAgentList(agentIds: AgentId[]): string {
 function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   return String(err);
+}
+
+function emptyWorkspaceContextResult(
+  enabled: boolean,
+  query: string,
+  diagnostics: string[],
+): WorkspaceContextResult {
+  return {
+    enabled,
+    query,
+    block: '',
+    attached: [],
+    selected: [],
+    diagnostics,
+  };
+}
+
+function dedupeAttachedFiles(
+  files: NonNullable<UserMessage['attachedFiles']>,
+): NonNullable<UserMessage['attachedFiles']> {
+  const seen = new Set<string>();
+  const deduped: NonNullable<UserMessage['attachedFiles']> = [];
+  for (const file of files) {
+    const normalized = normalizeSessionFilePath(file.path);
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+    deduped.push(file);
+  }
+  return deduped;
 }
 
 function fileChangeVerb(changeKind: FileChangeKind): string {

@@ -5,7 +5,7 @@ import * as path from 'node:path';
 import { VeyraSessionService, toRoutedInput } from '../src/veyraService.js';
 import type { Agent } from '../src/agents/types.js';
 import type { AgentChunk, AgentId } from '../src/types.js';
-import type { WorkspaceContextProvider } from '../src/workspaceContext.js';
+import type { WorkspaceContextProvider, WorkspaceContextResult } from '../src/workspaceContext.js';
 
 describe('toRoutedInput', () => {
   it('leaves text unchanged when routing through Veyra', () => {
@@ -152,6 +152,181 @@ describe('VeyraSessionService', () => {
       { path: 'src/auth/session.ts', lines: 4, truncated: true },
       { path: 'src/explicit.ts', lines: 1, truncated: false },
     ]);
+  });
+
+  it('deduplicates retrieved and explicit attachments by path', async () => {
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
+    fs.mkdirSync(path.join(workspacePath, 'src', 'auth'), { recursive: true });
+    fs.writeFileSync(path.join(workspacePath, 'src', 'auth', 'session.ts'), 'export const session = true;\n');
+    const workspaceContextProvider = fakeWorkspaceContextProvider([
+      '[Workspace context from @codebase]',
+      'Selected files:',
+      '- src/auth/session.ts',
+      '[/Workspace context]',
+    ].join('\n'));
+    const service = new VeyraSessionService(
+      workspacePath,
+      {
+        claude: agentNoop('claude'),
+        codex: {
+          id: 'codex',
+          status: async () => 'ready',
+          cancel: async () => {},
+          async *send() {
+            yield { type: 'done' } as AgentChunk;
+          },
+        },
+        gemini: agentNoop('gemini'),
+      },
+      { hangSeconds: 0, workspaceContextProvider: workspaceContextProvider as WorkspaceContextProvider },
+    );
+
+    const events: any[] = [];
+    await service.dispatch(
+      { text: '@codex review @codebase auth flow @src/auth/session.ts', source: 'native-chat', cwd: workspacePath },
+      (event) => {
+        events.push(event);
+      },
+    );
+
+    const userMessage = events.find((event) => event.kind === 'user-message')?.message;
+    expect(userMessage.attachedFiles).toEqual([
+      { path: 'src/auth/session.ts', lines: 4, truncated: true },
+    ]);
+  });
+
+  it('emits a workspace context error and still dispatches when @codebase provider is unavailable', async () => {
+    let codexStarted = false;
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
+    const service = new VeyraSessionService(
+      workspacePath,
+      {
+        claude: agentNoop('claude'),
+        codex: {
+          id: 'codex',
+          status: async () => 'ready',
+          cancel: async () => {},
+          async *send() {
+            codexStarted = true;
+            yield { type: 'done' } as AgentChunk;
+          },
+        },
+        gemini: agentNoop('gemini'),
+      },
+      { hangSeconds: 0 },
+    );
+
+    const events: any[] = [];
+    await service.dispatch(
+      { text: '@codex review @codebase auth flow', source: 'native-chat', cwd: workspacePath },
+      (event) => {
+        events.push(event);
+      },
+    );
+
+    expect(codexStarted).toBe(true);
+    const userIndex = events.findIndex((event) => event.kind === 'user-message');
+    const diagnosticIndex = events.findIndex((event) =>
+      event.kind === 'system-message' &&
+      event.message.kind === 'error' &&
+      event.message.text.includes('Workspace context') &&
+      event.message.text.includes('@codebase') &&
+      event.message.text.includes('unavailable')
+    );
+    expect(userIndex).toBeGreaterThanOrEqual(0);
+    expect(diagnosticIndex).toBeGreaterThan(userIndex);
+  });
+
+  it('emits a workspace context error and still dispatches when @codebase retrieval fails', async () => {
+    let codexStarted = false;
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
+    const workspaceContextProvider: Pick<WorkspaceContextProvider, 'retrieve' | 'invalidate'> = {
+      invalidate: vi.fn(),
+      retrieve: vi.fn(async () => {
+        throw new Error('index unavailable');
+      }),
+    };
+    const service = new VeyraSessionService(
+      workspacePath,
+      {
+        claude: agentNoop('claude'),
+        codex: {
+          id: 'codex',
+          status: async () => 'ready',
+          cancel: async () => {},
+          async *send() {
+            codexStarted = true;
+            yield { type: 'done' } as AgentChunk;
+          },
+        },
+        gemini: agentNoop('gemini'),
+      },
+      { hangSeconds: 0, workspaceContextProvider: workspaceContextProvider as WorkspaceContextProvider },
+    );
+
+    const events: any[] = [];
+    await service.dispatch(
+      { text: '@codex review @codebase auth flow', source: 'native-chat', cwd: workspacePath },
+      (event) => {
+        events.push(event);
+      },
+    );
+
+    expect(codexStarted).toBe(true);
+    expect(events.find((event) => event.kind === 'user-message')).toBeDefined();
+    const diagnostic = events.find((event) =>
+      event.kind === 'system-message' &&
+      event.message.kind === 'error' &&
+      event.message.text.includes('Workspace context') &&
+      event.message.text.includes('@codebase') &&
+      event.message.text.includes('index unavailable')
+    );
+    expect(diagnostic).toBeDefined();
+  });
+
+  it('emits successful @codebase diagnostics and still dispatches when no files match', async () => {
+    let codexStarted = false;
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
+    const workspaceContextProvider = fakeWorkspaceContextProvider('', {
+      attached: [],
+      selected: [],
+      diagnostics: ['No workspace files matched @codebase query.'],
+    });
+    const service = new VeyraSessionService(
+      workspacePath,
+      {
+        claude: agentNoop('claude'),
+        codex: {
+          id: 'codex',
+          status: async () => 'ready',
+          cancel: async () => {},
+          async *send() {
+            codexStarted = true;
+            yield { type: 'done' } as AgentChunk;
+          },
+        },
+        gemini: agentNoop('gemini'),
+      },
+      { hangSeconds: 0, workspaceContextProvider: workspaceContextProvider as WorkspaceContextProvider },
+    );
+
+    const events: any[] = [];
+    await service.dispatch(
+      { text: '@codex review @codebase auth flow', source: 'native-chat', cwd: workspacePath },
+      (event) => {
+        events.push(event);
+      },
+    );
+
+    expect(codexStarted).toBe(true);
+    const diagnostic = events.find((event) =>
+      event.kind === 'system-message' &&
+      event.message.kind === 'error' &&
+      event.message.text.includes('Workspace context') &&
+      event.message.text.includes('@codebase') &&
+      event.message.text.includes('No workspace files matched @codebase query.')
+    );
+    expect(diagnostic).toBeDefined();
   });
 
   it('passes prior agent edit summaries to later agents during @all dispatch', async () => {
@@ -1191,7 +1366,10 @@ describe('VeyraSessionService', () => {
   });
 });
 
-function fakeWorkspaceContextProvider(block: string): Pick<WorkspaceContextProvider, 'retrieve' | 'invalidate'> {
+function fakeWorkspaceContextProvider(
+  block: string,
+  overrides: Partial<WorkspaceContextResult> = {},
+): Pick<WorkspaceContextProvider, 'retrieve' | 'invalidate'> {
   return {
     invalidate: vi.fn(),
     retrieve: vi.fn(async (query: string) => ({
@@ -1208,6 +1386,7 @@ function fakeWorkspaceContextProvider(block: string): Pick<WorkspaceContextProvi
         endLine: 4,
       }],
       diagnostics: [],
+      ...overrides,
     })),
   };
 }
