@@ -769,6 +769,52 @@ describe('native chat workflow prompts', () => {
     });
   });
 
+  it('renders checkpoint notices in native chat', async () => {
+    const context = { subscriptions: [] as Array<{ dispose(): void }> };
+    const service = {
+      dispatch: vi.fn(async (_request, emit) => {
+        await emit({
+          kind: 'system-message',
+          message: {
+            id: 'sys1',
+            role: 'system',
+            kind: 'checkpoint',
+            text: 'Checkpoint saved: Before Codex dispatch.',
+            timestamp: 1,
+            agentId: 'codex',
+            checkpoint: {
+              id: 'checkpoint-1',
+              timestamp: 1,
+              source: 'automatic',
+              label: 'Before Codex dispatch',
+              promptSummary: '@codex edit',
+              status: 'available',
+              fileCount: 1,
+            },
+          },
+        });
+      }),
+      cancelAll: vi.fn(),
+    };
+
+    registerNativeChatParticipants(
+      context as any,
+      () => ({ service, workspacePath: '/workspace' } as any),
+    );
+
+    const handler = vscodeMocks.participantHandlers.get('veyra.veyra');
+    const response = { markdown: vi.fn(), progress: vi.fn(), reference: vi.fn() };
+    await handler!(
+      { prompt: 'implement this', command: undefined },
+      {},
+      response,
+      cancellationToken(),
+    );
+
+    expect(response.markdown).toHaveBeenCalledWith(expect.stringContaining('Checkpoint saved: Before Codex dispatch.'));
+    expect(response.markdown).not.toHaveBeenCalledWith('_No text response._');
+  });
+
   it('does not append no-output fallback when a file edit was surfaced', async () => {
     const context = { subscriptions: [] as Array<{ dispose(): void }> };
     const service = {

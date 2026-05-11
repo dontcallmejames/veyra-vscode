@@ -152,4 +152,6 @@ export type FromWebview =
   | { kind: 'open-workspace-file'; relativePath: string }
   | { kind: 'open-change-set-diff'; changeSetId: string; filePath?: string }
   | { kind: 'accept-change-set'; changeSetId: string }
-  | { kind: 'reject-change-set'; changeSetId: string };
+  | { kind: 'reject-change-set'; changeSetId: string }
+  | { kind: 'create-checkpoint'; label?: string }
+  | { kind: 'rollback-latest-checkpoint' };

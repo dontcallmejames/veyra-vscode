@@ -211,6 +211,12 @@ export class ChatPanel {
       case 'reject-change-set':
         await vscode.commands.executeCommand('veyra.rejectPendingChanges', msg.changeSetId);
         break;
+      case 'create-checkpoint':
+        await vscode.commands.executeCommand('veyra.createCheckpoint', msg.label);
+        break;
+      case 'rollback-latest-checkpoint':
+        await vscode.commands.executeCommand('veyra.rollbackLatestCheckpoint');
+        break;
       case 'open-external':
         await this.openExternalUrl(msg.url);
         break;

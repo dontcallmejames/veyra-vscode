@@ -414,6 +414,10 @@ function renderNativeChatEvent(
       }
       return { sawText: true, sawError: false };
     }
+    if (event.message.kind === 'checkpoint') {
+      response.markdown(`\n\n${event.message.text}`);
+      return { sawText: true, sawError: false };
+    }
     if (event.message.kind === 'edit-conflict') {
       if (event.message.filePath) {
         response.reference(editedFileUri(workspacePath, event.message.filePath));
