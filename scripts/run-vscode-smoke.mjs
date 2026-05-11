@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 
@@ -192,6 +192,9 @@ export const requiredSmokeNativeChatResponseMarkers = {
   'veyra.veyra': [
     'Routed to Codex',
     '[smoke:codex] write-capable request reached Veyra provider.',
+  ],
+  'veyra.veyra/codebase': [
+    '[smoke:codex] saw @codebase workspace context.',
   ],
   'veyra.veyra/review': [
     '[smoke:claude] read-only request reached Veyra provider.',
@@ -533,6 +536,12 @@ export function prepareSmokeDirectories(paths) {
   rmSync(paths.workspaceDir, { recursive: true, force: true });
   mkdirSync(paths.workspaceDir, { recursive: true });
   mkdirSync(join(paths.workspaceDir, '.git'), { recursive: true });
+  mkdirSync(join(paths.workspaceDir, 'src'), { recursive: true });
+  writeFileSync(
+    join(paths.workspaceDir, 'src', 'codebase-context-smoke.ts'),
+    'export const veyraSmokeCodebase = true;\n',
+    'utf8',
+  );
 }
 
 function main() {

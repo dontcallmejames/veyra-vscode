@@ -201,6 +201,11 @@ export async function nativeChatSmokeResponses(registration: NativeChatRegistrat
       prompt: 'Veyra native chat smoke request.',
     },
     {
+      key: 'veyra.veyra/codebase',
+      participantId: 'veyra.veyra',
+      prompt: '@codebase Veyra native chat codebase smoke request. [veyra-smoke-codebase]',
+    },
+    {
       key: 'veyra.veyra/review',
       participantId: 'veyra.veyra',
       command: 'review',

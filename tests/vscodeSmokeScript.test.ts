@@ -150,6 +150,7 @@ describe('VS Code smoke runner script', () => {
       expect(existsSync(staleSessionPath)).toBe(false);
       expect(existsSync(paths.workspaceDir)).toBe(true);
       expect(existsSync(join(paths.workspaceDir, '.git'))).toBe(true);
+      expect(existsSync(join(paths.workspaceDir, 'src', 'codebase-context-smoke.ts'))).toBe(true);
       expect(existsSync(paths.userDataDir)).toBe(true);
       expect(existsSync(paths.extensionsDir)).toBe(true);
     } finally {
@@ -325,6 +326,7 @@ describe('VS Code smoke runner script', () => {
           '[smoke:codex] write-capable request reached Veyra provider.',
           nativeSmokeEditEvidence('Codex', 'src/veyra-smoke-codex.ts'),
         ].join('\n'),
+        'veyra.veyra/codebase': '[smoke:codex] saw @codebase workspace context.',
         'veyra.veyra/review': '[smoke:claude] read-only request reached Veyra provider.\n[smoke:codex] read-only request reached Veyra provider.\n[smoke:gemini] read-only request reached Veyra provider.',
         'veyra.veyra/debate': '[smoke:claude] read-only request reached Veyra provider.\n[smoke:codex] read-only request reached Veyra provider.\n[smoke:gemini] read-only request reached Veyra provider.',
         'veyra.veyra/implement': [
@@ -392,6 +394,13 @@ describe('VS Code smoke runner script', () => {
       },
     };
     expect(validateSmokeResultContent(JSON.stringify(completeSmokeResult))).toEqual([]);
+    expect(validateSmokeResultContent(JSON.stringify({
+      ...completeSmokeResult,
+      nativeChatResponses: {
+        ...completeSmokeResult.nativeChatResponses,
+        'veyra.veyra/codebase': '',
+      },
+    }))).toContain('Missing native chat response evidence: veyra.veyra/codebase');
     expect(validateSmokeResultContent(JSON.stringify({
       ...completeSmokeResult,
       nativeChatResponses: {
