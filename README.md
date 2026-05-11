@@ -46,6 +46,7 @@ Open VS Code Chat and mention a participant:
 
 ```text
 @veyra /review check this migration plan for risk
+@veyra /review @codebase inspect the auth flow for correctness risks
 @veyra /debate choose the safest way to refactor the auth layer
 @veyra /implement add tests for the parser and fix failures
 @claude review the architecture in src/server.ts
@@ -56,6 +57,8 @@ Open VS Code Chat and mention a participant:
 When no direct agent is chosen, `@veyra` asks the facilitator to route the work based on agent availability, prompt content, and recent shared context.
 The `/review` and `/debate` workflows are read-only: Veyra tells agents not to edit files and suppresses automatic edit approval for those dispatches. `/review` steers Claude toward architecture/correctness, Codex toward implementation/test risk, and Gemini toward edge cases and invisible-change risk. `/debate` uses the same split to compare approaches. `/implement` remains the serial workflow intended for code and test changes.
 Workflow prompts tell agents to use their available model and CLI capabilities while still following read-only or edit-permitted instructions. Broad actionable implementation requests should proceed from reasonable assumptions instead of becoming brainstorming or approval checkpoints; agents should stop only for unsafe or impossible next actions.
+
+Use `@codebase` when you want Veyra to retrieve relevant workspace files without naming them explicitly. The first version uses local lexical search over workspace files and project metadata; it does not upload or build a cloud index.
 
 Run `Veyra: Check agent status` from the command palette to verify whether Claude, Codex, and Gemini are installed and authenticated before starting an autonomous workflow. If Codex or Gemini is missing, inaccessible, or misconfigured, the status warning offers CLI path configuration directly. On Windows, `Veyra: Configure Codex/Gemini CLI paths` can detect native CLI executables, PATH npm shims, or npm global CLI bundles and save the needed `veyra.codexCliPath` / `veyra.geminiCliPath` workspace settings. If a stale PATH shim points at a missing derived JS bundle, Veyra skips it and falls back to `npm root -g`; if detection cannot inspect the package tree, the command offers manual JS bundle, native executable, or npm shim path entry.
 If a backend reports `Node.js missing`, install Node.js so the `node` command is on PATH, or point Codex/Gemini at native executable paths instead of JS bundle paths.
@@ -93,6 +96,9 @@ Install the commit hook from the command palette with `Veyra: Install commit hoo
 - `veyra.hangDetectionSeconds`: seconds without output before a waiting notice appears.
 - `veyra.watchdogMinutes`: maximum time an agent may hold the dispatch floor.
 - `veyra.fileEmbedMaxLines`: max lines embedded for `@file` mentions.
+- `veyra.workspaceContext.maxFiles`: max files selected for `@codebase` context.
+- `veyra.workspaceContext.maxSnippetLines`: max snippet lines per selected `@codebase` file.
+- `veyra.workspaceContext.maxFileBytes`: max file size considered during `@codebase` retrieval.
 - `veyra.codexCliPath`: optional absolute path to the Codex CLI JS bundle, native executable, or Windows npm shim. Paths ending in `codex.cmd`, `codex.bat`, or `codex.ps1` are resolved to the underlying JS bundle before launch.
 - `veyra.geminiCliPath`: optional absolute path to the Gemini CLI JS bundle, native executable, or Windows npm shim. Paths ending in `gemini.cmd`, `gemini.bat`, or `gemini.ps1` are resolved to the underlying JS bundle before launch.
 - `veyra.sharedContextWindow`: number of recent messages sent to later agents.
