@@ -274,7 +274,7 @@ async function listContentMatchedFiles(workspacePath: string, terms: string[]): 
   try {
     const { stdout } = await execFileAsync(
       'git',
-      ['grep', '--untracked', '-z', '-l', '-I', ...terms.flatMap((term) => ['-e', term]), '--', '.'],
+      ['grep', '--untracked', '-z', '-l', '-I', '-i', '-F', ...terms.flatMap((term) => ['-e', term]), '--', '.'],
       { cwd: workspacePath, windowsHide: true, timeout: 10_000, maxBuffer: 10 * 1024 * 1024 },
     );
     return new Set(parseNulSeparatedPaths(String(stdout)).filter((file) => !isExcludedPath(file)));
