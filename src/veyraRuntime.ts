@@ -159,7 +159,13 @@ function smokeModelOptionsContextMarker(agentId: AgentId, prompt: string): strin
 
 function smokeCodebaseContextMarker(agentId: AgentId, prompt: string): string | null {
   if (!prompt.trimEnd().endsWith(SMOKE_CODEBASE_MARKER)) return null;
-  if (agentId === 'codex' && prompt.includes('[Workspace context from @codebase]')) {
+  if (
+    agentId === 'codex' &&
+    prompt.includes('[Workspace context from @codebase]') &&
+    prompt.includes('Selected files:') &&
+    prompt.includes('src/codebase-context-smoke.ts') &&
+    prompt.includes('veyraSmokeCodebase')
+  ) {
     return '[smoke:codex] saw @codebase workspace context.';
   }
   return null;

@@ -149,6 +149,51 @@ describe('Veyra runtime smoke agents', () => {
     });
   });
 
+  it('does not surface codebase context smoke marker for diagnostics-only workspace context', async () => {
+    const agents = createSmokeAgents();
+    const chunks = [];
+
+    for await (const chunk of agents.codex.send([
+      '[Workspace context from @codebase]',
+      '- No workspace files matched @codebase query.',
+      '[/Workspace context]',
+      '',
+      'Veyra codebase context smoke request. [veyra-smoke-codebase]',
+    ].join('\n'), { readOnly: true })) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks).not.toContainEqual({
+      type: 'text',
+      text: '[smoke:codex] saw @codebase workspace context.',
+    });
+  });
+
+  it('surfaces codebase context smoke marker when selected fixture evidence is present', async () => {
+    const agents = createSmokeAgents();
+    const chunks = [];
+
+    for await (const chunk of agents.codex.send([
+      '[Workspace context from @codebase]',
+      'Selected files:',
+      '- src/codebase-context-smoke.ts',
+      '',
+      '```ts',
+      'export const veyraSmokeCodebase = true;',
+      '```',
+      '[/Workspace context]',
+      '',
+      'Veyra codebase context smoke request. [veyra-smoke-codebase]',
+    ].join('\n'), { readOnly: true })) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks).toContainEqual({
+      type: 'text',
+      text: '[smoke:codex] saw @codebase workspace context.',
+    });
+  });
+
   it('routes smoke-mode orchestrator requests without calling the paid facilitator backend', async () => {
     const originalSmoke = process.env.VSCODE_VEYRA_SMOKE;
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
