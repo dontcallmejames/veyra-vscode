@@ -10,7 +10,8 @@ export function veyraWorkflowPrompt(command: VeyraWorkflowCommand, prompt: strin
       'Codex: review implementation details, test coverage, and likely regression points.',
       'Gemini: review edge cases, alternate interpretations, and missed invisible-change risks.',
       'Read-only workflow: Do not create, edit, rename, or delete files.',
-      'Call out correctness risks, edit conflicts, missing tests, and invisible changes.',
+      'Each agent should organize findings under these headings: Blocking issues, Advisory risks, Missing tests, Follow-up suggestions.',
+      'Gemini runs last. After its own review, Gemini must add a Veyra Synthesis section with Recommendation, Blocking issues, Missing tests, and Next action.',
       prompt,
     ].join('\n\n');
   }
@@ -24,7 +25,8 @@ export function veyraWorkflowPrompt(command: VeyraWorkflowCommand, prompt: strin
       'Codex: argue from concrete implementation cost, tests, and failure modes.',
       'Gemini: argue from alternatives, edge cases, and adversarial review.',
       'Read-only workflow: Do not create, edit, rename, or delete files.',
-      'Each agent should state its recommendation, concerns with prior replies, and the concrete next action it would take.',
+      'Each agent should use these headings: Recommendation, Tradeoffs, Concerns with prior replies, Next action.',
+      'Gemini runs last. After its own position, Gemini must add a Veyra Synthesis section with Recommended approach, Why, Risks, and Next action.',
       prompt,
     ].join('\n\n');
   }
@@ -37,6 +39,7 @@ export function veyraWorkflowPrompt(command: VeyraWorkflowCommand, prompt: strin
     'Codex: implement the smallest safe code change and tests.',
     'Gemini: review the result for missed cases, edit conflicts, and invisible changes.',
     'Each agent must build on prior replies, preserve shared context, and surface file changes clearly.',
+    'Gemini runs last and must end with a Handoff Summary covering What changed, Verification status, Remaining risks, and Recommended next action.',
     'Do not pause for brainstorming or approval checkpoints unless the next action is unsafe or impossible.',
     prompt,
   ].join('\n\n');
