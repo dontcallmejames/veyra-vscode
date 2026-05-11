@@ -357,6 +357,10 @@ function scoreFile(
       reasonSet.add(`content:${term}`);
     }
   }
+  if (file.metadata && score > 0) {
+    score += 1;
+    reasonSet.add('metadata');
+  }
 
   return { score, reasons: [...reasonSet] };
 }
@@ -371,7 +375,7 @@ function scoreFilePathWithReasons(
 ): { score: number; reasons: string[] } {
   const pathLower = file.path.toLowerCase();
   const baseLower = path.basename(file.path).toLowerCase();
-  let score = file.metadata ? 1 : 0;
+  let score = 0;
   const reasons = new Set<string>();
 
   for (const term of terms) {

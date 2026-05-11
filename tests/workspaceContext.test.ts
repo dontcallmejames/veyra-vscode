@@ -115,6 +115,24 @@ describe('WorkspaceContextProvider', () => {
     expect(result.block).not.toContain('AUTH_TOKEN=secret');
   });
 
+  it('does not select metadata files when nothing matches the query', async () => {
+    const root = tempWorkspace();
+    writeFile(root, 'package.json', '{"name":"sample-project"}\n');
+    writeFile(root, 'README.md', '# Sample project\n');
+    writeFile(root, 'src/app.ts', 'export const app = true;\n');
+
+    const provider = new WorkspaceContextProvider(root, {
+      maxFiles: 10,
+      maxSnippetLines: 5,
+      maxFileBytes: 100_000,
+    });
+    const result = await provider.retrieve('unfindable-term');
+
+    expect(result.selected).toEqual([]);
+    expect(result.block).toBe('');
+    expect(result.diagnostics).toContain('No workspace files matched @codebase query.');
+  });
+
   it('matches git workspace content case-insensitively during candidate prefiltering', async () => {
     const root = tempWorkspace();
     runGit(root, ['init']);
