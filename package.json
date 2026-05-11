@@ -105,15 +105,15 @@
       },
       {
         "command": "veyra.openPendingChanges",
-        "title": "Veyra: Open pending changes"
+        "title": "Veyra: Open Pending Changes"
       },
       {
         "command": "veyra.acceptPendingChanges",
-        "title": "Veyra: Accept pending changes"
+        "title": "Veyra: Accept Pending Changes"
       },
       {
         "command": "veyra.rejectPendingChanges",
-        "title": "Veyra: Reject pending changes"
+        "title": "Veyra: Reject Pending Changes"
       }
     ],
     "chatParticipants": [

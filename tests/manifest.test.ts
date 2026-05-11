@@ -281,10 +281,15 @@ describe('extension manifest', () => {
 
   it('contributes diff preview commands and settings', () => {
     const properties = manifest.contributes.configuration.properties;
+    const commands = new Map(manifest.contributes.commands.map((command) => [command.command, command.title]));
+    const readme = readFileSync(join(process.cwd(), 'README.md'), 'utf8');
 
     expect(manifest.contributes.commands.map((command) => command.command)).toContain('veyra.openPendingChanges');
     expect(manifest.contributes.commands.map((command) => command.command)).toContain('veyra.acceptPendingChanges');
     expect(manifest.contributes.commands.map((command) => command.command)).toContain('veyra.rejectPendingChanges');
+    expect(commands.get('veyra.openPendingChanges')).toBe('Veyra: Open Pending Changes');
+    expect(commands.get('veyra.acceptPendingChanges')).toBe('Veyra: Accept Pending Changes');
+    expect(commands.get('veyra.rejectPendingChanges')).toBe('Veyra: Reject Pending Changes');
     expect(manifest.activationEvents).toContain('onCommand:veyra.openPendingChanges');
     expect(manifest.activationEvents).toContain('onCommand:veyra.acceptPendingChanges');
     expect(manifest.activationEvents).toContain('onCommand:veyra.rejectPendingChanges');
@@ -297,6 +302,11 @@ describe('extension manifest', () => {
       default: 1000000,
       minimum: 1024,
     });
+    expect(readme).toContain('Veyra: Open Pending Changes');
+    expect(readme).toContain('Veyra: Accept Pending Changes');
+    expect(readme).toContain('Veyra: Reject Pending Changes');
+    expect(readme).toContain('veyra.diffPreview.enabled');
+    expect(readme).toContain('veyra.diffPreview.maxFileBytes');
   });
 
   it('contributes command-palette entries for panel, status, and commit-hook operations', () => {
