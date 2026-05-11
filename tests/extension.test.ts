@@ -756,6 +756,20 @@ describe('activate', () => {
       language: 'markdown',
     });
     expect(mocks.openTextDocument).toHaveBeenCalledWith({
+      content: expect.stringContaining('Preview Quickstart'),
+      language: 'markdown',
+    });
+    expect(mocks.openTextDocument).toHaveBeenCalledWith({
+      content: expect.stringContaining('docs/preview-demo-script.md'),
+      language: 'markdown',
+    });
+    for (const workflow of ['@veyra /review', '@veyra /debate', '@veyra /consensus', '@veyra /implement']) {
+      expect(mocks.openTextDocument).toHaveBeenCalledWith({
+        content: expect.stringContaining(workflow),
+        language: 'markdown',
+      });
+    }
+    expect(mocks.openTextDocument).toHaveBeenCalledWith({
       content: expect.stringContaining('VEYRA_CODEX_CLI_PATH'),
       language: 'markdown',
     });

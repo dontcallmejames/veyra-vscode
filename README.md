@@ -33,6 +33,16 @@ Veyra shells out through the local agent CLIs/adapters already configured on you
 
 Use the account, API key, or subscription setup required by each vendor's CLI. Veyra does not replace those credentials; it coordinates the agents inside VS Code.
 
+## Preview Quickstart
+
+1. Install the local Claude, Codex, and Gemini tools listed above.
+2. Open a project in VS Code and run `Veyra: Check agent status`.
+3. If Codex or Gemini needs path recovery on Windows, run `Veyra: Configure Codex/Gemini CLI paths`.
+4. Start with read-only prompts such as `@veyra /review @codebase inspect this change for risk`, `@veyra /debate choose a safe implementation approach`, or `@veyra /consensus decide which option to take`.
+5. Use `@veyra /implement ...` only when you want write-capable agent work, then inspect changes with `Veyra: Open Pending Changes`.
+
+For a repeatable walkthrough covering setup, read-only workflows, implementation, diff preview, checkpoints, and verification, see `docs/preview-demo-script.md`.
+
 ## Development
 
 ```powershell
