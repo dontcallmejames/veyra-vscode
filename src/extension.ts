@@ -9,6 +9,7 @@ import { registerVeyraLanguageModelProvider } from './languageModelProvider.js';
 import { checkClaude, checkCodex, checkGemini, clearStatusCache } from './statusChecks.js';
 import { detectCliBundlePaths } from './cliPathDetection.js';
 import { cliPathMisconfiguration, normalizeCliPathOverride } from './cliPathValidation.js';
+import { registerDiffPreviewCommands } from './diffPreviewCommands.js';
 import type { NativeChatRegistration } from './nativeChat.js';
 import type { AgentStatus } from './types.js';
 import type { DetectedCliBundlePath } from './cliPathDetection.js';
@@ -273,6 +274,8 @@ export function activate(context: vscode.ExtensionContext): void {
       await vscode.window.showTextDocument(doc);
     }),
   );
+
+  registerDiffPreviewCommands(context, () => ensureNativeRegistration()?.service);
 
   const nativeChatRegistrations = registerNativeChatParticipants(context, ensureNativeRegistration);
   if (process.env.VSCODE_VEYRA_SMOKE === '1') {

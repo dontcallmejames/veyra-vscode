@@ -12,9 +12,16 @@ import { readWorkspaceRules } from './workspaceRules.js';
 import { parseFileMentions, embedFiles } from './fileMentions.js';
 import { DEFAULT_AUTONOMY_POLICY, composePrompt } from './composePrompt.js';
 import { parseWorkspaceContextMention, type WorkspaceContextProvider, type WorkspaceContextResult } from './workspaceContext.js';
+import {
+  type ChangeLedger,
+  type ChangeLedgerBaseline,
+  type ChangeSetDiffInputs,
+  type DispatchChangeSet,
+  type RejectChangeSetResult,
+} from './changeLedger.js';
 import type { FileBadgesController } from './fileBadges.js';
 import type { AgentRegistry } from './messageRouter.js';
-import type { AgentMessage, FileChange, FileChangeKind, Session, SystemMessage, ToolEvent, UserMessage } from './shared/protocol.js';
+import type { AgentMessage, DispatchChangeSetSummary, FileChange, FileChangeKind, Session, SystemMessage, ToolEvent, UserMessage } from './shared/protocol.js';
 import type { AgentChunk, AgentId, AgentStatus } from './types.js';
 
 export type VeyraDispatchSource = 'panel' | 'native-chat' | 'language-model';
@@ -50,6 +57,7 @@ export interface VeyraSessionOptions {
   workspaceChangeTracker?: WorkspaceChangeTracker;
   facilitator?: FacilitatorFn;
   workspaceContextProvider?: WorkspaceContextProvider;
+  changeLedger?: ChangeLedger;
 }
 
 export interface WorkspaceChangeTracker {
@@ -65,6 +73,7 @@ interface InProgressDispatch {
   editedFiles: string[];
   fileChanges: FileChange[];
   changeSnapshot?: unknown;
+  changeBaseline?: ChangeLedgerBaseline;
   agentId: AgentId;
   timestamp: number;
   readOnly?: boolean;
@@ -99,6 +108,7 @@ export class VeyraSessionService {
   private getEditedPathForAgent?: (agentId: AgentId, toolName: string, input: unknown) => string | null;
   private workspaceChangeTracker?: WorkspaceChangeTracker;
   private workspaceContextProvider?: WorkspaceContextProvider;
+  private changeLedger?: ChangeLedger;
   private loadPromise: Promise<Session> | null = null;
   private dispatchQueue: Promise<void> = Promise.resolve();
   private cancelGeneration = 0;
@@ -122,6 +132,7 @@ export class VeyraSessionService {
     this.getEditedPathForAgent = options.getEditedPathForAgent;
     this.workspaceChangeTracker = options.workspaceChangeTracker;
     this.workspaceContextProvider = options.workspaceContextProvider;
+    this.changeLedger = options.changeLedger;
     this.sentinel = new SentinelWriter(workspacePath, {
       enabled: this.commitSignatureEnabled,
     });
@@ -154,7 +165,7 @@ export class VeyraSessionService {
 
   updateOptions(options: Pick<
     VeyraSessionOptions,
-    'hangSeconds' | 'fileEmbedMaxLines' | 'sharedContextWindow' | 'commitSignatureEnabled' | 'badgeController' | 'workspaceContextProvider'
+    'hangSeconds' | 'fileEmbedMaxLines' | 'sharedContextWindow' | 'commitSignatureEnabled' | 'badgeController' | 'workspaceContextProvider' | 'changeLedger'
   >): void {
     if (options.hangSeconds !== undefined) {
       this.hangSeconds = options.hangSeconds;
@@ -179,6 +190,9 @@ export class VeyraSessionService {
     }
     if ('workspaceContextProvider' in options) {
       this.workspaceContextProvider = options.workspaceContextProvider;
+    }
+    if ('changeLedger' in options) {
+      this.changeLedger = options.changeLedger;
     }
   }
 
@@ -375,6 +389,18 @@ export class VeyraSessionService {
               );
             }
           }
+          let changeBaseline: ChangeLedgerBaseline | undefined;
+          if (this.changeLedger) {
+            try {
+              changeBaseline = await this.changeLedger.captureBaseline(messageId);
+            } catch (err) {
+              await this.emitWorkspaceChangeError(
+                event.agentId,
+                `Unable to capture diff preview baseline before ${agentLabel(event.agentId)} dispatch: ${errorMessage(err)}`,
+                emit,
+              );
+            }
+          }
           inProgressByAgent.set(event.agentId, {
             id: messageId,
             text: '',
@@ -382,6 +408,7 @@ export class VeyraSessionService {
             editedFiles: [],
             fileChanges: [],
             changeSnapshot,
+            changeBaseline,
             agentId: event.agentId,
             timestamp,
             readOnly: request.readOnly,
@@ -442,6 +469,7 @@ export class VeyraSessionService {
           const inProgress = inProgressByAgent.get(event.agentId);
           if (!inProgress) continue;
           await this.recordWorkspaceChanges(inProgress, event.agentId, emit);
+          await this.emitChangeSetNoticeIfNeeded(inProgress, event.agentId, emit);
           const status: AgentMessage['status'] =
             inProgress.cancelled ? 'cancelled' : (inProgress.error ? 'errored' : 'complete');
           const finalized: AgentMessage = {
@@ -478,6 +506,32 @@ export class VeyraSessionService {
 
   flush(): Promise<void> {
     return this.store.flush();
+  }
+
+  async listPendingChangeSets(): Promise<DispatchChangeSetSummary[]> {
+    if (!this.changeLedger) return [];
+    return (await this.changeLedger.listPendingChangeSets()).map(changeSetSummary);
+  }
+
+  async getChangeSet(id: string): Promise<DispatchChangeSetSummary | null> {
+    if (!this.changeLedger) return null;
+    const changeSet = await this.changeLedger.getChangeSet(id);
+    return changeSet ? changeSetSummary(changeSet) : null;
+  }
+
+  async acceptChangeSet(id: string): Promise<DispatchChangeSetSummary> {
+    if (!this.changeLedger) throw new Error('Diff preview is unavailable.');
+    return changeSetSummary(await this.changeLedger.acceptChangeSet(id));
+  }
+
+  async rejectChangeSet(id: string): Promise<RejectChangeSetResult> {
+    if (!this.changeLedger) throw new Error('Diff preview is unavailable.');
+    return this.changeLedger.rejectChangeSet(id);
+  }
+
+  async changeSetDiffInputs(id: string, filePath: string): Promise<ChangeSetDiffInputs> {
+    if (!this.changeLedger) throw new Error('Diff preview is unavailable.');
+    return this.changeLedger.diffInputs(id, filePath);
   }
 
   private async retrieveWorkspaceContext(
@@ -551,6 +605,52 @@ export class VeyraSessionService {
       text,
       timestamp: Date.now(),
       agentId,
+    };
+    this.store.appendSystem(sys);
+    await emit({ kind: 'system-message', message: sys });
+  }
+
+  private async emitChangeSetNoticeIfNeeded(
+    inProgress: InProgressDispatch,
+    agentId: AgentId,
+    emit: VeyraDispatchEventSink,
+  ): Promise<void> {
+    if (!this.changeLedger || !inProgress.changeBaseline || inProgress.fileChanges.length === 0) return;
+
+    let changeSet: DispatchChangeSet | null;
+    try {
+      changeSet = await this.changeLedger.createChangeSet(inProgress.changeBaseline, {
+        agentId,
+        messageId: inProgress.id,
+        readOnly: inProgress.readOnly === true,
+        files: inProgress.fileChanges,
+        timestamp: Date.now(),
+      });
+    } catch (err) {
+      await this.emitWorkspaceChangeError(
+        agentId,
+        `Unable to create diff preview change set for ${agentLabel(agentId)} dispatch: ${errorMessage(err)}`,
+        emit,
+      );
+      return;
+    }
+
+    if (!changeSet) return;
+
+    const summary = changeSetSummary(changeSet);
+    const count = summary.fileCount;
+    const fileLabel = count === 1 ? 'file' : 'files';
+    const text = summary.readOnly
+      ? `${agentLabel(agentId)} changed ${count} ${fileLabel} during a read-only workflow. Review or reject these changes before continuing.`
+      : `${agentLabel(agentId)} changed ${count} ${fileLabel}. Review pending changes before continuing.`;
+    const sys: SystemMessage = {
+      id: ulid(),
+      role: 'system',
+      kind: 'change-set',
+      text,
+      timestamp: Date.now(),
+      agentId,
+      changeSet: summary,
     };
     this.store.appendSystem(sys);
     await emit({ kind: 'system-message', message: sys });
@@ -782,4 +882,21 @@ function detectFileChangeKind(workspacePath: string, filePath: string): FileChan
   }
 
   return fs.existsSync(absolutePath) ? 'edited' : 'deleted';
+}
+
+function changeSetSummary(changeSet: DispatchChangeSet): DispatchChangeSetSummary {
+  const files = changeSet.files.map((file) => ({
+    path: file.path,
+    changeKind: file.changeKind,
+  }));
+  return {
+    id: changeSet.id,
+    agentId: changeSet.agentId,
+    messageId: changeSet.messageId,
+    timestamp: changeSet.timestamp,
+    readOnly: changeSet.readOnly,
+    status: changeSet.status,
+    fileCount: changeSet.fileCount ?? files.length,
+    files,
+  };
 }

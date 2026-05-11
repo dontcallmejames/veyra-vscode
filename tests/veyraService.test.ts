@@ -5,6 +5,7 @@ import * as path from 'node:path';
 import { VeyraSessionService, toRoutedInput } from '../src/veyraService.js';
 import type { Agent } from '../src/agents/types.js';
 import type { AgentChunk, AgentId } from '../src/types.js';
+import type { ChangeLedger } from '../src/changeLedger.js';
 import type { WorkspaceContextProvider, WorkspaceContextResult } from '../src/workspaceContext.js';
 
 describe('toRoutedInput', () => {
@@ -961,6 +962,120 @@ describe('VeyraSessionService', () => {
     ]);
   });
 
+  it('creates a pending change-set system notice for write-capable agent changes', async () => {
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
+    const tracker = {
+      snapshot: vi.fn().mockResolvedValue('before-turn'),
+      changedFilesSince: vi.fn(),
+      changedFileChangesSince: vi.fn().mockResolvedValue([
+        { path: 'src/new.ts', changeKind: 'created' },
+      ]),
+    };
+    const changeLedger = fakeChangeLedger();
+    const service = new VeyraSessionService(
+      workspacePath,
+      {
+        claude: {
+          id: 'claude',
+          status: async () => 'ready',
+          cancel: async () => {},
+          async *send() {
+            yield { type: 'text', text: 'created it' } as AgentChunk;
+            yield { type: 'done' } as AgentChunk;
+          },
+        },
+        codex: agentNoop('codex'),
+        gemini: agentNoop('gemini'),
+      },
+      { workspaceChangeTracker: tracker, changeLedger } as any,
+    );
+
+    const events: any[] = [];
+    await service.dispatch(
+      { text: '@claude create this', source: 'panel', cwd: workspacePath },
+      (event) => {
+        events.push(event);
+      },
+    );
+
+    expect(changeLedger.captureBaseline).toHaveBeenCalledTimes(1);
+    expect(changeLedger.createChangeSet).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        agentId: 'claude',
+        readOnly: false,
+        files: [{ path: 'src/new.ts', changeKind: 'created' }],
+      }),
+    );
+    const started = events.find((event) => event.kind === 'dispatch-start');
+    const changeSetNotice = events.find((event) =>
+      event.kind === 'system-message' &&
+      event.message.kind === 'change-set'
+    );
+    expect(changeSetNotice?.message.text).toBe('Claude changed 1 file. Review pending changes before continuing.');
+    expect(changeSetNotice?.message.changeSet).toMatchObject({
+      id: 'change-set-1',
+      agentId: 'claude',
+      messageId: started.messageId,
+      readOnly: false,
+      status: 'pending',
+      fileCount: 1,
+      files: [{ path: 'src/new.ts', changeKind: 'created' }],
+    });
+  });
+
+  it('creates a read-only violation change-set notice for unexpected read-only edits', async () => {
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
+    const tracker = {
+      snapshot: vi.fn().mockResolvedValue('before-turn'),
+      changedFilesSince: vi.fn(),
+      changedFileChangesSince: vi.fn().mockResolvedValue([
+        { path: 'src/read-only.ts', changeKind: 'edited' },
+      ]),
+    };
+    const changeLedger = fakeChangeLedger('change-set-read-only');
+    const service = new VeyraSessionService(
+      workspacePath,
+      {
+        claude: {
+          id: 'claude',
+          status: async () => 'ready',
+          cancel: async () => {},
+          async *send() {
+            yield { type: 'text', text: 'edited it anyway' } as AgentChunk;
+            yield { type: 'done' } as AgentChunk;
+          },
+        },
+        codex: agentNoop('codex'),
+        gemini: agentNoop('gemini'),
+      },
+      { workspaceChangeTracker: tracker, changeLedger } as any,
+    );
+
+    const events: any[] = [];
+    await service.dispatch(
+      { text: '@claude review this', source: 'panel', cwd: workspacePath, readOnly: true },
+      (event) => {
+        events.push(event);
+      },
+    );
+
+    const changeSetNotice = events.find((event) =>
+      event.kind === 'system-message' &&
+      event.message.kind === 'change-set'
+    );
+    expect(changeSetNotice?.message.text).toBe(
+      'Claude changed 1 file during a read-only workflow. Review or reject these changes before continuing.',
+    );
+    expect(changeSetNotice?.message.changeSet).toMatchObject({
+      id: 'change-set-read-only',
+      agentId: 'claude',
+      readOnly: true,
+      fileCount: 1,
+      files: [{ path: 'src/read-only.ts', changeKind: 'edited' }],
+    });
+  });
+
   it('updates a tool-reported generic edit when workspace diff proves a specific change kind', async () => {
     const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
     const tracker = {
@@ -1508,6 +1623,39 @@ function fakeWorkspaceContextProvider(
       ...overrides,
     })),
   };
+}
+
+function fakeChangeLedger(
+  id = 'change-set-1',
+): Pick<ChangeLedger, 'captureBaseline' | 'createChangeSet' | 'listPendingChangeSets' | 'getChangeSet' | 'diffInputs' | 'acceptChangeSet' | 'rejectChangeSet'> {
+  const changeLedger = {
+    captureBaseline: vi.fn(async (messageId: string) => ({
+      id,
+      messageId,
+      snapshotRoot: '',
+      files: new Map(),
+    })),
+    createChangeSet: vi.fn(async (_baseline: unknown, input: any) => ({
+      id,
+      agentId: input.agentId,
+      messageId: input.messageId,
+      timestamp: input.timestamp,
+      readOnly: input.readOnly,
+      status: 'pending' as const,
+      fileCount: input.files.length,
+      files: input.files,
+    })),
+    listPendingChangeSets: vi.fn(async () => []),
+    getChangeSet: vi.fn(async () => null),
+    diffInputs: vi.fn(async () => ({
+      beforePath: '',
+      afterPath: '',
+      title: '',
+    })),
+    acceptChangeSet: vi.fn(),
+    rejectChangeSet: vi.fn(),
+  };
+  return changeLedger;
 }
 
 function agentNoop(id: AgentId): Agent {

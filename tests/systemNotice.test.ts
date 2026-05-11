@@ -185,6 +185,60 @@ describe('SystemNotice', () => {
     expect(text).toContain('Codex');
     expect(text).not.toContain('ChatGPT');
   });
+
+  it('renders pending change-set actions for each changed file', () => {
+    const send = vi.fn();
+    const message: SystemMessage = {
+      id: 's9',
+      role: 'system',
+      kind: 'change-set',
+      text: 'Codex changed 2 files. Review pending changes before continuing.',
+      timestamp: 100,
+      agentId: 'codex',
+      changeSet: {
+        id: 'change-set-1',
+        agentId: 'codex',
+        messageId: 'msg1',
+        timestamp: 100,
+        readOnly: false,
+        status: 'pending',
+        fileCount: 2,
+        files: [
+          { path: 'src/a.ts', changeKind: 'edited' },
+          { path: 'src/new.ts', changeKind: 'created' },
+        ],
+      },
+    };
+
+    const vnode = SystemNotice({ message, send });
+    const buttons = findButtons(vnode);
+    const labels = buttons.map((button) => flattenText(button).trim());
+
+    expect(flattenText(vnode)).toContain('Codex changed 2 files');
+    expect(flattenText(vnode)).toContain('src/a.ts');
+    expect(flattenText(vnode)).toContain('src/new.ts');
+    expect(labels).toContain('Open diff');
+    expect(labels).toContain('Accept');
+    expect(labels).toContain('Reject');
+
+    buttons.find((button) => flattenText(button).trim() === 'Open diff')!.props.onClick();
+    buttons.find((button) => flattenText(button).trim() === 'Accept')!.props.onClick();
+    buttons.find((button) => flattenText(button).trim() === 'Reject')!.props.onClick();
+
+    expect(send).toHaveBeenCalledWith({
+      kind: 'open-change-set-diff',
+      changeSetId: 'change-set-1',
+      filePath: 'src/a.ts',
+    });
+    expect(send).toHaveBeenCalledWith({
+      kind: 'accept-change-set',
+      changeSetId: 'change-set-1',
+    });
+    expect(send).toHaveBeenCalledWith({
+      kind: 'reject-change-set',
+      changeSetId: 'change-set-1',
+    });
+  });
 });
 
 function findButtons(vnode: any): any[] {

@@ -128,6 +128,33 @@ body {
 .system-notice.file-edited {
   font-style: normal;
 }
+.system-notice.change-set {
+  align-self: stretch;
+  font-style: normal;
+}
+.change-set-files {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.change-set-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.change-set-file-path {
+  font-family: var(--vscode-editor-font-family, monospace);
+}
+.change-set-file-kind {
+  opacity: 0.65;
+}
+.change-set-actions {
+  margin-top: 6px;
+  display: flex;
+  gap: 10px;
+}
 .file-edited-link {
   border: 0;
   padding: 0;

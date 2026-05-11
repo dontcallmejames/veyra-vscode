@@ -705,6 +705,70 @@ describe('native chat workflow prompts', () => {
     });
   });
 
+  it('offers pending change-set commands from native chat notices', async () => {
+    const context = { subscriptions: [] as Array<{ dispose(): void }> };
+    const service = {
+      dispatch: vi.fn(async (_request, emit) => {
+        await emit({
+          kind: 'system-message',
+          message: {
+            id: 'sys1',
+            role: 'system',
+            kind: 'change-set',
+            text: 'Codex changed 2 files. Review pending changes before continuing.',
+            timestamp: 1,
+            agentId: 'codex',
+            changeSet: {
+              id: 'change-set-1',
+              agentId: 'codex',
+              messageId: 'msg1',
+              timestamp: 1,
+              readOnly: false,
+              status: 'pending',
+              fileCount: 2,
+              files: [
+                { path: 'src/a.ts', changeKind: 'edited' },
+                { path: 'src/b.ts', changeKind: 'created' },
+              ],
+            },
+          },
+        });
+      }),
+      cancelAll: vi.fn(),
+    };
+
+    registerNativeChatParticipants(
+      context as any,
+      () => ({ service, workspacePath: '/workspace' } as any),
+    );
+
+    const handler = vscodeMocks.participantHandlers.get('veyra.veyra');
+    const response = { markdown: vi.fn(), progress: vi.fn(), reference: vi.fn(), button: vi.fn() };
+    await handler!(
+      { prompt: 'implement this', command: undefined },
+      {},
+      response,
+      cancellationToken(),
+    );
+
+    expect(response.markdown).toHaveBeenCalledWith(expect.stringContaining('Codex changed 2 files'));
+    expect(response.button).toHaveBeenCalledWith({
+      command: 'veyra.openPendingChanges',
+      title: 'Open pending changes',
+      arguments: ['change-set-1'],
+    });
+    expect(response.button).toHaveBeenCalledWith({
+      command: 'veyra.acceptPendingChanges',
+      title: 'Accept pending changes',
+      arguments: ['change-set-1'],
+    });
+    expect(response.button).toHaveBeenCalledWith({
+      command: 'veyra.rejectPendingChanges',
+      title: 'Reject pending changes',
+      arguments: ['change-set-1'],
+    });
+  });
+
   it('does not append no-output fallback when a file edit was surfaced', async () => {
     const context = { subscriptions: [] as Array<{ dispose(): void }> };
     const service = {

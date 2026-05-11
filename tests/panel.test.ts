@@ -155,6 +155,29 @@ describe('ChatPanel', () => {
     expect((vscode as any).commands.executeCommand).toHaveBeenCalledWith('veyra.configureCliPaths');
   });
 
+  it('change-set actions from webview invoke pending-change commands', async () => {
+    await ChatPanel.show(ctx);
+    const onDidReceive = (vscode as any).__test.onDidReceive.handler;
+
+    await onDidReceive({ kind: 'open-change-set-diff', changeSetId: 'change-set-1', filePath: 'src/a.ts' });
+    await onDidReceive({ kind: 'accept-change-set', changeSetId: 'change-set-1' });
+    await onDidReceive({ kind: 'reject-change-set', changeSetId: 'change-set-1' });
+
+    expect((vscode as any).commands.executeCommand).toHaveBeenCalledWith(
+      'veyra.openPendingChanges',
+      'change-set-1',
+      'src/a.ts',
+    );
+    expect((vscode as any).commands.executeCommand).toHaveBeenCalledWith(
+      'veyra.acceptPendingChanges',
+      'change-set-1',
+    );
+    expect((vscode as any).commands.executeCommand).toHaveBeenCalledWith(
+      'veyra.rejectPendingChanges',
+      'change-set-1',
+    );
+  });
+
   it('open-external from webview opens https URLs', async () => {
     await ChatPanel.show(ctx);
     const onDidReceive = (vscode as any).__test.onDidReceive.handler;

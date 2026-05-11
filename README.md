@@ -90,6 +90,12 @@ Veyra keeps a single dispatch pipeline for all surfaces:
 
 Install the commit hook from the command palette with `Veyra: Install commit hook`. Use `Veyra: Show commit hook snippet` if your repository uses another hook manager.
 
+### Diff Preview And Pending Changes
+
+When an agent edits files, Veyra records a pending change set. Use `Veyra: Open Pending Changes` to inspect the files in VS Code's diff editor, `Veyra: Accept Pending Changes` to mark the change set as kept, or `Veyra: Reject Pending Changes` to restore the pre-dispatch file state.
+
+Reject refuses to overwrite files that changed after the agent edit. In that case, inspect the file manually before continuing.
+
 ## Settings
 
 - `veyra.toolCallRenderStyle`: `verbose`, `compact`, or `hidden` for raw tool call/result details in the panel, native chat, and Language Model provider. File edit references still stay visible.
@@ -99,6 +105,8 @@ Install the commit hook from the command palette with `Veyra: Install commit hoo
 - `veyra.workspaceContext.maxFiles`: max files selected for `@codebase` context.
 - `veyra.workspaceContext.maxSnippetLines`: max snippet lines per selected `@codebase` file.
 - `veyra.workspaceContext.maxFileBytes`: max file size considered during `@codebase` retrieval.
+- `veyra.diffPreview.enabled`: capture pending agent change sets for diff preview and safe rejection.
+- `veyra.diffPreview.maxFileBytes`: max file size snapshotted for diff preview and rejection.
 - `veyra.codexCliPath`: optional absolute path to the Codex CLI JS bundle, native executable, or Windows npm shim. Paths ending in `codex.cmd`, `codex.bat`, or `codex.ps1` are resolved to the underlying JS bundle before launch.
 - `veyra.geminiCliPath`: optional absolute path to the Gemini CLI JS bundle, native executable, or Windows npm shim. Paths ending in `gemini.cmd`, `gemini.bat`, or `gemini.ps1` are resolved to the underlying JS bundle before launch.
 - `veyra.sharedContextWindow`: number of recent messages sent to later agents.

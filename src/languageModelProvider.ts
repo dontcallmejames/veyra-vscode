@@ -288,6 +288,12 @@ function reportLanguageModelEvent(
     } else if (event.message.kind === 'routing-needed') {
       progress.report(new vscode.LanguageModelTextPart(event.message.text));
       return event.message.text.length > 0;
+    } else if (event.message.kind === 'change-set' && event.message.changeSet) {
+      const changeSet = event.message.changeSet;
+      progress.report(new vscode.LanguageModelTextPart(
+        `Veyra pending changes: ${agentLabel(changeSet.agentId)} changed ${formatFileCount(changeSet.fileCount)}. Use Veyra: Open Pending Changes to inspect.`,
+      ));
+      return true;
     } else if (event.message.kind === 'edit-conflict') {
       const text = linkWorkspaceFile(workspacePath, event.message.text, event.message.filePath);
       progress.report(new vscode.LanguageModelTextPart(`\n\n_Edit conflict: ${text}_`));
@@ -360,6 +366,10 @@ function toolCallDetail(input: unknown): string | null {
 function fileChangeVerb(changeKind: 'created' | 'edited' | 'deleted' | undefined): string {
   if (changeKind === 'created') return 'created';
   return changeKind === 'deleted' ? 'deleted' : 'edited';
+}
+
+function formatFileCount(fileCount: number): string {
+  return `${fileCount} ${fileCount === 1 ? 'file' : 'files'}`;
 }
 
 function compactToolOutput(output: unknown): string | null {
