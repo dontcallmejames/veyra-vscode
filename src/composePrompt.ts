@@ -3,6 +3,7 @@ export interface ComposePromptInput {
   autonomyPolicy?: string;
   sharedContext: string;
   editAwareness?: string;
+  workspaceContext?: string;
   fileBlocks: string;
   attachmentErrors?: Array<{ path: string; reason: string }>;
   userText: string;
@@ -31,6 +32,9 @@ export function composePrompt(input: ComposePromptInput): string {
   }
   if (input.editAwareness?.trim().length) {
     parts.push(input.editAwareness.trimEnd());
+  }
+  if (input.workspaceContext?.trim().length) {
+    parts.push(input.workspaceContext.trimEnd());
   }
   if (input.fileBlocks.trim().length > 0) {
     parts.push(input.fileBlocks.trimEnd());
