@@ -58,7 +58,7 @@ describe('VeyraSessionService', () => {
 
     const events: any[] = [];
     await service.dispatch(
-      { text: '@codex review @codebase auth flow', source: 'native-chat', cwd: workspacePath },
+      { text: '@codex review @codebase auth flow', source: 'panel', cwd: workspacePath },
       (event) => {
         events.push(event);
       },
@@ -124,6 +124,57 @@ describe('VeyraSessionService', () => {
     expect(workspaceContextProvider.retrieve).toHaveBeenCalledWith('inspect the auth flow for correctness risks');
     expect(codexPrompt).toContain('[Workspace context from @codebase]');
   });
+
+  it.each(['native-chat', 'language-model'] as const)(
+    'does not infer @codebase from transcript text for %s dispatches',
+    async (source) => {
+      let codexPrompt = '';
+      const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
+      const workspaceContextProvider = fakeWorkspaceContextProvider([
+        '[Workspace context from @codebase]',
+        'Selected files:',
+        '- src/auth/session.ts',
+        '[/Workspace context]',
+      ].join('\n'));
+      const service = new VeyraSessionService(
+        workspacePath,
+        {
+          claude: agentNoop('claude'),
+          codex: {
+            id: 'codex',
+            status: async () => 'ready',
+            cancel: async () => {},
+            async *send(prompt: string) {
+              codexPrompt = prompt;
+              yield { type: 'done' } as AgentChunk;
+            },
+          },
+          gemini: agentNoop('gemini'),
+        },
+        { hangSeconds: 0, workspaceContextProvider: workspaceContextProvider as WorkspaceContextProvider },
+      );
+
+      await service.dispatch(
+        {
+          text: [
+            '[VS Code chat history]',
+            'User (veyra.veyra): @codebase inspect the auth flow',
+            'Assistant (veyra.veyra): I found one issue.',
+            '[/VS Code chat history]',
+            '',
+            '@codex continue from there',
+          ].join('\n'),
+          source,
+          cwd: workspacePath,
+          forcedTarget: 'codex',
+        },
+        () => {},
+      );
+
+      expect(workspaceContextProvider.retrieve).not.toHaveBeenCalled();
+      expect(codexPrompt).not.toContain('[Workspace context from @codebase]');
+    },
+  );
 
   it('shares the same retrieved @codebase context across all agents in one workflow', async () => {
     const prompts = new Map<AgentId, string>();
@@ -194,7 +245,7 @@ describe('VeyraSessionService', () => {
 
     const events: any[] = [];
     await service.dispatch(
-      { text: '@codex review @codebase auth flow @src/explicit.ts', source: 'native-chat', cwd: workspacePath },
+      { text: '@codex review @codebase auth flow @src/explicit.ts', source: 'panel', cwd: workspacePath },
       (event) => {
         events.push(event);
       },
@@ -236,7 +287,7 @@ describe('VeyraSessionService', () => {
 
     const events: any[] = [];
     await service.dispatch(
-      { text: '@codex review @codebase auth flow @src/auth/session.ts', source: 'native-chat', cwd: workspacePath },
+      { text: '@codex review @codebase auth flow @src/auth/session.ts', source: 'panel', cwd: workspacePath },
       (event) => {
         events.push(event);
       },
@@ -273,7 +324,7 @@ describe('VeyraSessionService', () => {
 
     const events: any[] = [];
     await service.dispatch(
-      { text: '@codex review @codebase auth flow', source: 'native-chat', cwd: workspacePath },
+      { text: '@codex review @codebase auth flow', source: 'panel', cwd: workspacePath },
       (event) => {
         events.push(event);
       },
@@ -326,7 +377,7 @@ describe('VeyraSessionService', () => {
 
     const events: any[] = [];
     await service.dispatch(
-      { text: '@codex review @codebase auth flow', source: 'native-chat', cwd: workspacePath },
+      { text: '@codex review @codebase auth flow', source: 'panel', cwd: workspacePath },
       (event) => {
         events.push(event);
       },
@@ -377,7 +428,7 @@ describe('VeyraSessionService', () => {
 
     const events: any[] = [];
     await service.dispatch(
-      { text: '@codex review @codebase auth flow', source: 'native-chat', cwd: workspacePath },
+      { text: '@codex review @codebase auth flow', source: 'panel', cwd: workspacePath },
       (event) => {
         events.push(event);
       },

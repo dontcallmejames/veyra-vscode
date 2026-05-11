@@ -211,9 +211,11 @@ export class VeyraSessionService {
     void request.source;
     await this.loadSession();
 
-    const workspaceContextSourceText = request.workspaceContextQuery ?? request.text;
+    const workspaceContextSourceText = request.workspaceContextQuery ?? workspaceContextFallbackText(request);
     const workspaceContextMention = parseWorkspaceContextMention(workspaceContextSourceText);
-    const textMention = parseWorkspaceContextMention(request.text);
+    const textMention = workspaceContextMention.enabled
+      ? parseWorkspaceContextMention(request.text)
+      : { enabled: false, remainingText: request.text };
     const textWithoutWorkspaceContext = textMention.enabled
       ? textMention.remainingText
       : request.text;
@@ -688,6 +690,10 @@ function emptyWorkspaceContextResult(
     selected: [],
     diagnostics,
   };
+}
+
+function workspaceContextFallbackText(request: VeyraDispatchRequest): string {
+  return request.source === 'panel' ? request.text : '';
 }
 
 function formatWorkspaceContextDiagnosticsBlock(result: WorkspaceContextResult): string {

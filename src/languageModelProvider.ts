@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import type { VeyraDispatchEvent, VeyraForcedTarget, VeyraSessionService } from './veyraService.js';
 import type { AgentId } from './types.js';
 import { veyraWorkflowPrompt, type VeyraWorkflowCommand } from './workflowPrompts.js';
+import { parseWorkspaceContextMention } from './workspaceContext.js';
 
 export interface VeyraLanguageModelInfo extends vscode.LanguageModelChatInformation {
   readonly forcedTarget: VeyraForcedTarget;
@@ -176,6 +177,7 @@ class VeyraLanguageModelProvider implements vscode.LanguageModelChatProvider<Vey
       ? veyraWorkflowPrompt(selectedModel.workflowCommand, prompt)
       : prompt;
     const readOnly = selectedModel.workflowCommand === 'review' || selectedModel.workflowCommand === 'debate';
+    const workspaceContextQuery = languageModelWorkspaceContextQuery(messages);
 
     let reportedOutput = false;
     try {
@@ -186,6 +188,7 @@ class VeyraLanguageModelProvider implements vscode.LanguageModelChatProvider<Vey
           cwd: registration.workspacePath,
           forcedTarget: selectedModel.forcedTarget,
           readOnly: readOnly || undefined,
+          ...(workspaceContextQuery ? { workspaceContextQuery } : {}),
         },
         (event) => {
           if (token.isCancellationRequested) return;
@@ -213,6 +216,18 @@ class VeyraLanguageModelProvider implements vscode.LanguageModelChatProvider<Vey
       : text.content.map(languageModelPartToText).join('\n');
     return Math.ceil(value.length / 4);
   }
+}
+
+function languageModelWorkspaceContextQuery(
+  messages: readonly vscode.LanguageModelChatRequestMessage[],
+): string | undefined {
+  const lastUserMessage = [...messages].reverse().find((message) =>
+    message.role === vscode.LanguageModelChatMessageRole.User
+  );
+  if (!lastUserMessage) return undefined;
+
+  const query = lastUserMessage.content.map(languageModelPartToText).filter(Boolean).join('\n').trim();
+  return parseWorkspaceContextMention(query).enabled ? query : undefined;
 }
 
 function reportLanguageModelEvent(

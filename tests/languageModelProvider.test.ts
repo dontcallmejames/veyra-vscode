@@ -377,6 +377,88 @@ describe('Veyra language model provider helpers', () => {
     expect(dispatched).toContain('Check this change.');
   });
 
+  it('passes current-turn @codebase language model prompts as the workspace-context query', async () => {
+    const context = { subscriptions: [] as Array<{ dispose(): void }> };
+    const service = {
+      dispatch: vi.fn(async (_request: unknown, _emit: unknown) => {}),
+      cancelAll: vi.fn(),
+    };
+
+    registerVeyraLanguageModelProvider(
+      context as any,
+      () => ({ service, workspacePath: '/workspace' } as any),
+    );
+
+    const provider = vscodeMocks.registerLanguageModelChatProvider.mock.calls[0]?.[1] as {
+      provideLanguageModelChatResponse(
+        model: unknown,
+        messages: unknown[],
+        options: unknown,
+        progress: { report(value: unknown): void },
+        token: unknown,
+      ): Promise<void>;
+    };
+
+    await provider.provideLanguageModelChatResponse(
+      VEYRA_LANGUAGE_MODELS[0],
+      [
+        { role: 1, name: undefined, content: [{ value: 'Earlier request.' }] },
+        { role: 2, name: undefined, content: [{ value: 'Earlier answer.' }] },
+        { role: 1, name: undefined, content: [{ value: '@codebase inspect the auth flow' }] },
+      ],
+      {},
+      { report: vi.fn() },
+      cancellationToken(),
+    );
+
+    expect(service.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: 'language-model',
+        workspaceContextQuery: '@codebase inspect the auth flow',
+      }),
+      expect.any(Function),
+    );
+  });
+
+  it('does not pass stale @codebase history as a language model workspace-context query', async () => {
+    const context = { subscriptions: [] as Array<{ dispose(): void }> };
+    const service = {
+      dispatch: vi.fn(async (_request: unknown, _emit: unknown) => {}),
+      cancelAll: vi.fn(),
+    };
+
+    registerVeyraLanguageModelProvider(
+      context as any,
+      () => ({ service, workspacePath: '/workspace' } as any),
+    );
+
+    const provider = vscodeMocks.registerLanguageModelChatProvider.mock.calls[0]?.[1] as {
+      provideLanguageModelChatResponse(
+        model: unknown,
+        messages: unknown[],
+        options: unknown,
+        progress: { report(value: unknown): void },
+        token: unknown,
+      ): Promise<void>;
+    };
+
+    await provider.provideLanguageModelChatResponse(
+      VEYRA_LANGUAGE_MODELS[0],
+      [
+        { role: 1, name: undefined, content: [{ value: '@codebase inspect the auth flow' }] },
+        { role: 2, name: undefined, content: [{ value: 'Earlier answer.' }] },
+        { role: 1, name: undefined, content: [{ value: 'continue from there' }] },
+      ],
+      {},
+      { report: vi.fn() },
+      cancellationToken(),
+    );
+
+    const dispatchedRequest = service.dispatch.mock.calls[0]?.[0] as { workspaceContextQuery?: string; text: string } | undefined;
+    expect(dispatchedRequest?.workspaceContextQuery).toBeUndefined();
+    expect(dispatchedRequest?.text).toContain('@codebase inspect the auth flow');
+  });
+
   it('passes VS Code request tool definitions into dispatched language model prompts', async () => {
     const context = { subscriptions: [] as Array<{ dispose(): void }> };
     const service = {
