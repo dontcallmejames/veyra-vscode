@@ -95,6 +95,8 @@ const STOP_WORDS = new Set([
   'with',
 ]);
 
+const CONTENT_READ_CONCURRENCY = 16;
+
 export function parseWorkspaceContextMention(input: string): WorkspaceContextMention {
   let enabled = false;
   const remainingText = input
@@ -110,11 +112,15 @@ export function parseWorkspaceContextMention(input: string): WorkspaceContextMen
 
 export class WorkspaceContextProvider {
   private inventory: WorkspaceInventory | null = null;
+  private workspaceRealPath: string | null = null;
+  private readonly options: WorkspaceContextOptions;
 
   constructor(
     private readonly workspacePath: string,
-    private readonly options: WorkspaceContextOptions,
-  ) {}
+    options: WorkspaceContextOptions,
+  ) {
+    this.options = normalizeOptions(options);
+  }
 
   invalidate(): void {
     this.inventory = null;
@@ -132,8 +138,13 @@ export class WorkspaceContextProvider {
       return emptyWorkspaceContextResult(true, normalizedQuery, ['No searchable query terms found.']);
     }
 
-    const candidates = await Promise.all(inventory.files.map(async (file) => {
-      const content = await readTextFile(path.join(this.workspacePath, file.path), this.options.maxFileBytes);
+    const workspaceRealPath = await this.getWorkspaceRealPath();
+    const candidates = await mapWithConcurrency(inventory.files, CONTENT_READ_CONCURRENCY, async (file) => {
+      const content = await readTextFile(
+        path.join(this.workspacePath, file.path),
+        this.options.maxFileBytes,
+        workspaceRealPath,
+      );
       if (content === null) return null;
       const scored = scoreFile(file, content, terms);
       if (scored.score <= 0) return null;
@@ -144,7 +155,7 @@ export class WorkspaceContextProvider {
         reasons: scored.reasons,
         snippet,
       };
-    }));
+    });
 
     const selected = candidates
       .filter((candidate): candidate is NonNullable<typeof candidate> => candidate !== null)
@@ -166,7 +177,7 @@ export class WorkspaceContextProvider {
     const attached = selections.map((selection): AttachedFile => ({
       path: selection.path,
       lines: selection.endLine - selection.startLine + 1,
-      truncated: true,
+      truncated: selected.find((entry) => entry.file.path === selection.path)?.snippet.truncated ?? false,
     }));
 
     return {
@@ -183,15 +194,22 @@ export class WorkspaceContextProvider {
     this.inventory ??= await buildWorkspaceInventory(this.workspacePath);
     return this.inventory;
   }
+
+  private async getWorkspaceRealPath(): Promise<string> {
+    this.workspaceRealPath ??= await fs.realpath(this.workspacePath);
+    return this.workspaceRealPath;
+  }
 }
 
 export async function buildWorkspaceInventory(workspacePath: string): Promise<WorkspaceInventory> {
   const filePaths = await listWorkspaceFiles(workspacePath);
+  const workspaceRealPath = await fs.realpath(workspacePath);
   const files: WorkspaceInventoryFile[] = [];
   for (const filePath of filePaths) {
     try {
-      const stat = await fs.stat(path.join(workspacePath, filePath));
-      if (!stat.isFile()) continue;
+      const absolutePath = path.join(workspacePath, filePath);
+      const stat = await safeWorkspaceFileStat(absolutePath, workspaceRealPath);
+      if (stat === null) continue;
       files.push({
         path: normalizePath(filePath),
         size: stat.size,
@@ -207,7 +225,11 @@ export async function buildWorkspaceInventory(workspacePath: string): Promise<Wo
 
 async function listWorkspaceFiles(workspacePath: string): Promise<string[]> {
   const gitFiles = await listGitFiles(workspacePath);
-  const files = new Set<string>(gitFiles ?? []);
+  if (gitFiles !== null) {
+    return gitFiles.filter((file) => !isExcludedPath(file)).sort((a, b) => a.localeCompare(b));
+  }
+
+  const files = new Set<string>();
   for (const file of await listFilesRecursively(workspacePath, workspacePath)) {
     files.add(file);
   }
@@ -252,14 +274,13 @@ async function listFilesRecursively(root: string, current: string): Promise<stri
   return files;
 }
 
-async function readTextFile(filePath: string, maxFileBytes: number): Promise<string | null> {
-  let stat: import('node:fs').Stats;
-  try {
-    stat = await fs.stat(filePath);
-  } catch {
-    return null;
-  }
-  if (!stat.isFile() || stat.size > maxFileBytes) return null;
+async function readTextFile(
+  filePath: string,
+  maxFileBytes: number,
+  workspaceRealPath: string,
+): Promise<string | null> {
+  const stat = await safeWorkspaceFileStat(filePath, workspaceRealPath);
+  if (stat === null || stat.size > maxFileBytes) return null;
 
   let buffer: Buffer;
   try {
@@ -305,7 +326,7 @@ function extractSnippet(
   content: string,
   terms: string[],
   maxSnippetLines: number,
-): { text: string; startLine: number; endLine: number } {
+): { text: string; startLine: number; endLine: number; truncated: boolean } {
   const rawLines = content.split(/\r?\n/);
   const lines = rawLines.length > 0 && rawLines[rawLines.length - 1] === ''
     ? rawLines.slice(0, -1)
@@ -320,6 +341,7 @@ function extractSnippet(
     text: lines.slice(start, end).join('\n'),
     startLine: start + 1,
     endLine: end,
+    truncated: start > 0 || end < lines.length,
   };
 }
 
@@ -329,7 +351,7 @@ function formatWorkspaceContextBlock(
     file: WorkspaceInventoryFile;
     score: number;
     reasons: string[];
-    snippet: { text: string; startLine: number; endLine: number };
+    snippet: { text: string; startLine: number; endLine: number; truncated: boolean };
   }>,
 ): string {
   const lines: string[] = [
@@ -370,6 +392,61 @@ function emptyWorkspaceContextResult(
     selected: [],
     diagnostics,
   };
+}
+
+function normalizeOptions(options: WorkspaceContextOptions): WorkspaceContextOptions {
+  return {
+    maxFiles: Math.max(0, Math.floor(options.maxFiles)),
+    maxSnippetLines: Math.max(1, Math.floor(options.maxSnippetLines)),
+    maxFileBytes: Math.max(0, Math.floor(options.maxFileBytes)),
+  };
+}
+
+async function safeWorkspaceFileStat(
+  filePath: string,
+  workspaceRealPath: string,
+): Promise<import('node:fs').Stats | null> {
+  let stat: import('node:fs').Stats;
+  try {
+    stat = await fs.lstat(filePath);
+  } catch {
+    return null;
+  }
+  if (stat.isSymbolicLink() || !stat.isFile()) return null;
+
+  let realPath: string;
+  try {
+    realPath = await fs.realpath(filePath);
+  } catch {
+    return null;
+  }
+  if (!isInsideOrEqual(workspaceRealPath, realPath)) return null;
+  return stat;
+}
+
+function isInsideOrEqual(root: string, candidate: string): boolean {
+  const relative = path.relative(root, candidate);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+async function mapWithConcurrency<T, R>(
+  values: T[],
+  concurrency: number,
+  mapper: (value: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(values.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(Math.max(1, concurrency), values.length);
+
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (nextIndex < values.length) {
+      const currentIndex = nextIndex;
+      nextIndex++;
+      results[currentIndex] = await mapper(values[currentIndex]);
+    }
+  }));
+
+  return results;
 }
 
 function tokenize(query: string): string[] {

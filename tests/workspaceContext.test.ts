@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import {
   WorkspaceContextProvider,
   parseWorkspaceContextMention,
@@ -15,6 +16,10 @@ function writeFile(root: string, relativePath: string, content: string): void {
   const absolute = path.join(root, relativePath);
   fs.mkdirSync(path.dirname(absolute), { recursive: true });
   fs.writeFileSync(absolute, content, 'utf8');
+}
+
+function runGit(root: string, args: string[]): void {
+  execFileSync('git', args, { cwd: root, stdio: 'ignore' });
 }
 
 describe('parseWorkspaceContextMention', () => {
@@ -66,6 +71,7 @@ describe('WorkspaceContextProvider', () => {
     expect(result.block).toContain('createSession');
     expect(result.block).toContain('[/Workspace context]');
     expect(result.attached.some((file) => file.path === 'src/auth/session.ts')).toBe(true);
+    expect(result.attached.find((file) => file.path === 'src/auth/session.ts')?.truncated).toBe(false);
   });
 
   it('ignores generated and dependency directories', async () => {
@@ -86,6 +92,90 @@ describe('WorkspaceContextProvider', () => {
     expect(result.block).not.toContain('node_modules');
     expect(result.block).not.toContain('dist/app.js');
     expect(result.block).not.toContain('.vscode/veyra');
+  });
+
+  it('uses git inventory as authoritative so ignored files are not reintroduced', async () => {
+    const root = tempWorkspace();
+    runGit(root, ['init']);
+    writeFile(root, '.gitignore', 'secret.txt\n');
+    writeFile(root, 'src/app.ts', 'export const app = "auth";\n');
+    writeFile(root, 'secret.txt', 'auth secret should stay ignored\n');
+
+    const provider = new WorkspaceContextProvider(root, {
+      maxFiles: 10,
+      maxSnippetLines: 5,
+      maxFileBytes: 100_000,
+    });
+    const result = await provider.retrieve('auth');
+
+    expect(result.selected.map((file) => file.path)).toEqual(['src/app.ts']);
+    expect(result.block).not.toContain('secret.txt');
+    expect(result.block).not.toContain('auth secret should stay ignored');
+  });
+
+  it('rejects symlinked files that would resolve outside the workspace when supported', async () => {
+    const root = tempWorkspace();
+    const outside = tempWorkspace();
+    runGit(root, ['init']);
+    writeFile(outside, 'leak.ts', 'export const leakedCredential = "auth-token";\n');
+    fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+
+    try {
+      fs.symlinkSync(path.join(outside, 'leak.ts'), path.join(root, 'src', 'leak.ts'), 'file');
+      runGit(root, ['add', 'src/leak.ts']);
+    } catch {
+      return;
+    }
+
+    const provider = new WorkspaceContextProvider(root, {
+      maxFiles: 10,
+      maxSnippetLines: 5,
+      maxFileBytes: 100_000,
+    });
+    const result = await provider.retrieve('leakedCredential auth-token');
+
+    expect(result.selected).toEqual([]);
+    expect(result.block).not.toContain('leakedCredential');
+    expect(result.block).not.toContain('auth-token');
+  });
+
+  it('marks attached snippets as truncated only when the snippet is partial', async () => {
+    const root = tempWorkspace();
+    writeFile(root, 'src/long.ts', [
+      'const line1 = true;',
+      'const line2 = true;',
+      'const authToken = true;',
+      'const line4 = true;',
+      'const line5 = true;',
+      'const line6 = true;',
+    ].join('\n'));
+
+    const provider = new WorkspaceContextProvider(root, {
+      maxFiles: 5,
+      maxSnippetLines: 3,
+      maxFileBytes: 100_000,
+    });
+    const result = await provider.retrieve('authToken');
+
+    expect(result.attached).toEqual([
+      { path: 'src/long.ts', lines: 3, truncated: true },
+    ]);
+  });
+
+  it('normalizes negative maxFiles to select no files', async () => {
+    const root = tempWorkspace();
+    writeFile(root, 'src/app.ts', 'export const app = "auth";\n');
+
+    const provider = new WorkspaceContextProvider(root, {
+      maxFiles: -1,
+      maxSnippetLines: 5,
+      maxFileBytes: 100_000,
+    });
+    const result = await provider.retrieve('auth');
+
+    expect(result.selected).toEqual([]);
+    expect(result.attached).toEqual([]);
+    expect(result.block).toBe('');
   });
 
   it('invalidates the cached inventory when requested', async () => {
