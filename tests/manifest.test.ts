@@ -253,6 +253,32 @@ describe('extension manifest', () => {
     expect(properties['veyra.geminiCliPath'].description).toContain('gemini.exe');
   });
 
+  it('contributes workspace context settings documented in the README', () => {
+    const manifest = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8'));
+    const properties = manifest.contributes.configuration.properties;
+    expect(properties['veyra.workspaceContext.maxFiles']).toMatchObject({
+      type: 'number',
+      default: 8,
+      minimum: 1,
+    });
+    expect(properties['veyra.workspaceContext.maxSnippetLines']).toMatchObject({
+      type: 'number',
+      default: 80,
+      minimum: 1,
+    });
+    expect(properties['veyra.workspaceContext.maxFileBytes']).toMatchObject({
+      type: 'number',
+      default: 1000000,
+      minimum: 1024,
+    });
+
+    const readme = readFileSync(join(process.cwd(), 'README.md'), 'utf8');
+    expect(readme).toContain('@codebase');
+    expect(readme).toContain('veyra.workspaceContext.maxFiles');
+    expect(readme).toContain('veyra.workspaceContext.maxSnippetLines');
+    expect(readme).toContain('veyra.workspaceContext.maxFileBytes');
+  });
+
   it('contributes command-palette entries for panel, status, and commit-hook operations', () => {
     expect(manifest.contributes.commands.map((command) => command.command)).toEqual([
       'veyra.openPanel',

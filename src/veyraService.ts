@@ -11,6 +11,7 @@ import { buildEditAwareness, findPriorEditorsForFile, normalizeSessionFilePath }
 import { readWorkspaceRules } from './workspaceRules.js';
 import { parseFileMentions, embedFiles } from './fileMentions.js';
 import { DEFAULT_AUTONOMY_POLICY, composePrompt } from './composePrompt.js';
+import { parseWorkspaceContextMention, type WorkspaceContextProvider, type WorkspaceContextResult } from './workspaceContext.js';
 import type { FileBadgesController } from './fileBadges.js';
 import type { AgentRegistry } from './messageRouter.js';
 import type { AgentMessage, FileChange, FileChangeKind, Session, SystemMessage, ToolEvent, UserMessage } from './shared/protocol.js';
@@ -21,6 +22,7 @@ export type VeyraForcedTarget = AgentId | 'veyra';
 
 export interface VeyraDispatchRequest {
   text: string;
+  workspaceContextQuery?: string;
   source: VeyraDispatchSource;
   cwd?: string;
   forcedTarget?: VeyraForcedTarget;
@@ -47,6 +49,7 @@ export interface VeyraSessionOptions {
   getEditedPathForAgent?: (agentId: AgentId, toolName: string, input: unknown) => string | null;
   workspaceChangeTracker?: WorkspaceChangeTracker;
   facilitator?: FacilitatorFn;
+  workspaceContextProvider?: WorkspaceContextProvider;
 }
 
 export interface WorkspaceChangeTracker {
@@ -95,6 +98,7 @@ export class VeyraSessionService {
   private badgeController?: FileBadgesController;
   private getEditedPathForAgent?: (agentId: AgentId, toolName: string, input: unknown) => string | null;
   private workspaceChangeTracker?: WorkspaceChangeTracker;
+  private workspaceContextProvider?: WorkspaceContextProvider;
   private loadPromise: Promise<Session> | null = null;
   private dispatchQueue: Promise<void> = Promise.resolve();
   private cancelGeneration = 0;
@@ -117,6 +121,7 @@ export class VeyraSessionService {
     this.badgeController = options.badgeController;
     this.getEditedPathForAgent = options.getEditedPathForAgent;
     this.workspaceChangeTracker = options.workspaceChangeTracker;
+    this.workspaceContextProvider = options.workspaceContextProvider;
     this.sentinel = new SentinelWriter(workspacePath, {
       enabled: this.commitSignatureEnabled,
     });
@@ -149,7 +154,7 @@ export class VeyraSessionService {
 
   updateOptions(options: Pick<
     VeyraSessionOptions,
-    'hangSeconds' | 'fileEmbedMaxLines' | 'sharedContextWindow' | 'commitSignatureEnabled' | 'badgeController'
+    'hangSeconds' | 'fileEmbedMaxLines' | 'sharedContextWindow' | 'commitSignatureEnabled' | 'badgeController' | 'workspaceContextProvider'
   >): void {
     if (options.hangSeconds !== undefined) {
       this.hangSeconds = options.hangSeconds;
@@ -171,6 +176,9 @@ export class VeyraSessionService {
     }
     if ('badgeController' in options) {
       this.badgeController = options.badgeController;
+    }
+    if ('workspaceContextProvider' in options) {
+      this.workspaceContextProvider = options.workspaceContextProvider;
     }
   }
 
@@ -203,20 +211,56 @@ export class VeyraSessionService {
     void request.source;
     await this.loadSession();
 
-    const { filePaths, remainingText } = parseFileMentions(request.text);
+    const workspaceContextSourceText = request.workspaceContextQuery ?? workspaceContextFallbackText(request);
+    const workspaceContextMention = parseWorkspaceContextMention(workspaceContextSourceText);
+    const textMention = workspaceContextMention.enabled
+      ? parseWorkspaceContextMention(request.text)
+      : { enabled: false, remainingText: request.text };
+    const textWithoutWorkspaceContext = textMention.enabled
+      ? textMention.remainingText
+      : request.text;
+    const { filePaths, remainingText } = parseFileMentions(textWithoutWorkspaceContext);
+    const workspaceContextTextWithoutMention = workspaceContextMention.enabled
+      ? workspaceContextMention.remainingText
+      : workspaceContextSourceText;
+    const workspaceContextTextWithoutFiles = parseFileMentions(workspaceContextTextWithoutMention).remainingText;
+    const workspaceContextQuery = parseMentions(workspaceContextTextWithoutFiles).remainingText;
+    const workspaceContextResult = await this.retrieveWorkspaceContext(
+      workspaceContextMention.enabled,
+      workspaceContextQuery,
+    );
+    const workspaceContextBlock = workspaceContextResult.block.trim().length > 0
+      ? workspaceContextResult.block
+      : formatWorkspaceContextDiagnosticsBlock(workspaceContextResult);
     const embedResult = embedFiles(filePaths, this.workspacePath, { maxLines: this.fileEmbedMaxLines });
     const userMentions = userMentionsForRequest(request.text, request.forcedTarget);
+    const attachedFiles = dedupeAttachedFiles([
+      ...workspaceContextResult.attached,
+      ...embedResult.attached,
+    ]);
 
     const userMsg: UserMessage = {
       id: ulid(),
       role: 'user',
-      text: request.text,
+      text: textWithoutWorkspaceContext,
       timestamp: Date.now(),
       ...(userMentions.length > 0 ? { mentions: userMentions } : {}),
-      ...(embedResult.attached.length > 0 ? { attachedFiles: embedResult.attached } : {}),
+      ...(attachedFiles.length > 0 ? { attachedFiles } : {}),
     };
     this.store.appendUser(userMsg);
     await emit({ kind: 'user-message', message: userMsg });
+
+    for (const diagnostic of workspaceContextResult.diagnostics) {
+      const sys: SystemMessage = {
+        id: ulid(),
+        role: 'system',
+        kind: 'error',
+        text: `Workspace context (@codebase): ${diagnostic}`,
+        timestamp: Date.now(),
+      };
+      this.store.appendSystem(sys);
+      await emit({ kind: 'system-message', message: sys });
+    }
 
     for (const e of embedResult.errors) {
       const sys: SystemMessage = {
@@ -266,6 +310,7 @@ export class VeyraSessionService {
         autonomyPolicy: DEFAULT_AUTONOMY_POLICY,
         sharedContext,
         editAwareness,
+        workspaceContext: workspaceContextBlock,
         fileBlocks: embedResult.embedded,
         attachmentErrors: embedResult.errors,
         userText: baseText,
@@ -427,8 +472,30 @@ export class VeyraSessionService {
     }
   }
 
+  invalidateWorkspaceContext(): void {
+    this.workspaceContextProvider?.invalidate();
+  }
+
   flush(): Promise<void> {
     return this.store.flush();
+  }
+
+  private async retrieveWorkspaceContext(
+    enabled: boolean,
+    query: string,
+  ): Promise<WorkspaceContextResult> {
+    if (!enabled) {
+      return emptyWorkspaceContextResult(false, query, []);
+    }
+    if (!this.workspaceContextProvider) {
+      return emptyWorkspaceContextResult(true, query, ['Workspace context provider is unavailable.']);
+    }
+
+    try {
+      return await this.workspaceContextProvider.retrieve(query);
+    } catch (err) {
+      return emptyWorkspaceContextResult(true, query, [`Unable to retrieve workspace context: ${errorMessage(err)}`]);
+    }
   }
 
   private async recordWorkspaceChanges(
@@ -608,6 +675,49 @@ function formatAgentList(agentIds: AgentId[]): string {
 function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   return String(err);
+}
+
+function emptyWorkspaceContextResult(
+  enabled: boolean,
+  query: string,
+  diagnostics: string[],
+): WorkspaceContextResult {
+  return {
+    enabled,
+    query,
+    block: '',
+    attached: [],
+    selected: [],
+    diagnostics,
+  };
+}
+
+function workspaceContextFallbackText(request: VeyraDispatchRequest): string {
+  return request.source === 'panel' ? request.text : '';
+}
+
+function formatWorkspaceContextDiagnosticsBlock(result: WorkspaceContextResult): string {
+  if (!result.enabled || result.diagnostics.length === 0) return '';
+  return [
+    '[Workspace context from @codebase]',
+    'Diagnostics:',
+    ...result.diagnostics.map((diagnostic) => `- ${diagnostic}`),
+    '[/Workspace context]',
+  ].join('\n');
+}
+
+function dedupeAttachedFiles(
+  files: NonNullable<UserMessage['attachedFiles']>,
+): NonNullable<UserMessage['attachedFiles']> {
+  const seen = new Set<string>();
+  const deduped: NonNullable<UserMessage['attachedFiles']> = [];
+  for (const file of files) {
+    const normalized = normalizeSessionFilePath(file.path);
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+    deduped.push(file);
+  }
+  return deduped;
 }
 
 function fileChangeVerb(changeKind: FileChangeKind): string {

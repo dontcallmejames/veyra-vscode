@@ -181,6 +181,27 @@
           "maximum": 10000,
           "description": "Maximum lines embedded per @file mention before truncating."
         },
+        "veyra.workspaceContext.maxFiles": {
+          "type": "number",
+          "default": 8,
+          "minimum": 1,
+          "maximum": 25,
+          "description": "Maximum number of files selected for @codebase workspace context."
+        },
+        "veyra.workspaceContext.maxSnippetLines": {
+          "type": "number",
+          "default": 80,
+          "minimum": 1,
+          "maximum": 500,
+          "description": "Maximum lines included per selected @codebase context file snippet."
+        },
+        "veyra.workspaceContext.maxFileBytes": {
+          "type": "number",
+          "default": 1000000,
+          "minimum": 1024,
+          "maximum": 10485760,
+          "description": "Maximum file size Veyra will read while retrieving @codebase context."
+        },
         "veyra.codexCliPath": {
           "type": "string",
           "default": "",

@@ -106,7 +106,7 @@ export class ChatPanel {
       },
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration('veyra')) {
-          refreshVeyraSessionOptions(this.service, this.currentBadgeController());
+          refreshVeyraSessionOptions(this.service, this.workspacePath, this.currentBadgeController());
           this.send({ kind: 'settings-changed', settings: this.readSettings() });
         }
       }),

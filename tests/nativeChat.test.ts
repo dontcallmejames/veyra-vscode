@@ -437,6 +437,68 @@ describe('native chat workflow prompts', () => {
     );
   });
 
+  it('passes raw @codebase workflow prompts as the workspace-context query', async () => {
+    const context = { subscriptions: [] as Array<{ dispose(): void }> };
+    const service = {
+      dispatch: vi.fn(async () => {}),
+      cancelAll: vi.fn(),
+    };
+
+    registerNativeChatParticipants(
+      context as any,
+      () => ({ service, workspacePath: '/workspace' } as any),
+    );
+
+    const handler = vscodeMocks.participantHandlers.get('veyra.veyra');
+    expect(handler).toBeTypeOf('function');
+    await handler!(
+      { prompt: '@codebase inspect the auth flow for correctness risks', command: 'review', references: [], toolReferences: [] },
+      {},
+      { markdown: vi.fn(), progress: vi.fn(), reference: vi.fn() },
+      cancellationToken(),
+    );
+
+    expect(service.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        readOnly: true,
+        text: expect.stringContaining('Workflow: review'),
+        workspaceContextQuery: '@codebase inspect the auth flow for correctness risks',
+      }),
+      expect.any(Function),
+    );
+  });
+
+  it('does not pass file-like @codebase workflow prompts as workspace-context queries', async () => {
+    const context = { subscriptions: [] as Array<{ dispose(): void }> };
+    const service = {
+      dispatch: vi.fn(async (_request: unknown) => {}),
+      cancelAll: vi.fn(),
+    };
+
+    registerNativeChatParticipants(
+      context as any,
+      () => ({ service, workspacePath: '/workspace' } as any),
+    );
+
+    const handler = vscodeMocks.participantHandlers.get('veyra.veyra');
+    expect(handler).toBeTypeOf('function');
+    await handler!(
+      { prompt: '@codebase.ts explain this file', command: 'review', references: [], toolReferences: [] },
+      {},
+      { markdown: vi.fn(), progress: vi.fn(), reference: vi.fn() },
+      cancellationToken(),
+    );
+
+    expect(service.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        readOnly: true,
+        text: expect.stringContaining('@codebase.ts explain this file'),
+      }),
+      expect.any(Function),
+    );
+    expect(service.dispatch.mock.calls[0][0]).not.toHaveProperty('workspaceContextQuery');
+  });
+
   it('references the conflicted workspace file from edit-conflict notices', async () => {
     const context = { subscriptions: [] as Array<{ dispose(): void }> };
     const service = {

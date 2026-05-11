@@ -6,6 +6,7 @@ import { CodexAgent, getEditedPath as getCodexEditedPath } from './agents/codex.
 import { GeminiAgent, getEditedPath as getGeminiEditedPath } from './agents/gemini.js';
 import { VeyraSessionService } from './veyraService.js';
 import { createWorkspaceChangeTracker } from './workspaceChanges.js';
+import { WorkspaceContextProvider, type WorkspaceContextOptions } from './workspaceContext.js';
 import type { FacilitatorDecision, FacilitatorFn } from './facilitator.js';
 import type { AgentRegistry } from './messageRouter.js';
 import type { Agent, SendOptions } from './agents/types.js';
@@ -74,6 +75,13 @@ class SmokeAgent implements Agent {
         text: modelOptionsContextMarker,
       };
     }
+    const codebaseContextMarker = smokeCodebaseContextMarker(this.id, prompt);
+    if (codebaseContextMarker) {
+      yield {
+        type: 'text',
+        text: codebaseContextMarker,
+      };
+    }
     if (!opts?.readOnly) {
       const editedPath = smokeEditFileForPrompt(this.id, prompt);
       if (opts?.cwd) {
@@ -100,6 +108,7 @@ const SMOKE_CONFLICT_MARKER = '[veyra-smoke-conflict]';
 const SMOKE_CONFLICT_EDIT_FILE = 'src/veyra-smoke-conflict.ts';
 const SMOKE_SHARED_CONTEXT_MARKER = '[veyra-smoke-shared-context]';
 const SMOKE_TOOL_CONTEXT_MARKER = '[veyra-smoke-tool-context]';
+const SMOKE_CODEBASE_MARKER = '[veyra-smoke-codebase]';
 const SMOKE_CLAUDE_WRITE_MARKER = '[smoke:claude] write-capable request reached Veyra provider.';
 const SMOKE_CODEX_WRITE_MARKER = '[smoke:codex] write-capable request reached Veyra provider.';
 
@@ -144,6 +153,20 @@ function smokeModelOptionsContextMarker(agentId: AgentId, prompt: string): strin
     prompt.includes('"temperature":0.2')
   ) {
     return '[smoke:codex] saw VS Code model option temperature in provider context.';
+  }
+  return null;
+}
+
+function smokeCodebaseContextMarker(agentId: AgentId, prompt: string): string | null {
+  if (!prompt.trimEnd().endsWith(SMOKE_CODEBASE_MARKER)) return null;
+  if (
+    agentId === 'codex' &&
+    prompt.includes('[Workspace context from @codebase]') &&
+    prompt.includes('Selected files:') &&
+    prompt.includes('src/codebase-context-smoke.ts') &&
+    prompt.includes('veyraSmokeCodebase')
+  ) {
+    return '[smoke:codex] saw @codebase workspace context.';
   }
   return null;
 }
@@ -217,6 +240,15 @@ export function readVeyraSessionOptions(
   };
 }
 
+export function readWorkspaceContextOptions(): WorkspaceContextOptions {
+  const config = vscode.workspace.getConfiguration('veyra');
+  return {
+    maxFiles: config.get<number>('workspaceContext.maxFiles', 8),
+    maxSnippetLines: config.get<number>('workspaceContext.maxSnippetLines', 80),
+    maxFileBytes: config.get<number>('workspaceContext.maxFileBytes', 1_000_000),
+  };
+}
+
 export function createVeyraSessionService(
   workspacePath: string,
   badgeController?: FileBadgesController,
@@ -229,13 +261,18 @@ export function createVeyraSessionService(
       ...readVeyraSessionOptions(badgeController),
       facilitator: shouldUseSmokeAgents() ? smokeFacilitator : undefined,
       workspaceChangeTracker: createWorkspaceChangeTracker(workspacePath),
+      workspaceContextProvider: new WorkspaceContextProvider(workspacePath, readWorkspaceContextOptions()),
     },
   );
 }
 
 export function refreshVeyraSessionOptions(
   service: VeyraSessionService,
+  workspacePath: string,
   badgeController?: FileBadgesController,
 ): void {
-  service.updateOptions(readVeyraSessionOptions(badgeController));
+  service.updateOptions({
+    ...readVeyraSessionOptions(badgeController),
+    workspaceContextProvider: new WorkspaceContextProvider(workspacePath, readWorkspaceContextOptions()),
+  });
 }

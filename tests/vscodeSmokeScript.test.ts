@@ -46,8 +46,13 @@ async function smokeScriptModule() {
       codeCommand: string,
       platform: NodeJS.Platform,
       execFile: (command: string, args: string[], options: unknown) => Buffer | string,
+      fileExists?: (path: string) => boolean,
     ): string;
     prepareSmokeDirectories(paths: SmokePaths): void;
+    initializeSmokeGitRepository(
+      workspaceDir: string,
+      execFile?: (command: string, args: string[], options: unknown) => Buffer | string,
+    ): void;
     findMissingSmokePrerequisites(paths: SmokePaths, fileExists: (path: string) => boolean): string[];
     requiredSmokeLanguageModels: Record<string, {
       name: string;
@@ -125,6 +130,17 @@ describe('VS Code smoke runner script', () => {
     )).toBe('C:/Users/tester/AppData/Local/Programs/Microsoft VS Code/bin/code.cmd');
   });
 
+  it('prefers the Windows code command script when PATH resolves code to Code.exe', async () => {
+    const { resolveCodeCommand } = await smokeScriptModule();
+
+    expect(normalizePathText(resolveCodeCommand(
+      'code',
+      'win32',
+      () => 'C:/Users/tester/AppData/Local/Programs/Microsoft VS Code/Code.exe\r\n',
+      (path) => normalizePathText(path) === 'C:/Users/tester/AppData/Local/Programs/Microsoft VS Code/bin/code.cmd',
+    ))).toBe('C:/Users/tester/AppData/Local/Programs/Microsoft VS Code/bin/code.cmd');
+  });
+
   it('reports missing build and smoke-test artifacts before launching VS Code', async () => {
     const { findMissingSmokePrerequisites, smokePaths } = await smokeScriptModule();
     const paths = smokePaths('C:/repo/veyra');
@@ -150,11 +166,24 @@ describe('VS Code smoke runner script', () => {
       expect(existsSync(staleSessionPath)).toBe(false);
       expect(existsSync(paths.workspaceDir)).toBe(true);
       expect(existsSync(join(paths.workspaceDir, '.git'))).toBe(true);
+      expect(existsSync(join(paths.workspaceDir, '.git', 'HEAD'))).toBe(true);
+      expect(existsSync(join(paths.workspaceDir, 'src', 'codebase-context-smoke.ts'))).toBe(true);
       expect(existsSync(paths.userDataDir)).toBe(true);
       expect(existsSync(paths.extensionsDir)).toBe(true);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  });
+
+  it('reports a clear error when git is unavailable for smoke workspace setup', async () => {
+    const { initializeSmokeGitRepository } = await smokeScriptModule();
+
+    expect(() => initializeSmokeGitRepository(
+      'C:/repo/veyra/.vscode-test/workspace',
+      () => {
+        throw new Error('git missing');
+      },
+    )).toThrow('VS Code smoke test requires git on PATH');
   });
 
   it('keeps smoke metadata expectations aligned with the language model provider source', async () => {
@@ -325,6 +354,7 @@ describe('VS Code smoke runner script', () => {
           '[smoke:codex] write-capable request reached Veyra provider.',
           nativeSmokeEditEvidence('Codex', 'src/veyra-smoke-codex.ts'),
         ].join('\n'),
+        'veyra.veyra/codebase': '[smoke:codex] saw @codebase workspace context.',
         'veyra.veyra/review': '[smoke:claude] read-only request reached Veyra provider.\n[smoke:codex] read-only request reached Veyra provider.\n[smoke:gemini] read-only request reached Veyra provider.',
         'veyra.veyra/debate': '[smoke:claude] read-only request reached Veyra provider.\n[smoke:codex] read-only request reached Veyra provider.\n[smoke:gemini] read-only request reached Veyra provider.',
         'veyra.veyra/implement': [
@@ -392,6 +422,13 @@ describe('VS Code smoke runner script', () => {
       },
     };
     expect(validateSmokeResultContent(JSON.stringify(completeSmokeResult))).toEqual([]);
+    expect(validateSmokeResultContent(JSON.stringify({
+      ...completeSmokeResult,
+      nativeChatResponses: {
+        ...completeSmokeResult.nativeChatResponses,
+        'veyra.veyra/codebase': '',
+      },
+    }))).toContain('Missing native chat response evidence: veyra.veyra/codebase');
     expect(validateSmokeResultContent(JSON.stringify({
       ...completeSmokeResult,
       nativeChatResponses: {

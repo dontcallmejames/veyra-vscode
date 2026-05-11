@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import type { VeyraDispatchEvent, VeyraForcedTarget, VeyraSessionService } from './veyraService.js';
 import type { AgentId } from './types.js';
 import { veyraWorkflowPrompt, type VeyraWorkflowCommand } from './workflowPrompts.js';
+import { parseWorkspaceContextMention } from './workspaceContext.js';
 
 export interface NativeChatRegistration {
   service: VeyraSessionService;
@@ -52,6 +53,7 @@ export interface NativeChatRoutedPrompt {
   text: string;
   forcedTarget: VeyraForcedTarget;
   readOnly?: boolean;
+  workspaceContextQuery?: string;
 }
 
 interface NativeChatReferencePrompt {
@@ -66,17 +68,19 @@ export function nativeChatPromptForRequest(
   workspacePath?: string,
   chatContext?: vscode.ChatContext,
 ): NativeChatRoutedPrompt {
+  const currentPrompt = promptWithChatReferences(request, workspacePath);
+  const workspaceContextQuery = hasCodebaseMention(currentPrompt) ? currentPrompt : undefined;
   const prompt = withNativeChatHistory(
-    promptWithChatReferences(request, workspacePath),
+    currentPrompt,
     chatContext,
     workspacePath,
   );
 
   if (definition.forcedTarget !== 'veyra') {
-    return {
+    return withWorkspaceContextQuery({
       text: prompt,
       forcedTarget: definition.forcedTarget,
-    };
+    }, workspaceContextQuery);
   }
 
   if (request.command === 'review') {
@@ -87,11 +91,11 @@ export function nativeChatPromptForRequest(
         readOnly: true,
       };
     }
-    return {
+    return withWorkspaceContextQuery({
       forcedTarget: 'veyra',
       text: veyraWorkflowPrompt('review', prompt),
       readOnly: true,
-    };
+    }, workspaceContextQuery);
   }
 
   if (request.command === 'debate') {
@@ -102,11 +106,11 @@ export function nativeChatPromptForRequest(
         readOnly: true,
       };
     }
-    return {
+    return withWorkspaceContextQuery({
       forcedTarget: 'veyra',
       text: veyraWorkflowPrompt('debate', prompt),
       readOnly: true,
-    };
+    }, workspaceContextQuery);
   }
 
   if (request.command === 'implement') {
@@ -116,16 +120,16 @@ export function nativeChatPromptForRequest(
         text: '',
       };
     }
-    return {
+    return withWorkspaceContextQuery({
       forcedTarget: 'veyra',
       text: veyraWorkflowPrompt('implement', prompt),
-    };
+    }, workspaceContextQuery);
   }
 
-  return {
+  return withWorkspaceContextQuery({
     text: prompt,
     forcedTarget: definition.forcedTarget,
-  };
+  }, workspaceContextQuery);
 }
 
 export function registerNativeChatParticipants(
@@ -199,6 +203,11 @@ export async function nativeChatSmokeResponses(registration: NativeChatRegistrat
       key: 'veyra.veyra',
       participantId: 'veyra.veyra',
       prompt: 'Veyra native chat smoke request.',
+    },
+    {
+      key: 'veyra.veyra/codebase',
+      participantId: 'veyra.veyra',
+      prompt: '@codebase Veyra native chat codebase smoke request. [veyra-smoke-codebase]',
     },
     {
       key: 'veyra.veyra/review',
@@ -315,6 +324,7 @@ async function handleNativeChatRequest(
         cwd: registration.workspacePath,
         forcedTarget: routedPrompt.forcedTarget,
         readOnly: routedPrompt.readOnly,
+        ...(routedPrompt.workspaceContextQuery ? { workspaceContextQuery: routedPrompt.workspaceContextQuery } : {}),
       },
       (event) => {
         if (token.isCancellationRequested) return;
@@ -341,6 +351,17 @@ async function handleNativeChatRequest(
       forcedTarget: definition.forcedTarget,
     },
   };
+}
+
+function withWorkspaceContextQuery(
+  routed: Omit<NativeChatRoutedPrompt, 'workspaceContextQuery'>,
+  workspaceContextQuery: string | undefined,
+): NativeChatRoutedPrompt {
+  return workspaceContextQuery ? { ...routed, workspaceContextQuery } : routed;
+}
+
+function hasCodebaseMention(prompt: string): boolean {
+  return parseWorkspaceContextMention(prompt).enabled;
 }
 
 function renderNativeChatEvent(
