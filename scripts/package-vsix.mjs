@@ -39,10 +39,23 @@ export function contentTypesXml() {
 
 export function createVsixManifest(manifest) {
   const categories = (manifest.categories ?? ['Other']).join(',');
-  const galleryFlags = manifest.preview ? 'Public,Preview' : 'Public';
+  const galleryFlags = manifest.preview ? 'Public Preview' : 'Public';
   const iconAsset = manifest.icon
     ? `    <Asset Type="Microsoft.VisualStudio.Services.Icons.Default" Path="extension/${escapeXml(toZipPath(manifest.icon))}" Addressable="true" />`
     : undefined;
+  const repositoryUrl = normalizeRepositoryUrl(manifest.repository);
+  const propertyEntries = [
+    `      <Property Id="Microsoft.VisualStudio.Code.Engine" Value="${escapeXml(manifest.engines?.vscode ?? '*')}" />`,
+    repositoryUrl ? `      <Property Id="Microsoft.VisualStudio.Services.Links.Source" Value="${escapeXml(repositoryUrl)}" />` : undefined,
+    repositoryUrl ? `      <Property Id="Microsoft.VisualStudio.Services.Links.Getstarted" Value="${escapeXml(repositoryUrl)}" />` : undefined,
+    repositoryUrl ? `      <Property Id="Microsoft.VisualStudio.Services.Links.GitHub" Value="${escapeXml(repositoryUrl)}" />` : undefined,
+    manifest.bugs?.url ? `      <Property Id="Microsoft.VisualStudio.Services.Links.Support" Value="${escapeXml(manifest.bugs.url)}" />` : undefined,
+    manifest.homepage ? `      <Property Id="Microsoft.VisualStudio.Services.Links.Learn" Value="${escapeXml(manifest.homepage)}" />` : undefined,
+    manifest.galleryBanner?.color ? `      <Property Id="Microsoft.VisualStudio.Services.Branding.Color" Value="${escapeXml(manifest.galleryBanner.color)}" />` : undefined,
+    manifest.galleryBanner?.theme ? `      <Property Id="Microsoft.VisualStudio.Services.Branding.Theme" Value="${escapeXml(manifest.galleryBanner.theme)}" />` : undefined,
+    '      <Property Id="Microsoft.VisualStudio.Services.GitHubFlavoredMarkdown" Value="true" />',
+    '      <Property Id="Microsoft.VisualStudio.Services.Content.Pricing" Value="Free" />',
+  ].filter(Boolean);
   const optionalAssets = [
     iconAsset,
     '    <Asset Type="Microsoft.VisualStudio.Services.Content.License" Path="extension/LICENSE.txt" Addressable="true" />',
@@ -58,7 +71,7 @@ export function createVsixManifest(manifest) {
     `    <Categories>${escapeXml(categories)}</Categories>`,
     `    <GalleryFlags>${galleryFlags}</GalleryFlags>`,
     '    <Properties>',
-    `      <Property Id="Microsoft.VisualStudio.Code.Engine" Value="${escapeXml(manifest.engines?.vscode ?? '*')}" />`,
+    ...propertyEntries,
     '    </Properties>',
     '  </Metadata>',
     '  <Installation>',
@@ -73,6 +86,14 @@ export function createVsixManifest(manifest) {
     '</PackageManifest>',
     '',
   ].join('\n');
+}
+
+function normalizeRepositoryUrl(repository) {
+  if (!repository) {
+    return undefined;
+  }
+
+  return typeof repository === 'string' ? repository : repository.url;
 }
 
 function main() {
