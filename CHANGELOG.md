@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.6
+
+- Keeps the legacy Veyra panel command usable if optional native chat or language model provider registration fails during activation.
+- Adds regression coverage for activation failures that previously could surface as `command 'veyra.openPanel' not found`.
+
 ## 0.0.5
 
 - Fixes native chat transcript parsing so PowerShell-style arrays such as `@("package.json", "README.md")` are not surfaced as bogus file mention errors before agent output.

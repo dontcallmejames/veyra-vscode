@@ -286,7 +286,10 @@ export function activate(context: vscode.ExtensionContext): void {
   registerDiffPreviewCommands(context, () => ensureNativeRegistration()?.service);
   registerCheckpointCommands(context, () => ensureNativeRegistration()?.service);
 
-  const nativeChatRegistrations = registerNativeChatParticipants(context, ensureNativeRegistration);
+  let nativeChatRegistrations: string[] = [];
+  registerOptionalSurface('native chat', () => {
+    nativeChatRegistrations = registerNativeChatParticipants(context, ensureNativeRegistration);
+  });
   if (process.env.VSCODE_VEYRA_SMOKE === '1') {
     context.subscriptions.push(
       vscode.commands.registerCommand('veyra.internalSmokeDiagnostics', async () => {
@@ -301,7 +304,17 @@ export function activate(context: vscode.ExtensionContext): void {
       }),
     );
   }
-  registerVeyraLanguageModelProvider(context, ensureNativeRegistration);
+  registerOptionalSurface('language model provider', () => {
+    registerVeyraLanguageModelProvider(context, ensureNativeRegistration);
+  });
+}
+
+function registerOptionalSurface(label: string, register: () => void): void {
+  try {
+    register();
+  } catch (err) {
+    vscode.window.showWarningMessage(`Veyra ${label} registration failed: ${errorMessage(err)}`);
+  }
 }
 
 function isVeyraInternalStatePath(workspacePath: string, fsPath: string): boolean {

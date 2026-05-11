@@ -288,6 +288,42 @@ describe('activate', () => {
     expect(mocks.registerFileDecorationProvider).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps the panel command usable when native chat registration fails', () => {
+    mocks.registerNativeChatParticipants.mockImplementationOnce(() => {
+      throw new Error('chat API unavailable');
+    });
+
+    const ctx = context();
+
+    expect(() => activate(ctx as any)).not.toThrow();
+    const openPanel = mocks.commandCallbacks.get('veyra.openPanel');
+    expect(openPanel).toBeTypeOf('function');
+    openPanel!();
+
+    expect(mocks.chatPanelShow).toHaveBeenCalled();
+    expect(mocks.showWarningMessage).toHaveBeenCalledWith(
+      'Veyra native chat registration failed: chat API unavailable',
+    );
+  });
+
+  it('keeps the panel command usable when language model provider registration fails', () => {
+    mocks.registerVeyraLanguageModelProvider.mockImplementationOnce(() => {
+      throw new Error('language model API unavailable');
+    });
+
+    const ctx = context();
+
+    expect(() => activate(ctx as any)).not.toThrow();
+    const openPanel = mocks.commandCallbacks.get('veyra.openPanel');
+    expect(openPanel).toBeTypeOf('function');
+    openPanel!();
+
+    expect(mocks.chatPanelShow).toHaveBeenCalled();
+    expect(mocks.showWarningMessage).toHaveBeenCalledWith(
+      'Veyra language model provider registration failed: language model API unavailable',
+    );
+  });
+
   it('opens pending change diffs through the active Veyra service', async () => {
     activate(context() as any);
     const openPanel = mocks.commandCallbacks.get('veyra.openPanel');
