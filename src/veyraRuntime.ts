@@ -268,7 +268,11 @@ export function createVeyraSessionService(
 
 export function refreshVeyraSessionOptions(
   service: VeyraSessionService,
+  workspacePath: string,
   badgeController?: FileBadgesController,
 ): void {
-  service.updateOptions(readVeyraSessionOptions(badgeController));
+  service.updateOptions({
+    ...readVeyraSessionOptions(badgeController),
+    workspaceContextProvider: new WorkspaceContextProvider(workspacePath, readWorkspaceContextOptions()),
+  });
 }

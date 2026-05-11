@@ -56,6 +56,25 @@ const DEFAULT_EXCLUDED_DIR_PATHS = new Set([
   '.vscode/veyra',
 ]);
 
+const SECRET_PRONE_FILE_NAMES = new Set([
+  '.env',
+  '.npmrc',
+  '.pypirc',
+  '.netrc',
+  'id_dsa',
+  'id_ecdsa',
+  'id_ed25519',
+  'id_rsa',
+  'secrets.json',
+]);
+
+const SECRET_PRONE_EXTENSIONS = new Set([
+  '.key',
+  '.pem',
+  '.p12',
+  '.pfx',
+]);
+
 const METADATA_FILES = new Set([
   'package.json',
   'package-lock.json',
@@ -139,7 +158,8 @@ export class WorkspaceContextProvider {
     }
 
     const workspaceRealPath = await this.getWorkspaceRealPath();
-    const candidates = await mapWithConcurrency(inventory.files, CONTENT_READ_CONCURRENCY, async (file) => {
+    const candidateFiles = await candidateFilesForTerms(inventory.files, this.workspacePath, terms);
+    const candidates = await mapWithConcurrency(candidateFiles, CONTENT_READ_CONCURRENCY, async (file) => {
       const content = await readTextFile(
         path.join(this.workspacePath, file.path),
         this.options.maxFileBytes,
@@ -201,6 +221,19 @@ export class WorkspaceContextProvider {
   }
 }
 
+async function candidateFilesForTerms(
+  files: WorkspaceInventoryFile[],
+  workspacePath: string,
+  terms: string[],
+): Promise<WorkspaceInventoryFile[]> {
+  const contentMatchedPaths = await listContentMatchedFiles(workspacePath, terms);
+  if (contentMatchedPaths === null) return files;
+
+  return files.filter((file) =>
+    scoreFilePath(file, terms) > 0 || contentMatchedPaths.has(file.path)
+  );
+}
+
 export async function buildWorkspaceInventory(workspacePath: string): Promise<WorkspaceInventory> {
   const filePaths = await listWorkspaceFiles(workspacePath);
   const workspaceRealPath = await fs.realpath(workspacePath);
@@ -234,6 +267,21 @@ async function listWorkspaceFiles(workspacePath: string): Promise<string[]> {
     files.add(file);
   }
   return [...files].filter((file) => !isExcludedPath(file)).sort((a, b) => a.localeCompare(b));
+}
+
+async function listContentMatchedFiles(workspacePath: string, terms: string[]): Promise<Set<string> | null> {
+  if (terms.length === 0) return new Set();
+  try {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['grep', '--untracked', '-z', '-l', '-I', ...terms.flatMap((term) => ['-e', term]), '--', '.'],
+      { cwd: workspacePath, windowsHide: true, timeout: 10_000, maxBuffer: 10 * 1024 * 1024 },
+    );
+    return new Set(parseNulSeparatedPaths(String(stdout)).filter((file) => !isExcludedPath(file)));
+  } catch (err) {
+    if (commandExitCode(err) === 1) return new Set();
+    return null;
+  }
 }
 
 async function listGitFiles(workspacePath: string): Promise<string[] | null> {
@@ -297,9 +345,32 @@ function scoreFile(
   content: string,
   terms: string[],
 ): { score: number; reasons: string[] } {
+  const { score: pathScore, reasons } = scoreFilePathWithReasons(file, terms);
+  let score = pathScore;
+  const reasonSet = new Set(reasons);
+  const contentLower = content.toLowerCase();
+
+  for (const term of terms) {
+    const contentHits = countOccurrences(contentLower, term);
+    if (contentHits > 0) {
+      score += Math.min(contentHits, 5);
+      reasonSet.add(`content:${term}`);
+    }
+  }
+
+  return { score, reasons: [...reasonSet] };
+}
+
+function scoreFilePath(file: WorkspaceInventoryFile, terms: string[]): number {
+  return scoreFilePathWithReasons(file, terms).score;
+}
+
+function scoreFilePathWithReasons(
+  file: WorkspaceInventoryFile,
+  terms: string[],
+): { score: number; reasons: string[] } {
   const pathLower = file.path.toLowerCase();
   const baseLower = path.basename(file.path).toLowerCase();
-  const contentLower = content.toLowerCase();
   let score = file.metadata ? 1 : 0;
   const reasons = new Set<string>();
 
@@ -311,11 +382,6 @@ function scoreFile(
     if (baseLower.includes(term)) {
       score += 4;
       reasons.add(`name:${term}`);
-    }
-    const contentHits = countOccurrences(contentLower, term);
-    if (contentHits > 0) {
-      score += Math.min(contentHits, 5);
-      reasons.add(`content:${term}`);
     }
   }
 
@@ -502,8 +568,29 @@ function normalizePath(filePath: string): string {
   return filePath.replace(/\\/g, '/');
 }
 
+function parseNulSeparatedPaths(value: string): string[] {
+  return value
+    .split('\0')
+    .map((file) => normalizePath(file.trim()))
+    .filter((file) => file.length > 0);
+}
+
+function commandExitCode(err: unknown): number | null {
+  return typeof err === 'object' && err !== null && 'code' in err && typeof err.code === 'number'
+    ? err.code
+    : null;
+}
+
 function isExcludedPath(relativePath: string): boolean {
   const normalized = normalizePath(relativePath);
+  const basenameLower = path.basename(normalized).toLowerCase();
+  if (
+    SECRET_PRONE_FILE_NAMES.has(basenameLower) ||
+    basenameLower.startsWith('.env.') ||
+    SECRET_PRONE_EXTENSIONS.has(path.extname(basenameLower))
+  ) {
+    return true;
+  }
   for (const excludedPath of DEFAULT_EXCLUDED_DIR_PATHS) {
     if (normalized === excludedPath || normalized.startsWith(`${excludedPath}/`)) {
       return true;

@@ -18,7 +18,12 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
   query: claudeSdkMocks.query,
 }));
 
-import { createVeyraSessionService, createSmokeAgents, shouldUseSmokeAgents } from '../src/veyraRuntime.js';
+import {
+  createVeyraSessionService,
+  createSmokeAgents,
+  refreshVeyraSessionOptions,
+  shouldUseSmokeAgents,
+} from '../src/veyraRuntime.js';
 
 function makeSmokeWorkspace(prefix: string): string {
   const smokeRoot = join(process.cwd(), '.vscode-test');
@@ -147,6 +152,21 @@ describe('Veyra runtime smoke agents', () => {
       type: 'text',
       text: '[smoke:codex] saw VS Code model option temperature in provider context.',
     });
+  });
+
+  it('refreshes workspace context provider settings for existing services', () => {
+    const service = {
+      updateOptions: vi.fn(),
+    };
+
+    refreshVeyraSessionOptions(service as any, '/workspace');
+
+    expect(service.updateOptions).toHaveBeenCalledWith(expect.objectContaining({
+      workspaceContextProvider: expect.objectContaining({
+        retrieve: expect.any(Function),
+        invalidate: expect.any(Function),
+      }),
+    }));
   });
 
   it('does not surface codebase context smoke marker for diagnostics-only workspace context', async () => {

@@ -437,6 +437,37 @@ describe('native chat workflow prompts', () => {
     );
   });
 
+  it('passes raw @codebase workflow prompts as the workspace-context query', async () => {
+    const context = { subscriptions: [] as Array<{ dispose(): void }> };
+    const service = {
+      dispatch: vi.fn(async () => {}),
+      cancelAll: vi.fn(),
+    };
+
+    registerNativeChatParticipants(
+      context as any,
+      () => ({ service, workspacePath: '/workspace' } as any),
+    );
+
+    const handler = vscodeMocks.participantHandlers.get('veyra.veyra');
+    expect(handler).toBeTypeOf('function');
+    await handler!(
+      { prompt: '@codebase inspect the auth flow for correctness risks', command: 'review', references: [], toolReferences: [] },
+      {},
+      { markdown: vi.fn(), progress: vi.fn(), reference: vi.fn() },
+      cancellationToken(),
+    );
+
+    expect(service.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        readOnly: true,
+        text: expect.stringContaining('Workflow: review'),
+        workspaceContextQuery: '@codebase inspect the auth flow for correctness risks',
+      }),
+      expect.any(Function),
+    );
+  });
+
   it('references the conflicted workspace file from edit-conflict notices', async () => {
     const context = { subscriptions: [] as Array<{ dispose(): void }> };
     const service = {

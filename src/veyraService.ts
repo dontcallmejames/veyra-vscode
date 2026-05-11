@@ -22,6 +22,7 @@ export type VeyraForcedTarget = AgentId | 'veyra';
 
 export interface VeyraDispatchRequest {
   text: string;
+  workspaceContextQuery?: string;
   source: VeyraDispatchSource;
   cwd?: string;
   forcedTarget?: VeyraForcedTarget;
@@ -210,12 +211,18 @@ export class VeyraSessionService {
     void request.source;
     await this.loadSession();
 
-    const workspaceContextMention = parseWorkspaceContextMention(request.text);
-    const textWithoutWorkspaceContext = workspaceContextMention.enabled
-      ? workspaceContextMention.remainingText
+    const workspaceContextSourceText = request.workspaceContextQuery ?? request.text;
+    const workspaceContextMention = parseWorkspaceContextMention(workspaceContextSourceText);
+    const textMention = parseWorkspaceContextMention(request.text);
+    const textWithoutWorkspaceContext = textMention.enabled
+      ? textMention.remainingText
       : request.text;
     const { filePaths, remainingText } = parseFileMentions(textWithoutWorkspaceContext);
-    const workspaceContextQuery = parseMentions(remainingText).remainingText;
+    const workspaceContextTextWithoutMention = workspaceContextMention.enabled
+      ? workspaceContextMention.remainingText
+      : workspaceContextSourceText;
+    const workspaceContextTextWithoutFiles = parseFileMentions(workspaceContextTextWithoutMention).remainingText;
+    const workspaceContextQuery = parseMentions(workspaceContextTextWithoutFiles).remainingText;
     const workspaceContextResult = await this.retrieveWorkspaceContext(
       workspaceContextMention.enabled,
       workspaceContextQuery,

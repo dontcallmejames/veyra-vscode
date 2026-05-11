@@ -72,6 +72,59 @@ describe('VeyraSessionService', () => {
     expect(userMessage.attachedFiles).toEqual([{ path: 'src/auth/session.ts', lines: 4, truncated: true }]);
   });
 
+  it('uses an explicit workspace-context query instead of workflow boilerplate', async () => {
+    let codexPrompt = '';
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
+    const workspaceContextProvider = fakeWorkspaceContextProvider([
+      '[Workspace context from @codebase]',
+      'Selected files:',
+      '- src/auth/session.ts',
+      '[/Workspace context]',
+    ].join('\n'));
+    const service = new VeyraSessionService(
+      workspacePath,
+      {
+        claude: agentNoop('claude'),
+        codex: {
+          id: 'codex',
+          status: async () => 'ready',
+          cancel: async () => {},
+          async *send(prompt: string) {
+            codexPrompt = prompt;
+            yield { type: 'done' } as AgentChunk;
+          },
+        },
+        gemini: agentNoop('gemini'),
+      },
+      { hangSeconds: 0, workspaceContextProvider: workspaceContextProvider as WorkspaceContextProvider },
+    );
+
+    await service.dispatch(
+      {
+        text: [
+          '@all',
+          '',
+          'Workflow: review',
+          '',
+          'Claude: review architecture.',
+          '',
+          'Read-only workflow: Do not create, edit, rename, or delete files.',
+          '',
+          '@codebase inspect the auth flow for correctness risks',
+        ].join('\n'),
+        workspaceContextQuery: '@codebase inspect the auth flow for correctness risks',
+        source: 'native-chat',
+        cwd: workspacePath,
+        forcedTarget: 'veyra',
+        readOnly: true,
+      },
+      () => {},
+    );
+
+    expect(workspaceContextProvider.retrieve).toHaveBeenCalledWith('inspect the auth flow for correctness risks');
+    expect(codexPrompt).toContain('[Workspace context from @codebase]');
+  });
+
   it('shares the same retrieved @codebase context across all agents in one workflow', async () => {
     const prompts = new Map<AgentId, string>();
     const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));

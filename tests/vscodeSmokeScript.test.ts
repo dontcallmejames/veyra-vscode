@@ -49,6 +49,10 @@ async function smokeScriptModule() {
       fileExists?: (path: string) => boolean,
     ): string;
     prepareSmokeDirectories(paths: SmokePaths): void;
+    initializeSmokeGitRepository(
+      workspaceDir: string,
+      execFile?: (command: string, args: string[], options: unknown) => Buffer | string,
+    ): void;
     findMissingSmokePrerequisites(paths: SmokePaths, fileExists: (path: string) => boolean): string[];
     requiredSmokeLanguageModels: Record<string, {
       name: string;
@@ -169,6 +173,17 @@ describe('VS Code smoke runner script', () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  });
+
+  it('reports a clear error when git is unavailable for smoke workspace setup', async () => {
+    const { initializeSmokeGitRepository } = await smokeScriptModule();
+
+    expect(() => initializeSmokeGitRepository(
+      'C:/repo/veyra/.vscode-test/workspace',
+      () => {
+        throw new Error('git missing');
+      },
+    )).toThrow('VS Code smoke test requires git on PATH');
   });
 
   it('keeps smoke metadata expectations aligned with the language model provider source', async () => {

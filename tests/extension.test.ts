@@ -225,8 +225,21 @@ describe('activate', () => {
     const openPanel = mocks.commandCallbacks.get('veyra.openPanel');
     expect(openPanel).toBeTypeOf('function');
     openPanel!();
-    onDidCreate();
+    onDidCreate({ fsPath: '/workspace/src/app.ts' });
     expect(mocks.service.invalidateWorkspaceContext).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not invalidate workspace context for Veyra internal state writes', () => {
+    activate(context() as any);
+    const watcher = mocks.createFileSystemWatcher.mock.results[0]?.value;
+    const onDidChange = watcher.onDidChange.mock.calls[0]?.[0];
+
+    const openPanel = mocks.commandCallbacks.get('veyra.openPanel');
+    expect(openPanel).toBeTypeOf('function');
+    openPanel!();
+    onDidChange({ fsPath: '/workspace/.vscode/veyra/sessions.json' });
+
+    expect(mocks.service.invalidateWorkspaceContext).not.toHaveBeenCalled();
   });
 
   it('auto-configures detected Codex and Gemini CLI bundle paths from the command palette', async () => {
@@ -712,7 +725,7 @@ describe('activate', () => {
     listener!({ affectsConfiguration: (key) => key === 'veyra' || key === 'veyra.fileBadges.enabled' });
 
     expect(mocks.fileDecorationProviderDisposable.dispose).toHaveBeenCalledTimes(1);
-    expect(mocks.refreshVeyraSessionOptions).toHaveBeenCalledWith(mocks.service, undefined);
+    expect(mocks.refreshVeyraSessionOptions).toHaveBeenCalledWith(mocks.service, '/workspace', undefined);
   });
 
   it('clears cached backend status when CLI path settings change', () => {

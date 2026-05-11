@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'node:path';
 import { ChatPanel } from './panel.js';
 import { FileBadgesController } from './fileBadges.js';
 import { installCommitHook, uninstallCommitHook, COMMIT_HOOK_SNIPPET } from './commitHook.js';
@@ -153,7 +154,10 @@ export function activate(context: vscode.ExtensionContext): void {
   };
 
   const contextWatcher = vscode.workspace.createFileSystemWatcher('**/*');
-  const invalidateWorkspaceContext = (): void => {
+  const invalidateWorkspaceContext = (uri?: vscode.Uri): void => {
+    if (uri && nativeRegistration && isVeyraInternalStatePath(nativeRegistration.workspacePath, uri.fsPath)) {
+      return;
+    }
     nativeRegistration?.service.invalidateWorkspaceContext();
   };
   context.subscriptions.push(
@@ -223,7 +227,7 @@ export function activate(context: vscode.ExtensionContext): void {
         const currentBadgeController = ensureBadgeController();
         const registration = ensureNativeRegistration();
         if (registration) {
-          refreshVeyraSessionOptions(registration.service, currentBadgeController);
+          refreshVeyraSessionOptions(registration.service, registration.workspacePath, currentBadgeController);
         }
       }
     }),
@@ -286,6 +290,11 @@ export function activate(context: vscode.ExtensionContext): void {
     );
   }
   registerVeyraLanguageModelProvider(context, ensureNativeRegistration);
+}
+
+function isVeyraInternalStatePath(workspacePath: string, fsPath: string): boolean {
+  const relative = path.relative(workspacePath, fsPath).replace(/\\/g, '/');
+  return relative === '.vscode/veyra' || relative.startsWith('.vscode/veyra/');
 }
 
 export async function deactivate(): Promise<void> {

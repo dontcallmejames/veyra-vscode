@@ -544,13 +544,27 @@ export function prepareSmokeDirectories(paths) {
   mkdirSync(paths.extensionsDir, { recursive: true });
   rmSync(paths.workspaceDir, { recursive: true, force: true });
   mkdirSync(paths.workspaceDir, { recursive: true });
-  execFileSync('git', ['init'], { cwd: paths.workspaceDir, stdio: 'ignore', windowsHide: true });
+  initializeSmokeGitRepository(paths.workspaceDir);
   mkdirSync(join(paths.workspaceDir, 'src'), { recursive: true });
   writeFileSync(
     join(paths.workspaceDir, 'src', 'codebase-context-smoke.ts'),
     'export const veyraSmokeCodebase = true;\n',
     'utf8',
   );
+}
+
+export function initializeSmokeGitRepository(workspaceDir, execFile = execFileSync) {
+  try {
+    execFile('git', ['init'], { cwd: workspaceDir, stdio: 'ignore', windowsHide: true });
+  } catch (err) {
+    throw new Error(
+      `VS Code smoke test requires git on PATH to initialize the isolated smoke workspace: ${errorMessage(err)}`,
+    );
+  }
+}
+
+function errorMessage(err) {
+  return err instanceof Error ? err.message : String(err);
 }
 
 function main() {

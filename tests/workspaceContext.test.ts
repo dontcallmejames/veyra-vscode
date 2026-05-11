@@ -94,6 +94,27 @@ describe('WorkspaceContextProvider', () => {
     expect(result.block).not.toContain('.vscode/veyra');
   });
 
+  it('excludes secret-prone files from workspace context', async () => {
+    const root = tempWorkspace();
+    writeFile(root, 'src/auth.ts', 'export const tokenHelp = "safe auth docs";\n');
+    writeFile(root, '.env', 'AUTH_TOKEN=secret\n');
+    writeFile(root, 'certs/private.pem', 'AUTH_TOKEN=private key\n');
+    writeFile(root, 'config/secrets.json', '{"AUTH_TOKEN":"secret"}\n');
+
+    const provider = new WorkspaceContextProvider(root, {
+      maxFiles: 10,
+      maxSnippetLines: 5,
+      maxFileBytes: 100_000,
+    });
+    const result = await provider.retrieve('AUTH_TOKEN auth');
+
+    expect(result.selected.map((file) => file.path)).toEqual(['src/auth.ts']);
+    expect(result.block).not.toContain('.env');
+    expect(result.block).not.toContain('private.pem');
+    expect(result.block).not.toContain('secrets.json');
+    expect(result.block).not.toContain('AUTH_TOKEN=secret');
+  });
+
   it('uses git inventory as authoritative so ignored files are not reintroduced', async () => {
     const root = tempWorkspace();
     runGit(root, ['init']);
