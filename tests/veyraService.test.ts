@@ -112,6 +112,48 @@ describe('VeyraSessionService', () => {
     expect(prompts.get('gemini')).toContain('src/shared/router.ts');
   });
 
+  it('orders retrieved @codebase attachments before explicit file attachments', async () => {
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
+    fs.mkdirSync(path.join(workspacePath, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(workspacePath, 'src', 'explicit.ts'), 'export const explicit = true;\n');
+    const workspaceContextProvider = fakeWorkspaceContextProvider([
+      '[Workspace context from @codebase]',
+      'Selected files:',
+      '- src/auth/session.ts',
+      '[/Workspace context]',
+    ].join('\n'));
+    const service = new VeyraSessionService(
+      workspacePath,
+      {
+        claude: agentNoop('claude'),
+        codex: {
+          id: 'codex',
+          status: async () => 'ready',
+          cancel: async () => {},
+          async *send() {
+            yield { type: 'done' } as AgentChunk;
+          },
+        },
+        gemini: agentNoop('gemini'),
+      },
+      { hangSeconds: 0, workspaceContextProvider: workspaceContextProvider as WorkspaceContextProvider },
+    );
+
+    const events: any[] = [];
+    await service.dispatch(
+      { text: '@codex review @codebase auth flow @src/explicit.ts', source: 'native-chat', cwd: workspacePath },
+      (event) => {
+        events.push(event);
+      },
+    );
+
+    const userMessage = events.find((event) => event.kind === 'user-message')?.message;
+    expect(userMessage.attachedFiles).toEqual([
+      { path: 'src/auth/session.ts', lines: 4, truncated: true },
+      { path: 'src/explicit.ts', lines: 1, truncated: false },
+    ]);
+  });
+
   it('passes prior agent edit summaries to later agents during @all dispatch', async () => {
     const prompts = new Map<AgentId, string>();
     const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
