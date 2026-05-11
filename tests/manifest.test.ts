@@ -309,6 +309,15 @@ describe('extension manifest', () => {
     expect(readme).toContain('veyra.diffPreview.maxFileBytes');
   });
 
+  it('documents workflow synthesis output shapes', () => {
+    const readme = readFileSync(join(process.cwd(), 'README.md'), 'utf8');
+
+    expect(readme).toContain('Veyra Synthesis');
+    expect(readme).toContain('Blocking issues');
+    expect(readme).toContain('Recommended approach');
+    expect(readme).toContain('Handoff Summary');
+  });
+
   it('contributes checkpoint commands and settings', () => {
     const properties = manifest.contributes.configuration.properties;
     const commands = new Map(manifest.contributes.commands.map((command) => [command.command, command.title]));

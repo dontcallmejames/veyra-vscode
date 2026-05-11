@@ -11,6 +11,13 @@ describe('veyraWorkflowPrompt', () => {
     expect(prompt).toContain('Codex: review implementation details, test coverage, and likely regression points.');
     expect(prompt).toContain('Gemini: review edge cases, alternate interpretations, and missed invisible-change risks.');
     expect(prompt).toContain('Read-only workflow: Do not create, edit, rename, or delete files.');
+    expect(prompt).toContain('Blocking issues');
+    expect(prompt).toContain('Advisory risks');
+    expect(prompt).toContain('Missing tests');
+    expect(prompt).toContain('Follow-up suggestions');
+    expect(prompt).toContain('Gemini runs last');
+    expect(prompt).toContain('Veyra Synthesis');
+    expect(prompt).toContain('Next action');
     expect(prompt).toContain('Check the migration.');
   });
 
@@ -23,6 +30,12 @@ describe('veyraWorkflowPrompt', () => {
     expect(prompt).toContain('Codex: argue from concrete implementation cost, tests, and failure modes.');
     expect(prompt).toContain('Gemini: argue from alternatives, edge cases, and adversarial review.');
     expect(prompt).toContain('Read-only workflow: Do not create, edit, rename, or delete files.');
+    expect(prompt).toContain('Recommendation');
+    expect(prompt).toContain('Tradeoffs');
+    expect(prompt).toContain('Concerns with prior replies');
+    expect(prompt).toContain('Veyra Synthesis');
+    expect(prompt).toContain('Recommended approach');
+    expect(prompt).toContain('Next action');
     expect(prompt).toContain('Pick a refactor path.');
   });
 
@@ -36,6 +49,11 @@ describe('veyraWorkflowPrompt', () => {
     expect(prompt).toContain('Gemini: review the result for missed cases, edit conflicts, and invisible changes.');
     expect(prompt).toContain('Each agent must build on prior replies, preserve shared context, and surface file changes clearly.');
     expect(prompt).toContain('Do not pause for brainstorming or approval checkpoints unless the next action is unsafe or impossible.');
+    expect(prompt).toContain('Handoff Summary');
+    expect(prompt).toContain('What changed');
+    expect(prompt).toContain('Verification status');
+    expect(prompt).toContain('Remaining risks');
+    expect(prompt).toContain('Recommended next action');
     expect(prompt).not.toContain('clarify the approach');
     expect(prompt).toContain('Fix the parser.');
   });
