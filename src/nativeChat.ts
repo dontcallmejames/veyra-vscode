@@ -54,6 +54,7 @@ export interface NativeChatRoutedPrompt {
   forcedTarget: VeyraForcedTarget;
   readOnly?: boolean;
   workspaceContextQuery?: string;
+  localResponse?: string;
 }
 
 interface NativeChatReferencePrompt {
@@ -86,6 +87,16 @@ export function nativeChatPromptForRequest(
   workspacePath?: string,
   chatContext?: vscode.ChatContext,
 ): NativeChatRoutedPrompt {
+  const rawPrompt = request.prompt ?? '';
+  if (definition.forcedTarget === 'veyra' && !request.command && isLowIntentVeyraPrompt(rawPrompt)) {
+    return {
+      text: rawPrompt.trim(),
+      forcedTarget: 'veyra',
+      readOnly: true,
+      localResponse: 'Yes, here.',
+    };
+  }
+
   const currentPrompt = promptWithChatReferences(request, workspacePath);
   const workspaceContextQuery = hasCodebaseMention(currentPrompt) ? currentPrompt : undefined;
 
@@ -98,14 +109,6 @@ export function nativeChatPromptForRequest(
     return withWorkspaceContextQuery({
       text: prompt,
       forcedTarget: definition.forcedTarget,
-    }, workspaceContextQuery);
-  }
-
-  if (!request.command && isLowIntentVeyraPrompt(currentPrompt)) {
-    return withWorkspaceContextQuery({
-      text: lowIntentVeyraPrompt(currentPrompt),
-      forcedTarget: 'veyra',
-      readOnly: true,
     }, workspaceContextQuery);
   }
 
@@ -187,17 +190,6 @@ function isLowIntentVeyraPrompt(prompt: string): boolean {
     .replace(/[?!.\s]+$/g, '')
     .replace(/\s+/g, ' ');
   return LOW_INTENT_VEYRA_PROMPTS.has(normalized);
-}
-
-function lowIntentVeyraPrompt(prompt: string): string {
-  return [
-    '[Low-intent Veyra prompt]',
-    'The user appears to be checking whether Veyra is present or responsive.',
-    'Answer briefly. Do not act on prior chat history, do not create or edit files, and do not continue earlier work.',
-    '[/Low-intent Veyra prompt]',
-    '',
-    prompt.trim(),
-  ].join('\n');
 }
 
 export function registerNativeChatParticipants(
@@ -382,6 +374,16 @@ async function handleNativeChatRequest(
 
   try {
     const routedPrompt = nativeChatPromptForRequest(definition, request, registration.workspacePath, chatContext);
+    if (routedPrompt.localResponse) {
+      response.markdown(routedPrompt.localResponse);
+      sawText = true;
+      return {
+        metadata: {
+          participant: definition.name,
+          forcedTarget: definition.forcedTarget,
+        },
+      };
+    }
     if (!routedPrompt.text.trim()) {
       response.markdown('Provide a prompt before using Veyra chat participants.');
       return {
