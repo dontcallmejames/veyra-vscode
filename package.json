@@ -60,6 +60,9 @@
     "onCommand:veyra.installCommitHook",
     "onCommand:veyra.uninstallCommitHook",
     "onCommand:veyra.showCommitHookSnippet",
+    "onCommand:veyra.openPendingChanges",
+    "onCommand:veyra.acceptPendingChanges",
+    "onCommand:veyra.rejectPendingChanges",
     "onChatParticipant:veyra.veyra",
     "onChatParticipant:veyra.claude",
     "onChatParticipant:veyra.codex",
@@ -99,6 +102,18 @@
       {
         "command": "veyra.showCommitHookSnippet",
         "title": "Veyra: Show commit hook snippet"
+      },
+      {
+        "command": "veyra.openPendingChanges",
+        "title": "Veyra: Open pending changes"
+      },
+      {
+        "command": "veyra.acceptPendingChanges",
+        "title": "Veyra: Accept pending changes"
+      },
+      {
+        "command": "veyra.rejectPendingChanges",
+        "title": "Veyra: Reject pending changes"
       }
     ],
     "chatParticipants": [
@@ -201,6 +216,18 @@
           "minimum": 1024,
           "maximum": 10485760,
           "description": "Maximum file size Veyra will read while retrieving @codebase context."
+        },
+        "veyra.diffPreview.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Capture and surface pending Veyra agent changes for VS Code diff review, acceptance, or rejection."
+        },
+        "veyra.diffPreview.maxFileBytes": {
+          "type": "number",
+          "default": 1000000,
+          "minimum": 1024,
+          "maximum": 10485760,
+          "description": "Maximum file size Veyra snapshots for pending change diff preview and rejection."
         },
         "veyra.codexCliPath": {
           "type": "string",

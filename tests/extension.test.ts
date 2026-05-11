@@ -8,6 +8,10 @@ const mocks = vi.hoisted(() => {
     id: 'service',
     flush: vi.fn().mockResolvedValue(undefined),
     invalidateWorkspaceContext: vi.fn(),
+    listPendingChangeSets: vi.fn(),
+    changeSetDiffInputs: vi.fn(),
+    acceptChangeSet: vi.fn(),
+    rejectChangeSet: vi.fn(),
   };
   const smokeAgents = { id: 'smoke-agents' };
   const fileDecorationProviderDisposable = { dispose: vi.fn() };
@@ -26,6 +30,7 @@ const mocks = vi.hoisted(() => {
     showInformationMessage: vi.fn(),
     showErrorMessage: vi.fn(),
     showWarningMessage: vi.fn(),
+    showQuickPick: vi.fn(),
     showInputBox: vi.fn(),
     executeCommand: vi.fn(),
     configUpdate: vi.fn().mockResolvedValue(undefined),
@@ -69,6 +74,8 @@ const mocks = vi.hoisted(() => {
       this.showInformationMessage.mockClear();
       this.showErrorMessage.mockClear();
       this.showWarningMessage.mockClear();
+      this.showQuickPick.mockClear();
+      this.showQuickPick.mockResolvedValue(undefined);
       this.showInputBox.mockClear();
       this.showInputBox.mockResolvedValue(undefined);
       this.executeCommand.mockClear();
@@ -79,6 +86,31 @@ const mocks = vi.hoisted(() => {
       this.service.flush.mockClear();
       this.service.flush.mockResolvedValue(undefined);
       this.service.invalidateWorkspaceContext.mockClear();
+      this.service.listPendingChangeSets.mockReset();
+      this.service.listPendingChangeSets.mockResolvedValue([]);
+      this.service.changeSetDiffInputs.mockReset();
+      this.service.changeSetDiffInputs.mockResolvedValue({
+        beforePath: '/workspace/.vscode/veyra/change-ledger/change-set-1/before/src/a.ts',
+        afterPath: '/workspace/src/a.ts',
+        title: 'Veyra diff: src/a.ts',
+      });
+      this.service.acceptChangeSet.mockReset();
+      this.service.acceptChangeSet.mockResolvedValue({
+        id: 'change-set-1',
+        agentId: 'codex',
+        messageId: 'msg1',
+        timestamp: 1,
+        readOnly: false,
+        status: 'accepted',
+        fileCount: 1,
+        files: [{ path: 'src/a.ts', changeKind: 'edited' }],
+      });
+      this.service.rejectChangeSet.mockReset();
+      this.service.rejectChangeSet.mockResolvedValue({
+        status: 'rejected',
+        staleFiles: [],
+        restoredFiles: ['src/a.ts'],
+      });
       this.createVeyraSessionService.mockClear();
       this.createSmokeAgents.mockClear();
       this.shouldUseSmokeAgents.mockClear();
@@ -121,12 +153,16 @@ vi.mock('vscode', () => ({
     showInformationMessage: mocks.showInformationMessage,
     showErrorMessage: mocks.showErrorMessage,
     showWarningMessage: mocks.showWarningMessage,
+    showQuickPick: mocks.showQuickPick,
     showInputBox: mocks.showInputBox,
     showTextDocument: mocks.showTextDocument,
   },
   commands: {
     registerCommand: mocks.registerCommand,
     executeCommand: mocks.executeCommand,
+  },
+  Uri: {
+    file: (fsPath: string) => ({ fsPath }),
   },
 }));
 
@@ -202,10 +238,50 @@ describe('activate', () => {
       'veyra.installCommitHook',
       'veyra.uninstallCommitHook',
       'veyra.showCommitHookSnippet',
+      'veyra.openPendingChanges',
+      'veyra.acceptPendingChanges',
+      'veyra.rejectPendingChanges',
     ]);
     expect(mocks.registerNativeChatParticipants).toHaveBeenCalledWith(ctx, expect.any(Function));
     expect(mocks.registerVeyraLanguageModelProvider).toHaveBeenCalledWith(ctx, expect.any(Function));
     expect(mocks.registerFileDecorationProvider).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens pending change diffs through the active Veyra service', async () => {
+    activate(context() as any);
+    const openPanel = mocks.commandCallbacks.get('veyra.openPanel');
+    expect(openPanel).toBeTypeOf('function');
+    openPanel!();
+
+    const openPendingChanges = mocks.commandCallbacks.get('veyra.openPendingChanges');
+    expect(openPendingChanges).toBeTypeOf('function');
+    await openPendingChanges!('change-set-1', 'src/a.ts');
+
+    expect(mocks.service.changeSetDiffInputs).toHaveBeenCalledWith('change-set-1', 'src/a.ts');
+    expect(mocks.executeCommand).toHaveBeenCalledWith(
+      'vscode.diff',
+      { fsPath: '/workspace/.vscode/veyra/change-ledger/change-set-1/before/src/a.ts' },
+      { fsPath: '/workspace/src/a.ts' },
+      'Veyra diff: src/a.ts',
+    );
+  });
+
+  it('accepts and rejects pending changes through the active Veyra service', async () => {
+    activate(context() as any);
+    const openPanel = mocks.commandCallbacks.get('veyra.openPanel');
+    expect(openPanel).toBeTypeOf('function');
+    openPanel!();
+
+    const acceptPendingChanges = mocks.commandCallbacks.get('veyra.acceptPendingChanges');
+    const rejectPendingChanges = mocks.commandCallbacks.get('veyra.rejectPendingChanges');
+    expect(acceptPendingChanges).toBeTypeOf('function');
+    expect(rejectPendingChanges).toBeTypeOf('function');
+
+    await acceptPendingChanges!('change-set-1');
+    await rejectPendingChanges!('change-set-1');
+
+    expect(mocks.service.acceptChangeSet).toHaveBeenCalledWith('change-set-1');
+    expect(mocks.service.rejectChangeSet).toHaveBeenCalledWith('change-set-1');
   });
 
   it('registers a workspace file watcher for context invalidation', () => {

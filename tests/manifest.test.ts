@@ -279,6 +279,26 @@ describe('extension manifest', () => {
     expect(readme).toContain('veyra.workspaceContext.maxFileBytes');
   });
 
+  it('contributes diff preview commands and settings', () => {
+    const properties = manifest.contributes.configuration.properties;
+
+    expect(manifest.contributes.commands.map((command) => command.command)).toContain('veyra.openPendingChanges');
+    expect(manifest.contributes.commands.map((command) => command.command)).toContain('veyra.acceptPendingChanges');
+    expect(manifest.contributes.commands.map((command) => command.command)).toContain('veyra.rejectPendingChanges');
+    expect(manifest.activationEvents).toContain('onCommand:veyra.openPendingChanges');
+    expect(manifest.activationEvents).toContain('onCommand:veyra.acceptPendingChanges');
+    expect(manifest.activationEvents).toContain('onCommand:veyra.rejectPendingChanges');
+    expect(properties['veyra.diffPreview.enabled']).toMatchObject({
+      type: 'boolean',
+      default: true,
+    });
+    expect(properties['veyra.diffPreview.maxFileBytes']).toMatchObject({
+      type: 'number',
+      default: 1000000,
+      minimum: 1024,
+    });
+  });
+
   it('contributes command-palette entries for panel, status, and commit-hook operations', () => {
     expect(manifest.contributes.commands.map((command) => command.command)).toEqual([
       'veyra.openPanel',
@@ -289,6 +309,9 @@ describe('extension manifest', () => {
       'veyra.installCommitHook',
       'veyra.uninstallCommitHook',
       'veyra.showCommitHookSnippet',
+      'veyra.openPendingChanges',
+      'veyra.acceptPendingChanges',
+      'veyra.rejectPendingChanges',
     ]);
     expect(manifest.activationEvents).toContain('onCommand:veyra.checkStatus');
     expect(manifest.activationEvents).toContain('onCommand:veyra.showSetupGuide');
