@@ -20,6 +20,7 @@ The working rule is: agents can work together without losing context, stomping e
 - File edit visibility through streamed edit events, file decoration badges, session summaries, and commit attribution.
 - Workspace change detection for files modified during an agent turn even when the underlying CLI does not report a write tool.
 - Cross-agent edit conflict notices when a later agent touches a file already edited by another agent in the session.
+- Terminal selections and project command hints are included as prompt context for safer build, test, and debug follow-up.
 
 ## Requirements
 
@@ -62,6 +63,8 @@ Workflow prompts tell agents to use their available model and CLI capabilities w
 Workflow output is structured for follow-up work. `/review` asks agents to classify findings as Blocking issues, Advisory risks, Missing tests, and Follow-up suggestions, then Gemini ends with a `Veyra Synthesis` section. `/debate` asks each agent for a recommendation and tradeoffs, then Gemini ends with a `Veyra Synthesis` section that names the Recommended approach and next action. `/consensus` asks each agent for Position, Evidence, Risks, and Next action, then Gemini ends with a `Consensus Recommendation` covering Decision, Rationale, Tradeoffs, Risks, and Next action. `/implement` asks Gemini to finish with a `Handoff Summary` covering what changed, verification status, remaining risks, and the recommended next action.
 
 Use `@codebase` when you want Veyra to retrieve relevant workspace files without naming them explicitly. The first version uses local lexical search over workspace files and project metadata; it does not upload or build a cloud index.
+
+Terminal selections from VS Code Chat are passed to agents as labelled terminal context. Veyra also detects project command hints from local package metadata, such as `npm test`, `npm run typecheck`, or `npm run build`, and includes those suggestions in prompts. Do not run those commands unless the user explicitly asks or approves; command hints are context, not hidden execution.
 
 Run `Veyra: Check agent status` from the command palette to verify whether Claude, Codex, and Gemini are installed and authenticated before starting an autonomous workflow. If Codex or Gemini is missing, inaccessible, or misconfigured, the status warning offers CLI path configuration directly. On Windows, `Veyra: Configure Codex/Gemini CLI paths` can detect native CLI executables, PATH npm shims, or npm global CLI bundles and save the needed `veyra.codexCliPath` / `veyra.geminiCliPath` workspace settings. If a stale PATH shim points at a missing derived JS bundle, Veyra skips it and falls back to `npm root -g`; if detection cannot inspect the package tree, the command offers manual JS bundle, native executable, or npm shim path entry.
 If a backend reports `Node.js missing`, install Node.js so the `node` command is on PATH, or point Codex/Gemini at native executable paths instead of JS bundle paths.

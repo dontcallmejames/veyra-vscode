@@ -318,6 +318,19 @@ describe('extension manifest', () => {
     expect(readme).toContain('Handoff Summary');
   });
 
+  it('documents terminal awareness guardrails', () => {
+    const readme = readFileSync(join(process.cwd(), 'README.md'), 'utf8');
+    const smokeChecklist = readFileSync(join(process.cwd(), 'docs', 'vscode-smoke-test.md'), 'utf8');
+
+    for (const document of [readme, smokeChecklist]) {
+      const normalized = document.toLowerCase();
+
+      expect(normalized).toContain('terminal selections');
+      expect(normalized).toContain('project command hints');
+      expect(document).toContain('Do not run');
+    }
+  });
+
   it('contributes checkpoint commands and settings', () => {
     const properties = manifest.contributes.configuration.properties;
     const commands = new Map(manifest.contributes.commands.map((command) => [command.command, command.title]));

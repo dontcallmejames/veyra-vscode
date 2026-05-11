@@ -8,6 +8,7 @@ import type { AgentChunk, AgentId } from '../src/types.js';
 import type { ChangeLedger } from '../src/changeLedger.js';
 import type { CheckpointLedger } from '../src/checkpointLedger.js';
 import type { WorkspaceContextProvider, WorkspaceContextResult } from '../src/workspaceContext.js';
+import type { ProjectCommandProvider, ProjectCommandHintsResult } from '../src/projectCommands.js';
 
 describe('toRoutedInput', () => {
   it('leaves text unchanged when routing through Veyra', () => {
@@ -31,6 +32,82 @@ describe('toRoutedInput', () => {
 });
 
 describe('VeyraSessionService', () => {
+  it('includes project command hints in dispatched prompts without running them', async () => {
+    let codexPrompt = '';
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
+    const projectCommandProvider = fakeProjectCommandProvider({
+      packageManager: 'npm',
+      hints: [
+        { label: 'test', command: 'npm test', source: 'package.json#scripts.test' },
+      ],
+    });
+    const service = new VeyraSessionService(
+      workspacePath,
+      {
+        claude: agentNoop('claude'),
+        codex: {
+          id: 'codex',
+          status: async () => 'ready',
+          cancel: async () => {},
+          async *send(prompt: string) {
+            codexPrompt = prompt;
+            yield { type: 'done' } as AgentChunk;
+          },
+        },
+        gemini: agentNoop('gemini'),
+      },
+      { hangSeconds: 0, projectCommandProvider: projectCommandProvider as ProjectCommandProvider },
+    );
+
+    await service.dispatch(
+      { text: '@codex diagnose the failing tests', source: 'panel', cwd: workspacePath },
+      () => {},
+    );
+
+    expect(projectCommandProvider.retrieve).toHaveBeenCalledTimes(1);
+    expect(codexPrompt).toContain('[Project command hints]');
+    expect(codexPrompt).toContain('- test: npm test (package.json#scripts.test)');
+    expect(codexPrompt).toContain('Do not run these commands unless the user explicitly asks or approves.');
+    expect(codexPrompt).toContain('diagnose the failing tests');
+  });
+
+  it('continues dispatching when project command hint retrieval fails', async () => {
+    let codexPrompt = '';
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
+    const projectCommandProvider: Pick<ProjectCommandProvider, 'retrieve' | 'invalidate'> = {
+      invalidate: vi.fn(),
+      retrieve: vi.fn(async () => {
+        throw new Error('package metadata unavailable');
+      }),
+    };
+    const service = new VeyraSessionService(
+      workspacePath,
+      {
+        claude: agentNoop('claude'),
+        codex: {
+          id: 'codex',
+          status: async () => 'ready',
+          cancel: async () => {},
+          async *send(prompt: string) {
+            codexPrompt = prompt;
+            yield { type: 'done' } as AgentChunk;
+          },
+        },
+        gemini: agentNoop('gemini'),
+      },
+      { hangSeconds: 0, projectCommandProvider: projectCommandProvider as ProjectCommandProvider },
+    );
+
+    await service.dispatch(
+      { text: '@codex continue anyway', source: 'panel', cwd: workspacePath },
+      () => {},
+    );
+
+    expect(projectCommandProvider.retrieve).toHaveBeenCalledTimes(1);
+    expect(codexPrompt).toContain('continue anyway');
+    expect(codexPrompt).not.toContain('[Project command hints]');
+  });
+
   it('retrieves @codebase context and includes it in direct agent prompts', async () => {
     let codexPrompt = '';
     const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
@@ -1757,6 +1834,15 @@ function fakeWorkspaceContextProvider(
       diagnostics: [],
       ...overrides,
     })),
+  };
+}
+
+function fakeProjectCommandProvider(
+  result: ProjectCommandHintsResult,
+): Pick<ProjectCommandProvider, 'retrieve' | 'invalidate'> {
+  return {
+    invalidate: vi.fn(),
+    retrieve: vi.fn(async () => result),
   };
 }
 

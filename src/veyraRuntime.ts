@@ -7,6 +7,7 @@ import { GeminiAgent, getEditedPath as getGeminiEditedPath } from './agents/gemi
 import { VeyraSessionService } from './veyraService.js';
 import { createWorkspaceChangeTracker } from './workspaceChanges.js';
 import { WorkspaceContextProvider, type WorkspaceContextOptions } from './workspaceContext.js';
+import { ProjectCommandProvider } from './projectCommands.js';
 import { ChangeLedger, type ChangeLedgerOptions } from './changeLedger.js';
 import { CheckpointLedger, type CheckpointLedgerOptions } from './checkpointLedger.js';
 import type { FacilitatorDecision, FacilitatorFn } from './facilitator.js';
@@ -287,6 +288,7 @@ export function createVeyraSessionService(
       facilitator: shouldUseSmokeAgents() ? smokeFacilitator : undefined,
       workspaceChangeTracker: createWorkspaceChangeTracker(workspacePath),
       workspaceContextProvider: new WorkspaceContextProvider(workspacePath, readWorkspaceContextOptions()),
+      projectCommandProvider: new ProjectCommandProvider(workspacePath),
       changeLedger: diffPreviewEnabled()
         ? new ChangeLedger(workspacePath, readDiffPreviewOptions())
         : undefined,
@@ -305,6 +307,7 @@ export function refreshVeyraSessionOptions(
   service.updateOptions({
     ...readVeyraSessionOptions(badgeController),
     workspaceContextProvider: new WorkspaceContextProvider(workspacePath, readWorkspaceContextOptions()),
+    projectCommandProvider: new ProjectCommandProvider(workspacePath),
     changeLedger: diffPreviewEnabled()
       ? new ChangeLedger(workspacePath, readDiffPreviewOptions())
       : undefined,

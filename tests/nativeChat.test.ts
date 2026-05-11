@@ -170,8 +170,10 @@ describe('native chat workflow prompts', () => {
       '/workspace',
     )).toEqual({
       text: [
-        'explain Selected terminal output:',
+        'explain [Terminal context]',
+        'Selected terminal output:',
         'npm test failed with TS2304',
+        '[/Terminal context]',
       ].join('\n'),
       forcedTarget: 'claude',
     });
