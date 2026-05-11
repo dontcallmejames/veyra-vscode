@@ -1,0 +1,438 @@
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import type { AttachedFile } from './fileMentions.js';
+
+const execFileAsync = promisify(execFile);
+
+export interface WorkspaceContextOptions {
+  maxFiles: number;
+  maxSnippetLines: number;
+  maxFileBytes: number;
+}
+
+export interface WorkspaceInventoryFile {
+  path: string;
+  size: number;
+  language: string;
+  metadata: boolean;
+}
+
+export interface WorkspaceInventory {
+  files: WorkspaceInventoryFile[];
+}
+
+export interface WorkspaceContextSelection {
+  path: string;
+  score: number;
+  reasons: string[];
+  language: string;
+  startLine: number;
+  endLine: number;
+}
+
+export interface WorkspaceContextResult {
+  enabled: boolean;
+  query: string;
+  block: string;
+  attached: AttachedFile[];
+  selected: WorkspaceContextSelection[];
+  diagnostics: string[];
+}
+
+export interface WorkspaceContextMention {
+  enabled: boolean;
+  remainingText: string;
+}
+
+const DEFAULT_EXCLUDED_DIR_NAMES = new Set([
+  '.git',
+  'node_modules',
+  'dist',
+]);
+
+const DEFAULT_EXCLUDED_DIR_PATHS = new Set([
+  '.vscode/veyra',
+]);
+
+const METADATA_FILES = new Set([
+  'package.json',
+  'package-lock.json',
+  'pnpm-lock.yaml',
+  'yarn.lock',
+  'bun.lockb',
+  'tsconfig.json',
+  'jsconfig.json',
+  'vite.config.ts',
+  'vitest.config.ts',
+  'pyproject.toml',
+  'requirements.txt',
+  'Cargo.toml',
+  'go.mod',
+  'README.md',
+]);
+
+const STOP_WORDS = new Set([
+  'a',
+  'an',
+  'and',
+  'are',
+  'for',
+  'from',
+  'how',
+  'in',
+  'is',
+  'it',
+  'of',
+  'on',
+  'or',
+  'should',
+  'the',
+  'this',
+  'to',
+  'where',
+  'with',
+]);
+
+export function parseWorkspaceContextMention(input: string): WorkspaceContextMention {
+  let enabled = false;
+  const remainingText = input
+    .replace(/(^|[\s([{<`])@codebase\b[,:;]?/gi, (match, prefix: string) => {
+      enabled = true;
+      return prefix;
+    })
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/[ \t]+\r?\n/g, '\n')
+    .trim();
+  return { enabled, remainingText };
+}
+
+export class WorkspaceContextProvider {
+  private inventory: WorkspaceInventory | null = null;
+
+  constructor(
+    private readonly workspacePath: string,
+    private readonly options: WorkspaceContextOptions,
+  ) {}
+
+  invalidate(): void {
+    this.inventory = null;
+  }
+
+  async retrieve(query: string): Promise<WorkspaceContextResult> {
+    const normalizedQuery = query.trim();
+    if (!normalizedQuery) {
+      return emptyWorkspaceContextResult(true, normalizedQuery, ['No query text remained after @codebase.']);
+    }
+
+    const inventory = await this.getInventory();
+    const terms = tokenize(normalizedQuery);
+    if (terms.length === 0) {
+      return emptyWorkspaceContextResult(true, normalizedQuery, ['No searchable query terms found.']);
+    }
+
+    const candidates = await Promise.all(inventory.files.map(async (file) => {
+      const content = await readTextFile(path.join(this.workspacePath, file.path), this.options.maxFileBytes);
+      if (content === null) return null;
+      const scored = scoreFile(file, content, terms);
+      if (scored.score <= 0) return null;
+      const snippet = extractSnippet(content, terms, this.options.maxSnippetLines);
+      return {
+        file,
+        score: scored.score,
+        reasons: scored.reasons,
+        snippet,
+      };
+    }));
+
+    const selected = candidates
+      .filter((candidate): candidate is NonNullable<typeof candidate> => candidate !== null)
+      .sort((a, b) => b.score - a.score || a.file.path.localeCompare(b.file.path))
+      .slice(0, this.options.maxFiles);
+
+    if (selected.length === 0) {
+      return emptyWorkspaceContextResult(true, normalizedQuery, ['No workspace files matched @codebase query.']);
+    }
+
+    const selections = selected.map((entry): WorkspaceContextSelection => ({
+      path: entry.file.path,
+      score: entry.score,
+      reasons: entry.reasons,
+      language: entry.file.language,
+      startLine: entry.snippet.startLine,
+      endLine: entry.snippet.endLine,
+    }));
+    const attached = selections.map((selection): AttachedFile => ({
+      path: selection.path,
+      lines: selection.endLine - selection.startLine + 1,
+      truncated: true,
+    }));
+
+    return {
+      enabled: true,
+      query: normalizedQuery,
+      block: formatWorkspaceContextBlock(normalizedQuery, selected),
+      attached,
+      selected: selections,
+      diagnostics: [],
+    };
+  }
+
+  private async getInventory(): Promise<WorkspaceInventory> {
+    this.inventory ??= await buildWorkspaceInventory(this.workspacePath);
+    return this.inventory;
+  }
+}
+
+export async function buildWorkspaceInventory(workspacePath: string): Promise<WorkspaceInventory> {
+  const filePaths = await listWorkspaceFiles(workspacePath);
+  const files: WorkspaceInventoryFile[] = [];
+  for (const filePath of filePaths) {
+    try {
+      const stat = await fs.stat(path.join(workspacePath, filePath));
+      if (!stat.isFile()) continue;
+      files.push({
+        path: normalizePath(filePath),
+        size: stat.size,
+        language: inferLanguage(filePath),
+        metadata: METADATA_FILES.has(path.basename(filePath)) || METADATA_FILES.has(normalizePath(filePath)),
+      });
+    } catch {
+      // File disappeared while inventory was being built.
+    }
+  }
+  return { files: files.sort((a, b) => a.path.localeCompare(b.path)) };
+}
+
+async function listWorkspaceFiles(workspacePath: string): Promise<string[]> {
+  const gitFiles = await listGitFiles(workspacePath);
+  const files = new Set<string>(gitFiles ?? []);
+  for (const file of await listFilesRecursively(workspacePath, workspacePath)) {
+    files.add(file);
+  }
+  return [...files].filter((file) => !isExcludedPath(file)).sort((a, b) => a.localeCompare(b));
+}
+
+async function listGitFiles(workspacePath: string): Promise<string[] | null> {
+  try {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['ls-files', '-z', '--cached', '--others', '--exclude-standard'],
+      { cwd: workspacePath, windowsHide: true, timeout: 10_000 },
+    );
+    return String(stdout)
+      .split('\0')
+      .map((file) => normalizePath(file.trim()))
+      .filter((file) => file.length > 0 && !isExcludedPath(file));
+  } catch {
+    return null;
+  }
+}
+
+async function listFilesRecursively(root: string, current: string): Promise<string[]> {
+  let entries: Array<import('node:fs').Dirent>;
+  try {
+    entries = await fs.readdir(current, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  const files: string[] = [];
+  for (const entry of entries) {
+    const absolute = path.join(current, entry.name);
+    const relative = normalizePath(path.relative(root, absolute));
+    if (entry.isDirectory()) {
+      if (isExcludedPath(relative)) continue;
+      files.push(...await listFilesRecursively(root, absolute));
+    } else if (entry.isFile()) {
+      files.push(relative);
+    }
+  }
+  return files;
+}
+
+async function readTextFile(filePath: string, maxFileBytes: number): Promise<string | null> {
+  let stat: import('node:fs').Stats;
+  try {
+    stat = await fs.stat(filePath);
+  } catch {
+    return null;
+  }
+  if (!stat.isFile() || stat.size > maxFileBytes) return null;
+
+  let buffer: Buffer;
+  try {
+    buffer = await fs.readFile(filePath);
+  } catch {
+    return null;
+  }
+  if (buffer.subarray(0, 8192).includes(0)) return null;
+  return buffer.toString('utf8');
+}
+
+function scoreFile(
+  file: WorkspaceInventoryFile,
+  content: string,
+  terms: string[],
+): { score: number; reasons: string[] } {
+  const pathLower = file.path.toLowerCase();
+  const baseLower = path.basename(file.path).toLowerCase();
+  const contentLower = content.toLowerCase();
+  let score = file.metadata ? 1 : 0;
+  const reasons = new Set<string>();
+
+  for (const term of terms) {
+    if (pathLower.includes(term)) {
+      score += 8;
+      reasons.add(`path:${term}`);
+    }
+    if (baseLower.includes(term)) {
+      score += 4;
+      reasons.add(`name:${term}`);
+    }
+    const contentHits = countOccurrences(contentLower, term);
+    if (contentHits > 0) {
+      score += Math.min(contentHits, 5);
+      reasons.add(`content:${term}`);
+    }
+  }
+
+  return { score, reasons: [...reasons] };
+}
+
+function extractSnippet(
+  content: string,
+  terms: string[],
+  maxSnippetLines: number,
+): { text: string; startLine: number; endLine: number } {
+  const rawLines = content.split(/\r?\n/);
+  const lines = rawLines.length > 0 && rawLines[rawLines.length - 1] === ''
+    ? rawLines.slice(0, -1)
+    : rawLines;
+  const matchIndex = lines.findIndex((line) => {
+    const lower = line.toLowerCase();
+    return terms.some((term) => lower.includes(term));
+  });
+  const start = Math.max(matchIndex >= 0 ? matchIndex - 3 : 0, 0);
+  const end = Math.min(start + Math.max(maxSnippetLines, 1), lines.length);
+  return {
+    text: lines.slice(start, end).join('\n'),
+    startLine: start + 1,
+    endLine: end,
+  };
+}
+
+function formatWorkspaceContextBlock(
+  query: string,
+  selected: Array<{
+    file: WorkspaceInventoryFile;
+    score: number;
+    reasons: string[];
+    snippet: { text: string; startLine: number; endLine: number };
+  }>,
+): string {
+  const lines: string[] = [
+    '[Workspace context from @codebase]',
+    `Query: ${query}`,
+    'Selected files:',
+    ...selected.map((entry) =>
+      `- ${entry.file.path} (score ${entry.score}; ${entry.reasons.join(', ') || 'metadata'})`
+    ),
+    '',
+  ];
+
+  for (const entry of selected) {
+    lines.push(
+      `[Context file: ${entry.file.path} lines ${entry.snippet.startLine}-${entry.snippet.endLine}]`,
+      `\`\`\`${entry.file.language}`,
+      entry.snippet.text,
+      '```',
+      '[/Context file]',
+      '',
+    );
+  }
+
+  lines.push('[/Workspace context]');
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n');
+}
+
+function emptyWorkspaceContextResult(
+  enabled: boolean,
+  query: string,
+  diagnostics: string[],
+): WorkspaceContextResult {
+  return {
+    enabled,
+    query,
+    block: '',
+    attached: [],
+    selected: [],
+    diagnostics,
+  };
+}
+
+function tokenize(query: string): string[] {
+  const terms = query
+    .toLowerCase()
+    .replace(/@[a-z0-9_.\/-]+/g, ' ')
+    .split(/[^a-z0-9_/-]+/g)
+    .map((term) => term.trim())
+    .filter((term) => term.length >= 2 && !STOP_WORDS.has(term));
+  return [...new Set(terms)];
+}
+
+function countOccurrences(value: string, term: string): number {
+  let count = 0;
+  let index = value.indexOf(term);
+  while (index >= 0) {
+    count++;
+    index = value.indexOf(term, index + term.length);
+  }
+  return count;
+}
+
+function inferLanguage(filePath: string): string {
+  const ext = path.extname(filePath).toLowerCase();
+  switch (ext) {
+    case '.ts':
+    case '.tsx':
+      return 'ts';
+    case '.js':
+    case '.jsx':
+      return 'js';
+    case '.json':
+      return 'json';
+    case '.md':
+      return 'md';
+    case '.py':
+      return 'python';
+    case '.sh':
+      return 'sh';
+    case '.html':
+      return 'html';
+    case '.css':
+      return 'css';
+    case '.yml':
+    case '.yaml':
+      return 'yaml';
+    default:
+      return '';
+  }
+}
+
+function normalizePath(filePath: string): string {
+  return filePath.replace(/\\/g, '/');
+}
+
+function isExcludedPath(relativePath: string): boolean {
+  const normalized = normalizePath(relativePath);
+  for (const excludedPath of DEFAULT_EXCLUDED_DIR_PATHS) {
+    if (normalized === excludedPath || normalized.startsWith(`${excludedPath}/`)) {
+      return true;
+    }
+  }
+  return normalized
+    .split('/')
+    .some((part) => DEFAULT_EXCLUDED_DIR_NAMES.has(part));
+}
