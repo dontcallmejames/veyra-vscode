@@ -36,6 +36,10 @@ async function vsixPackagerModule() {
       icon?: string;
       categories?: string[];
       engines?: { vscode?: string };
+      repository?: { url?: string };
+      bugs?: { url?: string };
+      homepage?: string;
+      galleryBanner?: { color?: string; theme?: string };
     }): string;
     contentTypesXml(): string;
   };
@@ -225,6 +229,10 @@ describe('verify-package script', () => {
       icon: 'resources/icon.png',
       categories: ['Other'],
       engines: { vscode: '^1.118.0' },
+      repository: { url: 'https://github.com/dontcallmejames/veyra-vscode.git' },
+      bugs: { url: 'https://github.com/dontcallmejames/veyra-vscode/issues' },
+      homepage: 'https://github.com/dontcallmejames/veyra-vscode#readme',
+      galleryBanner: { color: '#15171a', theme: 'dark' },
     });
     expect(manifest).toContain('Id="veyra-vscode"');
     expect(manifest).toContain('Version="0.0.1"');
@@ -233,9 +241,21 @@ describe('verify-package script', () => {
     expect(manifest).toContain('Path="extension/resources/icon.png"');
     expect(manifest).toContain('Path="extension/LICENSE.txt"');
     expect(manifest).toContain('Path="extension/CHANGELOG.md"');
-    expect(manifest).toContain('<GalleryFlags>Public,Preview</GalleryFlags>');
+    expect(manifest).toContain('<GalleryFlags>Public Preview</GalleryFlags>');
     expect(manifest).toContain('Microsoft.VisualStudio.Code.Engine');
     expect(manifest).toContain('^1.118.0');
+    expect(manifest).toContain('Microsoft.VisualStudio.Services.Links.Source');
+    expect(manifest).toContain('https://github.com/dontcallmejames/veyra-vscode.git');
+    expect(manifest).toContain('Microsoft.VisualStudio.Services.Links.Support');
+    expect(manifest).toContain('https://github.com/dontcallmejames/veyra-vscode/issues');
+    expect(manifest).toContain('Microsoft.VisualStudio.Services.Links.Learn');
+    expect(manifest).toContain('https://github.com/dontcallmejames/veyra-vscode#readme');
+    expect(manifest).toContain('Microsoft.VisualStudio.Services.Branding.Color');
+    expect(manifest).toContain('#15171a');
+    expect(manifest).toContain('Microsoft.VisualStudio.Services.Branding.Theme');
+    expect(manifest).toContain('dark');
+    expect(manifest).toContain('Microsoft.VisualStudio.Services.GitHubFlavoredMarkdown');
+    expect(manifest).toContain('Microsoft.VisualStudio.Services.Content.Pricing');
 
     expect(contentTypesXml()).toContain('Extension="vsixmanifest"');
     expect(contentTypesXml()).toContain('Extension="png"');
