@@ -7,6 +7,7 @@ import { GeminiAgent, getEditedPath as getGeminiEditedPath } from './agents/gemi
 import { VeyraSessionService } from './veyraService.js';
 import { createWorkspaceChangeTracker } from './workspaceChanges.js';
 import { WorkspaceContextProvider, type WorkspaceContextOptions } from './workspaceContext.js';
+import { ChangeLedger, type ChangeLedgerOptions } from './changeLedger.js';
 import type { FacilitatorDecision, FacilitatorFn } from './facilitator.js';
 import type { AgentRegistry } from './messageRouter.js';
 import type { Agent, SendOptions } from './agents/types.js';
@@ -249,6 +250,17 @@ export function readWorkspaceContextOptions(): WorkspaceContextOptions {
   };
 }
 
+export function readDiffPreviewOptions(): ChangeLedgerOptions {
+  const config = vscode.workspace.getConfiguration('veyra');
+  return {
+    maxFileBytes: config.get<number>('diffPreview.maxFileBytes', 1_000_000),
+  };
+}
+
+function diffPreviewEnabled(): boolean {
+  return vscode.workspace.getConfiguration('veyra').get<boolean>('diffPreview.enabled', true);
+}
+
 export function createVeyraSessionService(
   workspacePath: string,
   badgeController?: FileBadgesController,
@@ -262,6 +274,9 @@ export function createVeyraSessionService(
       facilitator: shouldUseSmokeAgents() ? smokeFacilitator : undefined,
       workspaceChangeTracker: createWorkspaceChangeTracker(workspacePath),
       workspaceContextProvider: new WorkspaceContextProvider(workspacePath, readWorkspaceContextOptions()),
+      changeLedger: diffPreviewEnabled()
+        ? new ChangeLedger(workspacePath, readDiffPreviewOptions())
+        : undefined,
     },
   );
 }
@@ -274,5 +289,8 @@ export function refreshVeyraSessionOptions(
   service.updateOptions({
     ...readVeyraSessionOptions(badgeController),
     workspaceContextProvider: new WorkspaceContextProvider(workspacePath, readWorkspaceContextOptions()),
+    changeLedger: diffPreviewEnabled()
+      ? new ChangeLedger(workspacePath, readDiffPreviewOptions())
+      : undefined,
   });
 }

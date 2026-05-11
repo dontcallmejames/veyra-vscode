@@ -7,6 +7,19 @@ export type FileChange = {
   changeKind: FileChangeKind;
 };
 
+export type ChangeSetStatus = 'pending' | 'accepted' | 'rejected' | 'stale';
+
+export type DispatchChangeSetSummary = {
+  id: string;
+  agentId: AgentId;
+  messageId: string;
+  timestamp: number;
+  readOnly: boolean;
+  status: ChangeSetStatus;
+  fileCount: number;
+  files: FileChange[];
+};
+
 // === Persisted message types ===
 
 export type ToolEvent =
@@ -44,13 +57,14 @@ export type AgentMessage = {
 export type SystemMessage = {
   id: string;
   role: 'system';
-  kind: 'routing-needed' | 'error' | 'facilitator-decision' | 'edit-conflict' | 'file-edited';
+  kind: 'routing-needed' | 'error' | 'facilitator-decision' | 'edit-conflict' | 'file-edited' | 'change-set';
   text: string;
   timestamp: number;
   agentId?: AgentId;     // present when a system notice is associated with a specific agent
   reason?: string;       // present only when kind === 'facilitator-decision' (separate from `text` for richer rendering)
   filePath?: string;     // present when kind === 'file-edited' or kind === 'edit-conflict'
   changeKind?: FileChangeKind;
+  changeSet?: DispatchChangeSetSummary;
 };
 
 export type SessionMessage = UserMessage | AgentMessage | SystemMessage;
