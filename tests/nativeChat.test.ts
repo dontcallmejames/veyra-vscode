@@ -504,6 +504,39 @@ describe('native chat workflow prompts', () => {
     expect(dispatched.text).not.toContain('src/shared/agentPresentation.ts');
   });
 
+  it('also treats literal @veyra-prefixed heartbeat prompts as read-only status checks', async () => {
+    const veyra = NATIVE_CHAT_PARTICIPANTS.find((participant) => participant.name === 'veyra')!;
+    const routed = nativeChatPromptForRequest(
+      veyra,
+      { prompt: '@veyra are you here?', command: undefined, references: [], toolReferences: [] } as any,
+      '/workspace',
+      {
+        history: [
+          {
+            prompt: 'delete parser.test.ts',
+            participant: 'veyra.veyra',
+            references: [],
+            toolReferences: [],
+          },
+          {
+            participant: 'veyra.veyra',
+            response: [
+              { value: { value: 'Next I can delete parser.test.ts or add coverage for foo.ts.' } },
+            ],
+            result: {},
+          },
+        ],
+      } as any,
+    );
+
+    expect(routed.readOnly).toBe(true);
+    expect(routed.text).toContain('@veyra are you here?');
+    expect(routed.text).toContain('Low-intent Veyra prompt');
+    expect(routed.text).not.toContain('[VS Code chat history]');
+    expect(routed.text).not.toContain('delete parser.test.ts');
+    expect(routed.text).not.toContain('coverage for foo.ts');
+  });
+
   it('dispatches read-only native review workflows without auto-edit permission', async () => {
     const context = { subscriptions: [] as Array<{ dispose(): void }> };
     const service = {

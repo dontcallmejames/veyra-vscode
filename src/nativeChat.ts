@@ -180,7 +180,12 @@ export function nativeChatPromptForRequest(
 }
 
 function isLowIntentVeyraPrompt(prompt: string): boolean {
-  const normalized = prompt.trim().toLowerCase().replace(/[?!.\s]+$/g, '').replace(/\s+/g, ' ');
+  const normalized = prompt
+    .trim()
+    .toLowerCase()
+    .replace(/^@veyra\b\s*/, '')
+    .replace(/[?!.\s]+$/g, '')
+    .replace(/\s+/g, ' ');
   return LOW_INTENT_VEYRA_PROMPTS.has(normalized);
 }
 
