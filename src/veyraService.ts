@@ -105,6 +105,13 @@ interface InProgressDispatch {
 const DEFAULT_HANG_SECONDS = 60;
 const DEFAULT_FILE_EMBED_MAX_LINES = 500;
 const DEFAULT_SHARED_CONTEXT_WINDOW = 25;
+const READ_ONLY_WORKFLOW_POLICY = [
+  '[Read-only workflow]',
+  'Do not create, edit, rename, delete, or move files.',
+  'Do not run commands that mutate the workspace, repository, dependencies, or user files.',
+  'Provide analysis, findings, and recommendations only.',
+  '[/Read-only workflow]',
+].join('\n');
 
 export function toRoutedInput(text: string, forcedTarget?: VeyraForcedTarget): string {
   if (!forcedTarget || forcedTarget === 'veyra') {
@@ -253,6 +260,18 @@ export class VeyraSessionService {
   }
 
   private async runDispatch(request: VeyraDispatchRequest, emit: VeyraDispatchEventSink): Promise<void> {
+    if (request.readOnly) {
+      const originalLength = this.store.snapshot().messages.length;
+      try {
+        return await this.store.withSuppressedWrites(() => this.runDispatchInner(request, emit));
+      } finally {
+        this.store.rollback(originalLength);
+      }
+    }
+    return this.runDispatchInner(request, emit);
+  }
+
+  private async runDispatchInner(request: VeyraDispatchRequest, emit: VeyraDispatchEventSink): Promise<void> {
     void request.source;
     await this.loadSession();
 
@@ -353,7 +372,9 @@ export class VeyraSessionService {
         agentRolePreamble(_targetId),
         composePrompt({
         rules,
-        autonomyPolicy: DEFAULT_AUTONOMY_POLICY,
+        autonomyPolicy: request.readOnly
+          ? [READ_ONLY_WORKFLOW_POLICY, DEFAULT_AUTONOMY_POLICY].join('\n\n')
+          : DEFAULT_AUTONOMY_POLICY,
         sharedContext,
         editAwareness,
         workspaceContext: workspaceContextBlock,
@@ -407,7 +428,9 @@ export class VeyraSessionService {
           continue;
         }
         if (event.kind === 'dispatch-start') {
-          this.sentinel.dispatchStart(event.agentId);
+          if (!request.readOnly) {
+            this.sentinel.dispatchStart(event.agentId);
+          }
           const messageId = ulid();
           const timestamp = Date.now();
           let changeSnapshot: unknown;
@@ -543,13 +566,17 @@ export class VeyraSessionService {
           await emit({ kind: 'dispatch-end', agentId: event.agentId, message: finalized });
           inProgressByAgent.delete(event.agentId);
           activeAgentForHang = null;
-          this.sentinel.dispatchEnd(event.agentId);
+          if (!request.readOnly) {
+            this.sentinel.dispatchEnd(event.agentId);
+          }
         }
       }
     } finally {
       if (hangCheckTimer) clearInterval(hangCheckTimer);
       for (const inProgress of inProgressByAgent.values()) {
-        this.sentinel.dispatchEnd(inProgress.agentId);
+        if (!request.readOnly) {
+          this.sentinel.dispatchEnd(inProgress.agentId);
+        }
       }
       this.currentDispatchInProgress = null;
     }

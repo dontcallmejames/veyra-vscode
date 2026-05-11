@@ -1,4 +1,3 @@
-import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentId, AgentStatus } from './types.js';
 import { findNode } from './findNode.js';
 
@@ -15,6 +14,11 @@ export type FacilitatorFn = (
   availability: Record<AgentId, AgentStatus>,
   sharedContext?: string,
 ) => Promise<FacilitatorDecision>;
+
+type ClaudeSdkQuery = (request: {
+  prompt: string;
+  options?: { systemPrompt?: string };
+}) => AsyncIterable<unknown>;
 
 const PROFILES: Record<AgentId, string> = {
   claude: 'code reasoning, refactors, code review, planning, design discussion',
@@ -85,6 +89,7 @@ export const chooseFacilitatorAgent: FacilitatorFn = async (
     if (overrideExecPath) {
       process.execPath = findNode();
     }
+    const query = await loadClaudeSdkQuery();
     const stream = query({
       prompt: userMessage,
       options: { systemPrompt },
@@ -160,4 +165,9 @@ function fallbackDecision(
   }
 
   return { error: ROUTING_ERROR };
+}
+
+async function loadClaudeSdkQuery(): Promise<ClaudeSdkQuery> {
+  const sdk = await import('@anthropic-ai/claude-agent-sdk') as { query: ClaudeSdkQuery };
+  return sdk.query;
 }

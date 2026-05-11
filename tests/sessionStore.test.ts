@@ -29,6 +29,10 @@ beforeEach(() => {
   vi.useFakeTimers();
 });
 
+async function drainScheduledWrite(): Promise<void> {
+  for (let i = 0; i < 8; i++) await Promise.resolve();
+}
+
 const FOLDER = '/fake/workspace';
 const FILE = '/fake/workspace/.vscode/veyra/sessions.json';
 
@@ -52,7 +56,7 @@ describe('SessionStore', () => {
     store.appendUser(sampleUser);
     expect(fsState.has(FILE)).toBe(false);
     vi.advanceTimersByTime(200);
-    await Promise.resolve(); // let the queued write settle
+    await drainScheduledWrite();
     expect(fsState.has(FILE)).toBe(true);
     const parsed = JSON.parse(fsState.get(FILE)!) as Session;
     expect(parsed.messages).toEqual([sampleUser]);
@@ -96,12 +100,12 @@ describe('SessionStore', () => {
     store.appendUser({ ...sampleUser, id: 'u2' });
     store.appendUser({ ...sampleUser, id: 'u3' });
     vi.advanceTimersByTime(200);
-    await Promise.resolve();
+    await drainScheduledWrite();
     const parsed = JSON.parse(fsState.get(FILE)!) as Session;
     expect(parsed.messages).toHaveLength(3);
   });
 
-  it('creates the target directory during load() so debounced writes succeed in fresh workspaces', async () => {
+  it('creates the target directory before a scheduled write in fresh workspaces', async () => {
     // Track mkdir calls explicitly via the mocked module
     const fsModule = await import('node:fs');
     const mockedMkdir = fsModule.promises.mkdir as unknown as ReturnType<typeof vi.fn>;
@@ -109,11 +113,15 @@ describe('SessionStore', () => {
 
     const store = new SessionStore(FOLDER);
     await store.load();
+    store.appendUser(sampleUser);
+    vi.advanceTimersByTime(200);
+    await drainScheduledWrite();
 
     expect(mockedMkdir).toHaveBeenCalledWith('/fake/workspace/.vscode/veyra', { recursive: true });
   });
 
   it('onWriteError fires when scheduled write fails', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     const store = new SessionStore(FOLDER);
     await store.load();
 
@@ -127,10 +135,11 @@ describe('SessionStore', () => {
 
     store.appendUser(sampleUser);
     vi.advanceTimersByTime(200);
-    // Drain enough microtask cycles for writeFile→rename→catch to settle.
-    for (let i = 0; i < 8; i++) await Promise.resolve();
+    // Drain enough microtask cycles for writeFile/rename/catch to settle.
+    await drainScheduledWrite();
 
     expect(errors.length).toBeGreaterThan(0);
     expect(String(errors[0])).toContain('disk full');
+    consoleError.mockRestore();
   });
 });

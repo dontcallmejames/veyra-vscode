@@ -639,6 +639,74 @@ describe('VeyraSessionService', () => {
     expect(optionsByAgent.get('gemini')).toMatchObject({ readOnly: true });
   });
 
+  it('adds explicit no-write instructions to read-only dispatch prompts', async () => {
+    const prompts = new Map<AgentId, string>();
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
+    const agent = (id: AgentId): Agent => ({
+      id,
+      status: async () => 'ready',
+      cancel: async () => {},
+      async *send(prompt: string) {
+        prompts.set(id, prompt);
+        yield { type: 'done' } as AgentChunk;
+      },
+    });
+    const service = new VeyraSessionService(
+      workspacePath,
+      {
+        claude: agent('claude'),
+        codex: agent('codex'),
+        gemini: agent('gemini'),
+      },
+      { hangSeconds: 0 },
+    );
+
+    await service.dispatch(
+      { text: '@claude review this', source: 'native-chat', cwd: workspacePath, readOnly: true },
+      () => {},
+    );
+
+    expect(prompts.get('claude')).toContain('[Read-only workflow]');
+    expect(prompts.get('claude')).toContain('Do not create, edit, rename, delete, or move files.');
+    expect(prompts.get('claude')).toContain('Provide analysis, findings, and recommendations only.');
+  });
+
+  it('does not write workspace Veyra state during read-only dispatches in fresh workspaces', async () => {
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
+    const stateDir = path.join(workspacePath, '.vscode', 'veyra');
+    const sessionFile = path.join(stateDir, 'sessions.json');
+    const sentinelFile = path.join(stateDir, 'active-dispatch');
+    let sentinelExistedDuringSend = false;
+    const service = new VeyraSessionService(
+      workspacePath,
+      {
+        claude: {
+          id: 'claude',
+          status: async () => 'ready',
+          cancel: async () => {},
+          async *send() {
+            sentinelExistedDuringSend = fs.existsSync(sentinelFile);
+            yield { type: 'done' } as AgentChunk;
+          },
+        },
+        codex: agentNoop('codex'),
+        gemini: agentNoop('gemini'),
+      },
+      { hangSeconds: 0 },
+    );
+
+    await service.dispatch(
+      { text: '@claude review this', source: 'native-chat', cwd: workspacePath, readOnly: true },
+      () => {},
+    );
+    await service.flush();
+
+    expect(sentinelExistedDuringSend).toBe(false);
+    expect(fs.existsSync(sentinelFile)).toBe(false);
+    expect(fs.existsSync(sessionFile)).toBe(false);
+    expect(fs.existsSync(stateDir)).toBe(false);
+  });
+
   it('emits a read-only violation when a read-only dispatch edits a file', async () => {
     const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
     const service = new VeyraSessionService(

@@ -8,4 +8,5 @@ node_modules/
 out/
 dist/
 *.vsix
+.vscode/veyra/
 .vscode-test/

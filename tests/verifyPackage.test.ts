@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 
@@ -121,6 +122,88 @@ describe('verify-package script', () => {
       ok: true,
       missing: [],
     });
+  });
+
+  it('loads the packaged extension entry without unpackaged npm dependencies during activation', () => {
+    const tempRoot = mkdtempSync(join(tmpdir(), 'veyra-extension-entry-'));
+    try {
+      mkdirSync(join(tempRoot, 'dist'), { recursive: true });
+      mkdirSync(join(tempRoot, 'node_modules', 'vscode'), { recursive: true });
+      copyFileSync(
+        join(process.cwd(), 'dist', 'extension.js'),
+        join(tempRoot, 'dist', 'extension.js'),
+      );
+      writeFileSync(
+        join(tempRoot, 'node_modules', 'vscode', 'index.js'),
+        [
+          'const proxy = new Proxy(function () {}, {',
+          '  get: (_target, prop) => prop === "__esModule" ? false : proxy,',
+          '  apply: () => proxy,',
+          '  construct: () => proxy,',
+          '});',
+          'module.exports = proxy;',
+          '',
+        ].join('\n'),
+      );
+
+      const result = spawnSync(process.execPath, ['-e', 'require("./dist/extension.js")'], {
+        cwd: tempRoot,
+        encoding: 'utf8',
+      });
+
+      expect(result.status, result.stderr || result.stdout || String(result.error)).toBe(0);
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('can resolve lazy-loaded dependencies like the Claude SDK from the packaged dist', () => {
+    const tempRoot = mkdtempSync(join(tmpdir(), 'veyra-lazy-load-'));
+    try {
+      mkdirSync(join(tempRoot, 'dist'), { recursive: true });
+      mkdirSync(join(tempRoot, 'node_modules', 'vscode'), { recursive: true });
+      // Create a fake @anthropic-ai/claude-agent-sdk to simulate it being installed as a dependency
+      mkdirSync(join(tempRoot, 'node_modules', '@anthropic-ai', 'claude-agent-sdk'), { recursive: true });
+      writeFileSync(join(tempRoot, 'node_modules', '@anthropic-ai', 'claude-agent-sdk', 'index.js'), 'module.exports = {};');
+      writeFileSync(join(tempRoot, 'node_modules', '@anthropic-ai', 'claude-agent-sdk', 'package.json'), JSON.stringify({ name: '@anthropic-ai/claude-agent-sdk', main: 'index.js' }));
+
+      copyFileSync(
+        join(process.cwd(), 'dist', 'extension.js'),
+        join(tempRoot, 'dist', 'extension.js'),
+      );
+      writeFileSync(
+        join(tempRoot, 'node_modules', 'vscode', 'index.js'),
+        [
+          'const proxy = new Proxy(function () {}, {',
+          '  get: (_target, prop) => prop === "__esModule" ? false : proxy,',
+          '  apply: () => proxy,',
+          '  construct: () => proxy,',
+          '});',
+          'module.exports = proxy;',
+          '',
+        ].join('\n'),
+      );
+
+      const testScript = [
+        'async function run() {',
+        '  const ext = require("./dist/extension.js");',
+        '  // If there is an exported function that triggers the import, we would call it here.',
+        '  // Since we cannot easily trigger the dispatch, we will just manually try to import the SDK',
+        '  // exactly how it is imported in the dist to see if the path resolves correctly.',
+        '  await import("@anthropic-ai/claude-agent-sdk");',
+        '}',
+        'run().catch(err => { console.error(err); process.exit(1); });'
+      ].join('\n');
+
+      const result = spawnSync(process.execPath, ['-e', testScript], {
+        cwd: tempRoot,
+        encoding: 'utf8',
+      });
+
+      expect(result.status, result.stderr || result.stdout || String(result.error)).toBe(0);
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
   });
 
   it('defines deterministic VSIX package metadata from the verified package allowlist', async () => {

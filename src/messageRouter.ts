@@ -155,10 +155,15 @@ export class MessageRouter {
 
       const targetId = dispatchTargets[i];
       let watchdogFired = false;
+      let watchdogCancelPromise: Promise<void> | null = null;
+      const cancelForWatchdog = () => {
+        watchdogCancelPromise ??= this.agents[targetId].cancel().catch(() => { /* best-effort */ });
+        return watchdogCancelPromise;
+      };
       const watchdog = this.watchdogMs > 0 ? setTimeout(() => {
         watchdogFired = true;
         ac.abort();
-        this.agents[targetId].cancel().catch(() => { /* best-effort */ });
+        void cancelForWatchdog();
       }, this.watchdogMs) : null;
 
       try {
@@ -183,12 +188,15 @@ export class MessageRouter {
           yield { kind: 'chunk', agentId: targetId, chunk: { type: 'error', message } };
           yield { kind: 'chunk', agentId: targetId, chunk: { type: 'done' } };
         }
-        yield { kind: 'dispatch-end', agentId: targetId };
       } finally {
         if (watchdog) clearTimeout(watchdog);
+        if (watchdogFired) {
+          await cancelForWatchdog();
+        }
         this.activeControllers.delete(ac);
         handle.release();
       }
+      yield { kind: 'dispatch-end', agentId: targetId };
     }
   }
 

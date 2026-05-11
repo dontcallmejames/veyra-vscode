@@ -87,6 +87,29 @@ describe('native chat workflow prompts', () => {
     });
   });
 
+  it('does not turn out-of-workspace VS Code file references into file attachments', () => {
+    const claude = NATIVE_CHAT_PARTICIPANTS.find((participant) => participant.name === 'claude')!;
+    const routed = nativeChatPromptForRequest(
+      claude,
+      {
+        prompt: 'review #file before editing',
+        command: undefined,
+        references: [
+          {
+            id: 'file',
+            range: [7, 12],
+            value: { fsPath: 'C:\\Users\\jford\\.claude\\CLAUDE.md' },
+          },
+        ],
+      } as any,
+      'C:\\Users\\jford\\Projects\\veyra-vscode',
+    );
+
+    expect(parseFileMentions(routed.text).filePaths).toEqual([]);
+    expect(routed.text).toContain('outside the current workspace');
+    expect(routed.text).toContain('CLAUDE.md');
+  });
+
   it('preserves VS Code selection ranges on file references', () => {
     const claude = NATIVE_CHAT_PARTICIPANTS.find((participant) => participant.name === 'claude')!;
 
