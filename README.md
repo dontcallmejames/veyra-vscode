@@ -1,5 +1,7 @@
 # Veyra
 
+[VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=dontcallmejames.veyra-vscode) | [Source on GitHub](https://github.com/dontcallmejames/veyra-vscode) | [Report an issue](https://github.com/dontcallmejames/veyra-vscode/issues)
+
 Veyra is a VS Code extension that routes project work across Claude, Codex, and Gemini while keeping the shared conversation, file edits, and handoffs visible.
 
 The working rule is: agents can work together without losing context, stomping each other's edits, or making invisible changes.

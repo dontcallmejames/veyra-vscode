@@ -89,6 +89,24 @@ describe('extension manifest', () => {
     expect(icon.readUInt32BE(20)).toBe(128);
   });
 
+  it('cross-links the repository README and the Marketplace overview', () => {
+    const readme = readFileSync(join(process.cwd(), 'README.md'), 'utf8');
+
+    expect(readme).toContain(
+      'https://marketplace.visualstudio.com/items?itemName=dontcallmejames.veyra-vscode',
+    );
+    expect(readme).toContain('https://github.com/dontcallmejames/veyra-vscode');
+    expect(readme).toContain('https://github.com/dontcallmejames/veyra-vscode/issues');
+    expect(manifest.repository).toEqual({
+      type: 'git',
+      url: 'https://github.com/dontcallmejames/veyra-vscode.git',
+    });
+    expect(manifest.homepage).toBe('https://github.com/dontcallmejames/veyra-vscode#readme');
+    expect(manifest.bugs).toEqual({
+      url: 'https://github.com/dontcallmejames/veyra-vscode/issues',
+    });
+  });
+
   it('uses the package files allowlist as the single VSIX inclusion strategy', () => {
     expect(existsSync(join(process.cwd(), '.vscodeignore'))).toBe(false);
     expect(manifest.files).toContain('package.json');

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.4
+
+- Adds Marketplace, source, and issue-tracker links to the README rendered by both GitHub and the Marketplace listing.
+- Publishes the current preview docs and workflow surface, including `/consensus`, diff preview, checkpoints, terminal context, and the hardened preview quickstart.
+
 ## 0.0.3
 
 - Makes the Veyra icon corners transparent for cleaner Marketplace display.
