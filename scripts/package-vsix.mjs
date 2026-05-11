@@ -104,15 +104,51 @@ function main() {
       path: 'extension.vsixmanifest',
       content: Buffer.from(createVsixManifest(manifest), 'utf8'),
     },
-    ...allowedPackageFiles.map((file) => ({
-      path: `extension/${toZipPath(file)}`,
-      content: readFileSync(join(process.cwd(), file)),
-    })),
   ];
+
+  for (const fileOrDir of allowedPackageFiles) {
+    const fullPath = join(process.cwd(), fileOrDir);
+    if (!existsSync(fullPath)) {
+      throw new Error(`Cannot package VSIX; missing runtime file/dir: ${fileOrDir}`);
+    }
+
+    if (fs.statSync(fullPath).isDirectory()) {
+      for (const file of listFilesRecursively(fullPath)) {
+        const relative = path.relative(process.cwd(), file);
+        entries.push({
+          path: `extension/${toZipPath(relative)}`,
+          content: readFileSync(file),
+        });
+      }
+    } else {
+      entries.push({
+        path: `extension/${toZipPath(fileOrDir)}`,
+        content: readFileSync(fullPath),
+      });
+    }
+  }
 
   const outputName = vsixFileName(manifest);
   writeFileSync(join(process.cwd(), outputName), createZip(entries));
   process.stdout.write(`Packaged ${outputName} with ${entries.length} entries.\n`);
+}
+
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+
+function listFilesRecursively(dir) {
+  const results = [];
+  const list = fs.readdirSync(dir);
+  for (const file of list) {
+    const fullPath = join(dir, file);
+    const stat = fs.statSync(fullPath);
+    if (stat && stat.isDirectory()) {
+      results.push(...listFilesRecursively(fullPath));
+    } else {
+      results.push(fullPath);
+    }
+  }
+  return results;
 }
 
 function createZip(entries) {

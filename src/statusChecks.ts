@@ -11,6 +11,7 @@ const cache = new Map<AgentId, { status: AgentStatus; expiresAt: number }>();
 
 export function clearStatusCache(): void {
   cache.clear();
+  cachedNpmRoot = null;
 }
 
 async function memoize(agentId: AgentId, check: () => Promise<AgentStatus>): Promise<AgentStatus> {
@@ -94,6 +95,17 @@ function requiresNode(filePath: string): boolean {
   return /\.js$/i.test(filePath);
 }
 
+let cachedNpmRoot: string | null = null;
+function getNpmRoot(): string | null {
+  if (cachedNpmRoot !== null) return cachedNpmRoot;
+  try {
+    cachedNpmRoot = execSync('npm root -g', { encoding: 'utf8' }).trim();
+    return cachedNpmRoot;
+  } catch {
+    return null;
+  }
+}
+
 function resolveCodexBundle(): string | null {
   const override = getCodexCliPathOverride();
   if (override) return override;
@@ -106,12 +118,8 @@ function resolveCodexBundle(): string | null {
   const shimExecutable = resolveWindowsNpmShim('codex');
   if (shimExecutable) return shimExecutable;
 
-  try {
-    const npmRoot = execSync('npm root -g', { encoding: 'utf8' }).trim();
-    return join(npmRoot, '@openai', 'codex', 'bin', 'codex.js');
-  } catch {
-    return null;
-  }
+  const npmRoot = getNpmRoot();
+  return npmRoot ? join(npmRoot, '@openai', 'codex', 'bin', 'codex.js') : null;
 }
 
 function resolveGeminiBundle(): string | null {
@@ -126,12 +134,8 @@ function resolveGeminiBundle(): string | null {
   const shimExecutable = resolveWindowsNpmShim('gemini');
   if (shimExecutable) return shimExecutable;
 
-  try {
-    const npmRoot = execSync('npm root -g', { encoding: 'utf8' }).trim();
-    return join(npmRoot, '@google', 'gemini-cli', 'bundle', 'gemini.js');
-  } catch {
-    return null;
-  }
+  const npmRoot = getNpmRoot();
+  return npmRoot ? join(npmRoot, '@google', 'gemini-cli', 'bundle', 'gemini.js') : null;
 }
 
 function resolveWindowsNpmShim(runtime: CliRuntimeName): string | null {

@@ -557,7 +557,9 @@ function promptWithChatReferences(request: NativeChatReferencePrompt, workspaceP
   for (const reference of references) {
     const fileReference = chatReferenceFileReference(reference, workspacePath);
     const replacement = fileReference
-      ? `@${fileReference.promptPath}`
+      ? fileReference.inWorkspace
+        ? `@${fileReference.promptPath}`
+        : `[External file reference outside the current workspace: ${fileReference.promptPath}]`
       : chatReferenceText(reference);
     if (!replacement) continue;
 
@@ -709,14 +711,11 @@ interface RangedNativeChatReference {
 function chatReferenceFileReference(
   reference: vscode.ChatPromptReference,
   workspacePath?: string,
-): { promptPath: string; lineRange: string | null } | null {
+): { promptPath: string; lineRange: string | null; inWorkspace: boolean } | null {
   const fsPath = filePathFromReferenceValue(reference.value);
   if (!fsPath) return null;
   const lineRange = lineRangeFromReferenceValue(reference.value);
-  return {
-    promptPath: referencePathForPrompt(fsPath, workspacePath),
-    lineRange,
-  };
+  return referencePathForPrompt(fsPath, workspacePath, lineRange);
 }
 
 function chatReferenceText(reference: vscode.ChatPromptReference): string | null {
@@ -766,14 +765,26 @@ function positionLine(value: unknown): number | null {
   return typeof line === 'number' && Number.isInteger(line) && line >= 0 ? line : null;
 }
 
-function referencePathForPrompt(fsPath: string, workspacePath?: string): string {
+function referencePathForPrompt(
+  fsPath: string,
+  workspacePath: string | undefined,
+  lineRange: string | null,
+): { promptPath: string; lineRange: string | null; inWorkspace: boolean } {
   if (workspacePath) {
     const relative = path.relative(workspacePath, fsPath);
     if (relative && !relative.startsWith('..') && !path.isAbsolute(relative)) {
-      return relative.replace(/\\/g, '/');
+      return {
+        promptPath: relative.replace(/\\/g, '/'),
+        lineRange,
+        inWorkspace: true,
+      };
     }
   }
-  return fsPath.replace(/\\/g, '/');
+  return {
+    promptPath: fsPath.replace(/\\/g, '/'),
+    lineRange,
+    inWorkspace: false,
+  };
 }
 
 function editedFileUri(workspacePath: string, editedPath: string): vscode.Uri {

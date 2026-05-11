@@ -12,6 +12,8 @@ export class SessionStore {
   private session: Session = { version: 1, messages: [] };
   private writeTimer: NodeJS.Timeout | null = null;
   private writePromise: Promise<void> | null = null;
+  private pendingPersistentWrite = false;
+  private writeSuppressionDepth = 0;
   private filePath: string;
   private writeErrorListeners = new Set<(err: unknown) => void>();
 
@@ -24,9 +26,16 @@ export class SessionStore {
     this.filePath = join(workspaceFolder, SESSIONS_SUBPATH).replace(/\\/g, '/');
   }
 
+  async withSuppressedWrites<T>(fn: () => Promise<T>): Promise<T> {
+    this.writeSuppressionDepth++;
+    try {
+      return await fn();
+    } finally {
+      this.writeSuppressionDepth--;
+    }
+  }
+
   async load(): Promise<Session> {
-    // Ensure the target directory exists so debounced writes don't ENOENT.
-    await fsp.mkdir(dirname(this.filePath), { recursive: true });
     if (!existsSync(this.filePath)) {
       this.session = { version: 1, messages: [] };
       return this.session;
@@ -76,10 +85,23 @@ export class SessionStore {
     return { version: this.session.version, messages: [...this.session.messages] };
   }
 
+  rollback(length: number): void {
+    this.session.messages.length = length;
+    this.pendingPersistentWrite = false;
+    if (this.writeTimer !== null) {
+      clearTimeout(this.writeTimer);
+      this.writeTimer = null;
+    }
+  }
+
   async flush(): Promise<void> {
     if (this.writeTimer !== null) {
       clearTimeout(this.writeTimer);
       this.writeTimer = null;
+    }
+    if (!this.pendingPersistentWrite) {
+      await this.writePromise;
+      return;
     }
     try {
       await this.write();
@@ -90,15 +112,14 @@ export class SessionStore {
   }
 
   private scheduleWrite(): void {
+    if (this.writeSuppressionDepth > 0) return;
+    this.pendingPersistentWrite = true;
     if (this.writeTimer !== null) {
       clearTimeout(this.writeTimer);
     }
     this.writeTimer = setTimeout(() => {
       this.writeTimer = null;
-      const tmp = this.filePath + '.tmp';
-      const data = JSON.stringify(this.session, null, 2);
-      this.writePromise = fsp.writeFile(tmp, data, 'utf8')
-        .then(() => fsp.rename(tmp, this.filePath))
+      this.writePromise = this.write()
         .catch((err) => {
           console.error('SessionStore write failed:', err);
           for (const l of this.writeErrorListeners) l(err);
@@ -112,6 +133,7 @@ export class SessionStore {
     const tmp = this.filePath + '.tmp';
     await fsp.writeFile(tmp, JSON.stringify(this.session, null, 2), 'utf8');
     await fsp.rename(tmp, this.filePath);
+    this.pendingPersistentWrite = false;
   }
 
   isFirstSession(): boolean {

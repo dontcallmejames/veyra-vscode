@@ -584,6 +584,49 @@ describe('MessageRouter', () => {
       vi.useRealTimers();
     }
   });
+
+  it('watchdog waits for agent cleanup before dispatching the next queued target', async () => {
+    vi.useFakeTimers();
+    try {
+      let resolveCancel!: () => void;
+      const cancelPromise = new Promise<void>((resolve) => {
+        resolveCancel = resolve;
+      });
+      const claude: Agent = {
+        id: 'claude',
+        status: vi.fn().mockResolvedValue('ready'),
+        cancel: vi.fn(() => cancelPromise),
+        send: (() => {
+          return (async function* () {
+            await new Promise(() => { /* never resolves */ });
+          })();
+        }) as Agent['send'],
+      };
+      const codex = fakeAgent('codex', [{ type: 'done' }]);
+      const gemini = fakeAgent('gemini', []);
+
+      const router = new MessageRouter({ claude, codex, gemini }, undefined, { watchdogMs: 5000 });
+      const events: any[] = [];
+      const task = (async () => {
+        for await (const ev of router.handle('@claude @codex hi')) events.push(ev);
+      })();
+
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+      vi.advanceTimersByTime(5000);
+      for (let i = 0; i < 50; i++) await Promise.resolve();
+
+      expect(claude.cancel).toHaveBeenCalled();
+      expect(events.some((event) => event.kind === 'dispatch-end' && event.agentId === 'claude')).toBe(false);
+      expect(events.some((event) => event.kind === 'dispatch-start' && event.agentId === 'codex')).toBe(false);
+
+      resolveCancel();
+      await task;
+
+      expect(events.some((event) => event.kind === 'dispatch-start' && event.agentId === 'codex')).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('per-target prompt composition (v2)', () => {

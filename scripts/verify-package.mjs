@@ -19,6 +19,7 @@ export const allowedPackageFiles = [
   'docs/goal-completion-audit.md',
 ];
 const allowed = new Set(allowedPackageFiles);
+const allowedPrefixes = allowedPackageFiles.filter((p) => p.includes('/'));
 const required = allowedPackageFiles;
 const forbiddenPrefixes = [
   '.claude/',
@@ -40,11 +41,18 @@ const builtinModuleNames = new Set([
 
 export function verifyPackageFiles(fileList) {
   const files = new Set(fileList);
-  const missing = required.filter((file) => !files.has(file));
+  const missing = required.filter((file) => {
+    if (files.has(file)) return false;
+    return !fileList.some((f) => f.startsWith(file + '/'));
+  });
   const forbidden = [...files].filter((file) =>
     forbiddenFiles.has(file) ||
     forbiddenPrefixes.some((prefix) => file.startsWith(prefix)));
-  const unexpected = [...files].filter((file) => !allowed.has(file));
+  const unexpected = [...files].filter((file) => {
+    if (allowed.has(file)) return false;
+    if (allowedPrefixes.some((prefix) => file.startsWith(prefix + '/'))) return false;
+    return true;
+  });
   return {
     ok: missing.length === 0 && forbidden.length === 0 && unexpected.length === 0,
     missing,
