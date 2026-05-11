@@ -62,6 +62,24 @@ interface NativeChatReferencePrompt {
   readonly toolReferences?: readonly vscode.ChatLanguageModelToolReference[];
 }
 
+const LOW_INTENT_VEYRA_PROMPTS = new Set([
+  'hi',
+  'hello',
+  'hey',
+  'ping',
+  'test',
+  'testing',
+  'are you here',
+  'are you there',
+  'you here',
+  'you there',
+  'still there',
+  'can you hear me',
+  'can you see me',
+  'is this working',
+  'are we connected',
+]);
+
 export function nativeChatPromptForRequest(
   definition: ParticipantDefinition,
   request: vscode.ChatRequest,
@@ -70,18 +88,32 @@ export function nativeChatPromptForRequest(
 ): NativeChatRoutedPrompt {
   const currentPrompt = promptWithChatReferences(request, workspacePath);
   const workspaceContextQuery = hasCodebaseMention(currentPrompt) ? currentPrompt : undefined;
-  const prompt = withNativeChatHistory(
-    currentPrompt,
-    chatContext,
-    workspacePath,
-  );
 
   if (definition.forcedTarget !== 'veyra') {
+    const prompt = withNativeChatHistory(
+      currentPrompt,
+      chatContext,
+      workspacePath,
+    );
     return withWorkspaceContextQuery({
       text: prompt,
       forcedTarget: definition.forcedTarget,
     }, workspaceContextQuery);
   }
+
+  if (!request.command && isLowIntentVeyraPrompt(currentPrompt)) {
+    return withWorkspaceContextQuery({
+      text: lowIntentVeyraPrompt(currentPrompt),
+      forcedTarget: 'veyra',
+      readOnly: true,
+    }, workspaceContextQuery);
+  }
+
+  const prompt = withNativeChatHistory(
+    currentPrompt,
+    chatContext,
+    workspacePath,
+  );
 
   if (request.command === 'review') {
     if (!prompt.trim()) {
@@ -145,6 +177,22 @@ export function nativeChatPromptForRequest(
     text: prompt,
     forcedTarget: definition.forcedTarget,
   }, workspaceContextQuery);
+}
+
+function isLowIntentVeyraPrompt(prompt: string): boolean {
+  const normalized = prompt.trim().toLowerCase().replace(/[?!.\s]+$/g, '').replace(/\s+/g, ' ');
+  return LOW_INTENT_VEYRA_PROMPTS.has(normalized);
+}
+
+function lowIntentVeyraPrompt(prompt: string): string {
+  return [
+    '[Low-intent Veyra prompt]',
+    'The user appears to be checking whether Veyra is present or responsive.',
+    'Answer briefly. Do not act on prior chat history, do not create or edit files, and do not continue earlier work.',
+    '[/Low-intent Veyra prompt]',
+    '',
+    prompt.trim(),
+  ].join('\n');
 }
 
 export function registerNativeChatParticipants(
