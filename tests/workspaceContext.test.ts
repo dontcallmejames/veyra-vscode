@@ -98,6 +98,7 @@ describe('WorkspaceContextProvider', () => {
     const root = tempWorkspace();
     writeFile(root, 'src/auth.ts', 'export const tokenHelp = "safe auth docs";\n');
     writeFile(root, '.env', 'AUTH_TOKEN=secret\n');
+    writeFile(root, 'config/prod.env', 'AUTH_TOKEN=prod secret\n');
     writeFile(root, 'certs/private.pem', 'AUTH_TOKEN=private key\n');
     writeFile(root, 'config/secrets.json', '{"AUTH_TOKEN":"secret"}\n');
 
@@ -110,9 +111,11 @@ describe('WorkspaceContextProvider', () => {
 
     expect(result.selected.map((file) => file.path)).toEqual(['src/auth.ts']);
     expect(result.block).not.toContain('.env');
+    expect(result.block).not.toContain('prod.env');
     expect(result.block).not.toContain('private.pem');
     expect(result.block).not.toContain('secrets.json');
     expect(result.block).not.toContain('AUTH_TOKEN=secret');
+    expect(result.block).not.toContain('AUTH_TOKEN=prod secret');
   });
 
   it('does not select metadata files when nothing matches the query', async () => {

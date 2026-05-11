@@ -115,6 +115,7 @@ const STOP_WORDS = new Set([
 ]);
 
 const CONTENT_READ_CONCURRENCY = 16;
+const GIT_COMMAND_MAX_BUFFER_BYTES = 50 * 1024 * 1024;
 
 export function parseWorkspaceContextMention(input: string): WorkspaceContextMention {
   let enabled = false;
@@ -275,7 +276,7 @@ async function listContentMatchedFiles(workspacePath: string, terms: string[]): 
     const { stdout } = await execFileAsync(
       'git',
       ['grep', '--untracked', '-z', '-l', '-I', '-i', '-F', ...terms.flatMap((term) => ['-e', term]), '--', '.'],
-      { cwd: workspacePath, windowsHide: true, timeout: 10_000, maxBuffer: 10 * 1024 * 1024 },
+      { cwd: workspacePath, windowsHide: true, timeout: 10_000, maxBuffer: GIT_COMMAND_MAX_BUFFER_BYTES },
     );
     return new Set(parseNulSeparatedPaths(String(stdout)).filter((file) => !isExcludedPath(file)));
   } catch (err) {
@@ -289,7 +290,7 @@ async function listGitFiles(workspacePath: string): Promise<string[] | null> {
     const { stdout } = await execFileAsync(
       'git',
       ['ls-files', '-z', '--cached', '--others', '--exclude-standard'],
-      { cwd: workspacePath, windowsHide: true, timeout: 10_000 },
+      { cwd: workspacePath, windowsHide: true, timeout: 10_000, maxBuffer: GIT_COMMAND_MAX_BUFFER_BYTES },
     );
     return String(stdout)
       .split('\0')
@@ -591,6 +592,7 @@ function isExcludedPath(relativePath: string): boolean {
   if (
     SECRET_PRONE_FILE_NAMES.has(basenameLower) ||
     basenameLower.startsWith('.env.') ||
+    basenameLower.endsWith('.env') ||
     SECRET_PRONE_EXTENSIONS.has(path.extname(basenameLower))
   ) {
     return true;
