@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.5
+
+- Fixes native chat transcript parsing so PowerShell-style arrays such as `@("package.json", "README.md")` are not surfaced as bogus file mention errors before agent output.
+- Records the final manual Extension Development Host smoke pass for `/debate`, `/review`, `/consensus`, and `/implement` after the native chat fix.
+
 ## 0.0.4
 
 - Adds Marketplace, source, and issue-tracker links to the README rendered by both GitHub and the Marketplace listing.
