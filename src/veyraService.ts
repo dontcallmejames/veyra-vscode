@@ -12,6 +12,7 @@ import { readWorkspaceRules } from './workspaceRules.js';
 import { parseFileMentions, embedFiles } from './fileMentions.js';
 import { DEFAULT_AUTONOMY_POLICY, composePrompt } from './composePrompt.js';
 import { parseWorkspaceContextMention, type WorkspaceContextProvider, type WorkspaceContextResult } from './workspaceContext.js';
+import { formatProjectCommandHintsBlock, type ProjectCommandProvider } from './projectCommands.js';
 import {
   type ChangeLedger,
   type ChangeLedgerBaseline,
@@ -74,6 +75,7 @@ export interface VeyraSessionOptions {
   workspaceChangeTracker?: WorkspaceChangeTracker;
   facilitator?: FacilitatorFn;
   workspaceContextProvider?: WorkspaceContextProvider;
+  projectCommandProvider?: ProjectCommandProvider;
   changeLedger?: ChangeLedger;
   checkpointLedger?: CheckpointLedger;
 }
@@ -127,6 +129,7 @@ export class VeyraSessionService {
   private getEditedPathForAgent?: (agentId: AgentId, toolName: string, input: unknown) => string | null;
   private workspaceChangeTracker?: WorkspaceChangeTracker;
   private workspaceContextProvider?: WorkspaceContextProvider;
+  private projectCommandProvider?: ProjectCommandProvider;
   private changeLedger?: ChangeLedger;
   private checkpointLedger?: CheckpointLedger;
   private loadPromise: Promise<Session> | null = null;
@@ -152,6 +155,7 @@ export class VeyraSessionService {
     this.getEditedPathForAgent = options.getEditedPathForAgent;
     this.workspaceChangeTracker = options.workspaceChangeTracker;
     this.workspaceContextProvider = options.workspaceContextProvider;
+    this.projectCommandProvider = options.projectCommandProvider;
     this.changeLedger = options.changeLedger;
     this.checkpointLedger = options.checkpointLedger;
     this.sentinel = new SentinelWriter(workspacePath, {
@@ -186,7 +190,7 @@ export class VeyraSessionService {
 
   updateOptions(options: Pick<
     VeyraSessionOptions,
-    'hangSeconds' | 'fileEmbedMaxLines' | 'sharedContextWindow' | 'commitSignatureEnabled' | 'badgeController' | 'workspaceContextProvider' | 'changeLedger' | 'checkpointLedger'
+    'hangSeconds' | 'fileEmbedMaxLines' | 'sharedContextWindow' | 'commitSignatureEnabled' | 'badgeController' | 'workspaceContextProvider' | 'projectCommandProvider' | 'changeLedger' | 'checkpointLedger'
   >): void {
     if (options.hangSeconds !== undefined) {
       this.hangSeconds = options.hangSeconds;
@@ -211,6 +215,9 @@ export class VeyraSessionService {
     }
     if ('workspaceContextProvider' in options) {
       this.workspaceContextProvider = options.workspaceContextProvider;
+    }
+    if ('projectCommandProvider' in options) {
+      this.projectCommandProvider = options.projectCommandProvider;
     }
     if ('changeLedger' in options) {
       this.changeLedger = options.changeLedger;
@@ -270,6 +277,7 @@ export class VeyraSessionService {
     const workspaceContextBlock = workspaceContextResult.block.trim().length > 0
       ? workspaceContextResult.block
       : formatWorkspaceContextDiagnosticsBlock(workspaceContextResult);
+    const projectCommandBlock = await this.retrieveProjectCommandHints();
     const embedResult = embedFiles(filePaths, this.workspacePath, { maxLines: this.fileEmbedMaxLines });
     const userMentions = userMentionsForRequest(request.text, request.forcedTarget);
     const attachedFiles = dedupeAttachedFiles([
@@ -349,6 +357,7 @@ export class VeyraSessionService {
         sharedContext,
         editAwareness,
         workspaceContext: workspaceContextBlock,
+        projectCommands: projectCommandBlock,
         fileBlocks: embedResult.embedded,
         attachmentErrors: embedResult.errors,
         userText: baseText,
@@ -548,6 +557,7 @@ export class VeyraSessionService {
 
   invalidateWorkspaceContext(): void {
     this.workspaceContextProvider?.invalidate();
+    this.projectCommandProvider?.invalidate();
   }
 
   flush(): Promise<void> {
@@ -625,6 +635,15 @@ export class VeyraSessionService {
       return await this.workspaceContextProvider.retrieve(query);
     } catch (err) {
       return emptyWorkspaceContextResult(true, query, [`Unable to retrieve workspace context: ${errorMessage(err)}`]);
+    }
+  }
+
+  private async retrieveProjectCommandHints(): Promise<string> {
+    if (!this.projectCommandProvider) return '';
+    try {
+      return formatProjectCommandHintsBlock(await this.projectCommandProvider.retrieve());
+    } catch {
+      return '';
     }
   }
 

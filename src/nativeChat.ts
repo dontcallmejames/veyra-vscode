@@ -722,7 +722,19 @@ function chatReferenceFileReference(
 function chatReferenceText(reference: vscode.ChatPromptReference): string | null {
   if (typeof reference.value !== 'string' || reference.value.length === 0) return null;
   const label = reference.modelDescription ?? reference.id;
+  if (isTerminalReferenceLabel(label)) {
+    return [
+      '[Terminal context]',
+      `${label}:`,
+      reference.value,
+      '[/Terminal context]',
+    ].join('\n');
+  }
   return `${label}:\n${reference.value}`;
+}
+
+function isTerminalReferenceLabel(label: string): boolean {
+  return /\bterminal\b/i.test(label);
 }
 
 function filePathFromReferenceValue(value: unknown): string | null {

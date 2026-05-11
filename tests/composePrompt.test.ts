@@ -7,13 +7,14 @@ describe('composePrompt', () => {
       .toBe('hello');
   });
 
-  it('orders blocks: rules -> autonomy -> context -> edit awareness -> workspace context -> files -> user text', () => {
+  it('orders blocks: rules -> autonomy -> context -> edit awareness -> workspace context -> project commands -> files -> user text', () => {
     const out = composePrompt({
       rules: 'use pnpm',
       autonomyPolicy: '[Autonomy policy]\nproceed without confirmation\n[/Autonomy policy]',
       sharedContext: '[Conversation so far]\nuser: hi\n[/Conversation so far]',
       editAwareness: '[Edit coordination]\n- src/a.ts (claude)\n[/Edit coordination]',
       workspaceContext: '[Workspace context from @codebase]\nSelected files:\n- src/auth.ts\n[/Workspace context]',
+      projectCommands: '[Project command hints]\n- test: npm test\n[/Project command hints]',
       fileBlocks: '[File: a.ts]\nx\n[/File]',
       userText: 'review',
     });
@@ -23,6 +24,7 @@ describe('composePrompt', () => {
     const idxCtx = out.indexOf('[Conversation so far]');
     const idxEditAwareness = out.indexOf('[Edit coordination]');
     const idxWorkspaceContext = out.indexOf('[Workspace context from @codebase]');
+    const idxProjectCommands = out.indexOf('[Project command hints]');
     const idxFile = out.indexOf('[File: a.ts]');
     const idxUser = out.indexOf('review');
 
@@ -31,7 +33,8 @@ describe('composePrompt', () => {
     expect(idxCtx).toBeGreaterThan(idxAutonomy);
     expect(idxEditAwareness).toBeGreaterThan(idxCtx);
     expect(idxWorkspaceContext).toBeGreaterThan(idxEditAwareness);
-    expect(idxFile).toBeGreaterThan(idxWorkspaceContext);
+    expect(idxProjectCommands).toBeGreaterThan(idxWorkspaceContext);
+    expect(idxFile).toBeGreaterThan(idxProjectCommands);
     expect(idxUser).toBeGreaterThan(idxFile);
   });
 
@@ -86,6 +89,19 @@ describe('composePrompt', () => {
       userText: 'hi',
     });
     expect(out).not.toContain('[Workspace context from @codebase]');
+  });
+
+  it('omits project command hints when empty', () => {
+    const out = composePrompt({
+      rules: '',
+      sharedContext: '',
+      editAwareness: '',
+      workspaceContext: '',
+      projectCommands: '',
+      fileBlocks: '',
+      userText: 'hi',
+    });
+    expect(out).not.toContain('[Project command hints]');
   });
 
   it('omits file block when fileBlocks empty', () => {
