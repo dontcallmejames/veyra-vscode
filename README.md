@@ -12,6 +12,7 @@ The working rule is: agents can work together without losing context, stomping e
 - `@veyra` slash workflows:
   - `/review` asks all three agents to review the request in sequence with role-specific focus.
   - `/debate` asks all three agents to compare approaches before implementation from different strengths.
+  - `/consensus` asks all three agents to resolve options into one read-only recommendation.
   - `/implement` runs a serial all-agent implementation pass: Claude frames approach/risk, Codex changes code/tests, then Gemini reviews.
 - A VS Code Language Model provider named `Veyra`, with local models for the orchestrator and each direct agent.
 - A legacy Veyra panel for the same shared session pipeline.
@@ -48,6 +49,7 @@ Open VS Code Chat and mention a participant:
 @veyra /review check this migration plan for risk
 @veyra /review @codebase inspect the auth flow for correctness risks
 @veyra /debate choose the safest way to refactor the auth layer
+@veyra /consensus decide whether to ship the compatibility layer now
 @veyra /implement add tests for the parser and fix failures
 @claude review the architecture in src/server.ts
 @codex implement the failing test
@@ -55,9 +57,9 @@ Open VS Code Chat and mention a participant:
 ```
 
 When no direct agent is chosen, `@veyra` asks the facilitator to route the work based on agent availability, prompt content, and recent shared context.
-The `/review` and `/debate` workflows are read-only: Veyra tells agents not to edit files and suppresses automatic edit approval for those dispatches. `/review` steers Claude toward architecture/correctness, Codex toward implementation/test risk, and Gemini toward edge cases and invisible-change risk. `/debate` uses the same split to compare approaches. `/implement` remains the serial workflow intended for code and test changes.
+The `/review`, `/debate`, and `/consensus` workflows are read-only: Veyra tells agents not to edit files and suppresses automatic edit approval for those dispatches. `/review` steers Claude toward architecture/correctness, Codex toward implementation/test risk, and Gemini toward edge cases and invisible-change risk. `/debate` uses the same split to compare approaches. `/consensus` asks Claude to identify constraints, Codex to identify implementation cost and risk, and Gemini to compare the positions into one decision. `/implement` remains the serial workflow intended for code and test changes.
 Workflow prompts tell agents to use their available model and CLI capabilities while still following read-only or edit-permitted instructions. Broad actionable implementation requests should proceed from reasonable assumptions instead of becoming brainstorming or approval checkpoints; agents should stop only for unsafe or impossible next actions.
-Workflow output is structured for follow-up work. `/review` asks agents to classify findings as Blocking issues, Advisory risks, Missing tests, and Follow-up suggestions, then Gemini ends with a `Veyra Synthesis` section. `/debate` asks each agent for a recommendation and tradeoffs, then Gemini ends with a `Veyra Synthesis` section that names the Recommended approach and next action. `/implement` asks Gemini to finish with a `Handoff Summary` covering what changed, verification status, remaining risks, and the recommended next action.
+Workflow output is structured for follow-up work. `/review` asks agents to classify findings as Blocking issues, Advisory risks, Missing tests, and Follow-up suggestions, then Gemini ends with a `Veyra Synthesis` section. `/debate` asks each agent for a recommendation and tradeoffs, then Gemini ends with a `Veyra Synthesis` section that names the Recommended approach and next action. `/consensus` asks each agent for Position, Evidence, Risks, and Next action, then Gemini ends with a `Consensus Recommendation` covering Decision, Rationale, Tradeoffs, Risks, and Next action. `/implement` asks Gemini to finish with a `Handoff Summary` covering what changed, verification status, remaining risks, and the recommended next action.
 
 Use `@codebase` when you want Veyra to retrieve relevant workspace files without naming them explicitly. The first version uses local lexical search over workspace files and project metadata; it does not upload or build a cloud index.
 
@@ -71,12 +73,13 @@ The extension contributes a `veyra` language model provider with these local mod
 - `veyra-orchestrator`
 - `veyra-review`
 - `veyra-debate`
+- `veyra-consensus`
 - `veyra-implement`
 - `veyra-claude`
 - `veyra-codex`
 - `veyra-gemini`
 
-Other extensions can request these models through VS Code's Language Model Chat API. The workflow models run the same all-agent review, debate, and implementation prompt shapes exposed in native chat. Responses stream back through the same Veyra session service used by native chat and the panel.
+Other extensions can request these models through VS Code's Language Model Chat API. The workflow models run the same all-agent review, debate, consensus, and implementation prompt shapes exposed in native chat. Responses stream back through the same Veyra session service used by native chat and the panel.
 
 ## Edit Coordination
 

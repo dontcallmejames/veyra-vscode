@@ -39,6 +39,26 @@ describe('veyraWorkflowPrompt', () => {
     expect(prompt).toContain('Pick a refactor path.');
   });
 
+  it('assigns model-strength roles in consensus workflows without permitting edits', () => {
+    const prompt = veyraWorkflowPrompt('consensus', 'Choose the release path.');
+
+    expect(prompt).toContain('@all');
+    expect(prompt).toContain('Workflow: consensus');
+    expect(prompt).toContain('Claude: identify architecture, product, and correctness constraints.');
+    expect(prompt).toContain('Codex: identify implementation cost, tests, migration risk, and operational failure modes.');
+    expect(prompt).toContain('Gemini: compare prior positions, challenge assumptions, and produce the final recommendation.');
+    expect(prompt).toContain('Read-only workflow: Do not create, edit, rename, or delete files.');
+    expect(prompt).toContain('Position');
+    expect(prompt).toContain('Evidence');
+    expect(prompt).toContain('Risks');
+    expect(prompt).toContain('Next action');
+    expect(prompt).toContain('Consensus Recommendation');
+    expect(prompt).toContain('Decision');
+    expect(prompt).toContain('Rationale');
+    expect(prompt).toContain('Tradeoffs');
+    expect(prompt).toContain('Choose the release path.');
+  });
+
   it('assigns model-strength roles in implementation workflows', () => {
     const prompt = veyraWorkflowPrompt('implement', 'Fix the parser.');
 

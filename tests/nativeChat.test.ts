@@ -264,6 +264,26 @@ describe('native chat workflow prompts', () => {
     expect(routed.text).toContain('Do not create, edit, rename, or delete files');
   });
 
+  it('turns @veyra /consensus into an all-agent consensus request', () => {
+    const veyra = NATIVE_CHAT_PARTICIPANTS.find((participant) => participant.name === 'veyra')!;
+    const routed = nativeChatPromptForRequest(veyra, { prompt: 'choose the release path', command: 'consensus' } as any);
+
+    expect(routed.forcedTarget).toBe('veyra');
+    expect(routed.text).toContain('@all');
+    expect(routed.text).toContain('Workflow: consensus');
+    expect(routed.text).toContain('choose the release path');
+    expect(routed.text).toContain('Consensus Recommendation');
+  });
+
+  it('keeps @veyra /consensus read-only until the user chooses implementation', () => {
+    const veyra = NATIVE_CHAT_PARTICIPANTS.find((participant) => participant.name === 'veyra')!;
+    const routed = nativeChatPromptForRequest(veyra, { prompt: 'choose the release path', command: 'consensus' } as any);
+
+    expect(routed.readOnly).toBe(true);
+    expect(routed.text).toContain('Read-only workflow');
+    expect(routed.text).toContain('Do not create, edit, rename, or delete files');
+  });
+
   it('turns @veyra /implement into an all-agent autonomous implementation request', () => {
     const veyra = NATIVE_CHAT_PARTICIPANTS.find((participant) => participant.name === 'veyra')!;
     const routed = nativeChatPromptForRequest(veyra, { prompt: 'fix the parser bug', command: 'implement' } as any);
@@ -432,6 +452,36 @@ describe('native chat workflow prompts', () => {
       expect.objectContaining({
         readOnly: true,
         text: expect.stringContaining('Workflow: review'),
+      }),
+      expect.any(Function),
+    );
+  });
+
+  it('dispatches read-only native consensus workflows without auto-edit permission', async () => {
+    const context = { subscriptions: [] as Array<{ dispose(): void }> };
+    const service = {
+      dispatch: vi.fn(async () => {}),
+      cancelAll: vi.fn(),
+    };
+
+    registerNativeChatParticipants(
+      context as any,
+      () => ({ service, workspacePath: '/workspace' } as any),
+    );
+
+    const handler = vscodeMocks.participantHandlers.get('veyra.veyra');
+    expect(handler).toBeTypeOf('function');
+    await handler!(
+      { prompt: 'choose the release path', command: 'consensus', references: [], toolReferences: [] },
+      {},
+      { markdown: vi.fn(), progress: vi.fn(), reference: vi.fn() },
+      cancellationToken(),
+    );
+
+    expect(service.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        readOnly: true,
+        text: expect.stringContaining('Workflow: consensus'),
       }),
       expect.any(Function),
     );

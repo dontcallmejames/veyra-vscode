@@ -46,6 +46,7 @@ describe('Veyra language model provider helpers', () => {
       ['veyra-orchestrator', 'veyra'],
       ['veyra-review', 'veyra'],
       ['veyra-debate', 'veyra'],
+      ['veyra-consensus', 'veyra'],
       ['veyra-implement', 'veyra'],
       ['veyra-claude', 'claude'],
       ['veyra-codex', 'codex'],
@@ -56,6 +57,7 @@ describe('Veyra language model provider helpers', () => {
   it('resolves known models and falls back to the orchestrator', () => {
     expect(resolveVeyraLanguageModel('veyra-codex').forcedTarget).toBe('codex');
     expect(resolveVeyraLanguageModel('veyra-review').id).toBe('veyra-review');
+    expect(resolveVeyraLanguageModel('veyra-consensus').id).toBe('veyra-consensus');
     expect(resolveVeyraLanguageModel('missing-model').forcedTarget).toBe('veyra');
   });
 
@@ -493,6 +495,49 @@ describe('Veyra language model provider helpers', () => {
     expect(dispatched).toContain('Workflow: review');
     expect(dispatched).toContain('Read-only workflow');
     expect(dispatched).toContain('Check this change.');
+  });
+
+  it('dispatches the consensus language model as a read-only all-agent workflow', async () => {
+    const context = { subscriptions: [] as Array<{ dispose(): void }> };
+    const service = {
+      dispatch: vi.fn(async (_request: unknown, _emit: unknown) => {}),
+      cancelAll: vi.fn(),
+    };
+
+    registerVeyraLanguageModelProvider(
+      context as any,
+      () => ({ service, workspacePath: '/workspace' } as any),
+    );
+
+    const provider = vscodeMocks.registerLanguageModelChatProvider.mock.calls[0]?.[1] as {
+      provideLanguageModelChatResponse(
+        model: unknown,
+        messages: unknown[],
+        options: unknown,
+        progress: { report(value: unknown): void },
+        token: unknown,
+      ): Promise<void>;
+    };
+
+    await provider.provideLanguageModelChatResponse(
+      resolveVeyraLanguageModel('veyra-consensus'),
+      [{ role: 1, name: undefined, content: [{ value: 'Choose the release path.' }] }],
+      {},
+      { report: vi.fn() },
+      cancellationToken(),
+    );
+
+    expect(service.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        forcedTarget: 'veyra',
+        readOnly: true,
+        text: expect.stringContaining('Workflow: consensus'),
+      }),
+      expect.any(Function),
+    );
+    const dispatchedRequest = service.dispatch.mock.calls[0]?.[0] as { text: string } | undefined;
+    expect(dispatchedRequest?.text).toContain('Consensus Recommendation');
+    expect(dispatchedRequest?.text).toContain('Choose the release path.');
   });
 
   it('passes current-turn @codebase language model prompts as the workspace-context query', async () => {

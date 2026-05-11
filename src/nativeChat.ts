@@ -113,6 +113,21 @@ export function nativeChatPromptForRequest(
     }, workspaceContextQuery);
   }
 
+  if (request.command === 'consensus') {
+    if (!prompt.trim()) {
+      return {
+        forcedTarget: 'veyra',
+        text: '',
+        readOnly: true,
+      };
+    }
+    return withWorkspaceContextQuery({
+      forcedTarget: 'veyra',
+      text: veyraWorkflowPrompt('consensus', prompt),
+      readOnly: true,
+    }, workspaceContextQuery);
+  }
+
   if (request.command === 'implement') {
     if (!prompt.trim()) {
       return {
@@ -167,7 +182,7 @@ export function nativeChatWorkflowDiagnostics(): Record<VeyraWorkflowCommand, {
   containsWorkflowMarker: boolean;
 }> {
   const veyra = NATIVE_CHAT_PARTICIPANTS.find((participant) => participant.forcedTarget === 'veyra')!;
-  return Object.fromEntries((['review', 'debate', 'implement'] as VeyraWorkflowCommand[]).map((command) => {
+  return Object.fromEntries((['review', 'debate', 'consensus', 'implement'] as VeyraWorkflowCommand[]).map((command) => {
     const routed = nativeChatPromptForRequest(
       veyra,
       {
@@ -220,6 +235,12 @@ export async function nativeChatSmokeResponses(registration: NativeChatRegistrat
       participantId: 'veyra.veyra',
       command: 'debate',
       prompt: 'Veyra native chat debate smoke request.',
+    },
+    {
+      key: 'veyra.veyra/consensus',
+      participantId: 'veyra.veyra',
+      command: 'consensus',
+      prompt: 'Veyra native chat consensus smoke request.',
     },
     {
       key: 'veyra.veyra/implement',

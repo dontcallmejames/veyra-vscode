@@ -20,7 +20,7 @@ For the automated activation/provider smoke test, run:
 npm run test:vscode-smoke
 ```
 
-That command builds the extension, launches VS Code with isolated `.vscode-test` user data, activates Veyra in an Extension Development Host, records native chat participant IDs plus slash workflow commands, records native chat registration evidence from activation, records native chat workflow diagnostics for `/review`, `/debate`, and `/implement`, sends deterministic no-paid smoke requests through the native chat handler path for direct `@veyra`, `/review`, `/debate`, `/implement`, `@claude`, `@codex`, and `@gemini`, verifies write-capable native chat smoke responses include visible file edit progress plus file references, verifies language model IDs, records language model metadata (`name, family, version, and maxInputTokens`), calls token counting on every Veyra language model, sends deterministic no-paid smoke requests through every Veyra language model, validates workflow-mode response markers for review, debate, implement, orchestrator, and direct models, verifies write-capable language model smoke responses include workspace file links for agent edits, verifies `.vscode/veyra/active-dispatch` appears during a smoke dispatch and clears afterward, executes core Veyra commands, verifies `Veyra: Open Panel` creates a `Veyra` webview tab, installs and removes the managed commit hook in the isolated smoke workspace, and verifies the hook adds a Veyra `Co-Authored-By` trailer to an actual smoke commit, then exits without sending paid model prompts.
+That command builds the extension, launches VS Code with isolated `.vscode-test` user data, activates Veyra in an Extension Development Host, records native chat participant IDs plus slash workflow commands, records native chat registration evidence from activation, records native chat workflow diagnostics for `/review`, `/debate`, `/consensus`, and `/implement`, sends deterministic no-paid smoke requests through the native chat handler path for direct `@veyra`, `/review`, `/debate`, `/consensus`, `/implement`, `@claude`, `@codex`, and `@gemini`, verifies write-capable native chat smoke responses include visible file edit progress plus file references, verifies language model IDs, records language model metadata (`name, family, version, and maxInputTokens`), calls token counting on every Veyra language model, sends deterministic no-paid smoke requests through every Veyra language model, validates workflow-mode response markers for review, debate, consensus, implement, orchestrator, and direct models, verifies write-capable language model smoke responses include workspace file links for agent edits, verifies `.vscode/veyra/active-dispatch` appears during a smoke dispatch and clears afterward, executes core Veyra commands, verifies `Veyra: Open Panel` creates a `Veyra` webview tab, installs and removes the managed commit hook in the isolated smoke workspace, and verifies the hook adds a Veyra `Co-Authored-By` trailer to an actual smoke commit, then exits without sending paid model prompts.
 
 For the interactive end-to-end checklist:
 
@@ -71,13 +71,14 @@ If `/debate` is clean, run the remaining prompts:
 
 ```text
 @veyra /review inspect this workspace and report risks only
+@veyra /consensus decide whether the test-only change should be made now
 @veyra /implement make a tiny test-only change, then review it
 ```
 
 Expected behavior:
 
-- `/review`, `/debate`, and `/implement` route through all three agents.
-- `/review` and `/debate` are read-only workflows; they report findings or tradeoffs without creating, editing, renaming, or deleting files.
+- `/review`, `/debate`, `/consensus`, and `/implement` route through all three agents.
+- `/review`, `/debate`, and `/consensus` are read-only workflows; they report findings, tradeoffs, or a consensus recommendation without creating, editing, renaming, or deleting files.
 - `/implement` is the workflow that may make file edits.
 - Agents use their available model and CLI capabilities while respecting read-only or edit-permitted instructions.
 - Broad actionable implementation requests proceed from reasonable assumptions instead of turning into brainstorming or approval checkpoints.
@@ -92,6 +93,7 @@ From another extension or VS Code API scratch harness, request models for vendor
 - `veyra-orchestrator`
 - `veyra-review`
 - `veyra-debate`
+- `veyra-consensus`
 - `veyra-implement`
 - `veyra-claude`
 - `veyra-codex`

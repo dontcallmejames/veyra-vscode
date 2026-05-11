@@ -148,6 +148,10 @@
             "description": "Have Claude, Codex, and Gemini run a read-only debate on the best approach."
           },
           {
+            "name": "consensus",
+            "description": "Have Claude, Codex, and Gemini reach a read-only consensus recommendation."
+          },
+          {
             "name": "implement",
             "description": "Run Claude, Codex, and Gemini as a serial implementation team."
           }
