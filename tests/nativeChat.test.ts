@@ -452,6 +452,58 @@ describe('native chat workflow prompts', () => {
     );
   });
 
+  it('treats low-intent @veyra prompts as read-only status checks without inherited chat history', async () => {
+    const context = { subscriptions: [] as Array<{ dispose(): void }> };
+    const service = {
+      dispatch: vi.fn(async (_request: unknown) => {}),
+      cancelAll: vi.fn(),
+    };
+
+    registerNativeChatParticipants(
+      context as any,
+      () => ({ service, workspacePath: '/workspace' } as any),
+    );
+
+    const handler = vscodeMocks.participantHandlers.get('veyra.veyra');
+    expect(handler).toBeTypeOf('function');
+    await handler!(
+      { prompt: 'are you here?', command: undefined, references: [], toolReferences: [] },
+      {
+        history: [
+          {
+            prompt: 'make the UI more polished',
+            participant: 'veyra.veyra',
+            references: [],
+            toolReferences: [],
+          },
+          {
+            participant: 'veyra.veyra',
+            response: [
+              { value: { value: 'We should create src/shared/agentPresentation.ts and update AgentBubble.' } },
+            ],
+            result: {},
+          },
+        ],
+      },
+      { markdown: vi.fn(), progress: vi.fn(), reference: vi.fn() },
+      cancellationToken(),
+    );
+
+    expect(service.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        readOnly: true,
+        text: expect.stringContaining('are you here?'),
+      }),
+      expect.any(Function),
+    );
+    const dispatched = service.dispatch.mock.calls[0][0] as { text: string };
+    expect(dispatched.text).toContain('Low-intent Veyra prompt');
+    expect(dispatched.text).toContain('Do not act on prior chat history');
+    expect(dispatched.text).not.toContain('[VS Code chat history]');
+    expect(dispatched.text).not.toContain('make the UI more polished');
+    expect(dispatched.text).not.toContain('src/shared/agentPresentation.ts');
+  });
+
   it('dispatches read-only native review workflows without auto-edit permission', async () => {
     const context = { subscriptions: [] as Array<{ dispose(): void }> };
     const service = {
