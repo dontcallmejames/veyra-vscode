@@ -312,6 +312,7 @@ describe('extension manifest', () => {
   it('contributes checkpoint commands and settings', () => {
     const properties = manifest.contributes.configuration.properties;
     const commands = new Map(manifest.contributes.commands.map((command) => [command.command, command.title]));
+    const readme = readFileSync(join(process.cwd(), 'README.md'), 'utf8');
 
     expect(manifest.contributes.commands.map((command) => command.command)).toContain('veyra.createCheckpoint');
     expect(manifest.contributes.commands.map((command) => command.command)).toContain('veyra.listCheckpoints');
@@ -337,6 +338,12 @@ describe('extension manifest', () => {
       minimum: 1,
       maximum: 100,
     });
+    expect(readme).toContain('Veyra: Create Checkpoint');
+    expect(readme).toContain('Veyra: List Checkpoints');
+    expect(readme).toContain('Veyra: Roll Back Latest Checkpoint');
+    expect(readme).toContain('veyra.checkpoints.enabled');
+    expect(readme).toContain('veyra.checkpoints.maxFileBytes');
+    expect(readme).toContain('veyra.checkpoints.maxCount');
   });
 
   it('contributes command-palette entries for panel, status, and commit-hook operations', () => {

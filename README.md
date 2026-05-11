@@ -96,6 +96,12 @@ When an agent edits files, Veyra records a pending change set. Use `Veyra: Open 
 
 Reject refuses to overwrite files that changed after the agent edit. In that case, inspect the file manually before continuing.
 
+### Checkpoints And Rollback
+
+Veyra can save checkpoints before write-capable dispatches and on demand. Use `Veyra: Create Checkpoint` before an experiment, `Veyra: List Checkpoints` to inspect recent recovery points, and `Veyra: Roll Back Latest Checkpoint` to restore the latest safe checkpoint.
+
+Rollback refuses when automatic checkpoint files changed after the agent dispatch or when files are too large to restore safely. Manual checkpoint rollback is explicit: Veyra shows the changed file count before restoring files to the manual checkpoint state.
+
 ## Settings
 
 - `veyra.toolCallRenderStyle`: `verbose`, `compact`, or `hidden` for raw tool call/result details in the panel, native chat, and Language Model provider. File edit references still stay visible.
@@ -107,6 +113,9 @@ Reject refuses to overwrite files that changed after the agent edit. In that cas
 - `veyra.workspaceContext.maxFileBytes`: max file size considered during `@codebase` retrieval.
 - `veyra.diffPreview.enabled`: capture pending agent change sets for diff preview and safe rejection.
 - `veyra.diffPreview.maxFileBytes`: max file size snapshotted for diff preview and rejection.
+- `veyra.checkpoints.enabled`: capture automatic and manual Veyra checkpoints.
+- `veyra.checkpoints.maxFileBytes`: max file size snapshotted for checkpoint rollback.
+- `veyra.checkpoints.maxCount`: max checkpoint count before pruning older snapshots.
 - `veyra.codexCliPath`: optional absolute path to the Codex CLI JS bundle, native executable, or Windows npm shim. Paths ending in `codex.cmd`, `codex.bat`, or `codex.ps1` are resolved to the underlying JS bundle before launch.
 - `veyra.geminiCliPath`: optional absolute path to the Gemini CLI JS bundle, native executable, or Windows npm shim. Paths ending in `gemini.cmd`, `gemini.bat`, or `gemini.ps1` are resolved to the underlying JS bundle before launch.
 - `veyra.sharedContextWindow`: number of recent messages sent to later agents.
