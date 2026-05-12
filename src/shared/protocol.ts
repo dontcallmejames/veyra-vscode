@@ -87,7 +87,7 @@ export type AgentMessage = {
 export type SystemMessage = {
   id: string;
   role: 'system';
-  kind: 'routing-needed' | 'error' | 'facilitator-decision' | 'edit-conflict' | 'file-edited' | 'change-set' | 'checkpoint';
+  kind: 'routing-needed' | 'local-response' | 'error' | 'facilitator-decision' | 'edit-conflict' | 'file-edited' | 'change-set' | 'checkpoint';
   text: string;
   timestamp: number;
   agentId?: AgentId;     // present when a system notice is associated with a specific agent

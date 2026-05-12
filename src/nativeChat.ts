@@ -4,6 +4,7 @@ import type { VeyraDispatchEvent, VeyraForcedTarget, VeyraSessionService } from 
 import type { AgentId } from './types.js';
 import { veyraWorkflowPrompt, type VeyraWorkflowCommand } from './workflowPrompts.js';
 import { parseWorkspaceContextMention } from './workspaceContext.js';
+import { localVeyraResponseForPrompt } from './localVeyraPrompt.js';
 
 export interface NativeChatRegistration {
   service: VeyraSessionService;
@@ -63,24 +64,6 @@ interface NativeChatReferencePrompt {
   readonly toolReferences?: readonly vscode.ChatLanguageModelToolReference[];
 }
 
-const LOW_INTENT_VEYRA_PROMPTS = new Set([
-  'hi',
-  'hello',
-  'hey',
-  'ping',
-  'test',
-  'testing',
-  'are you here',
-  'are you there',
-  'you here',
-  'you there',
-  'still there',
-  'can you hear me',
-  'can you see me',
-  'is this working',
-  'are we connected',
-]);
-
 export function nativeChatPromptForRequest(
   definition: ParticipantDefinition,
   request: vscode.ChatRequest,
@@ -88,12 +71,13 @@ export function nativeChatPromptForRequest(
   chatContext?: vscode.ChatContext,
 ): NativeChatRoutedPrompt {
   const rawPrompt = request.prompt ?? '';
-  if (definition.forcedTarget === 'veyra' && !request.command && isLowIntentVeyraPrompt(rawPrompt)) {
+  const localResponse = localVeyraResponseForPrompt(rawPrompt);
+  if (definition.forcedTarget === 'veyra' && !request.command && localResponse) {
     return {
       text: rawPrompt.trim(),
       forcedTarget: 'veyra',
       readOnly: true,
-      localResponse: 'Yes, here.',
+      localResponse,
     };
   }
 
@@ -180,16 +164,6 @@ export function nativeChatPromptForRequest(
     text: prompt,
     forcedTarget: definition.forcedTarget,
   }, workspaceContextQuery);
-}
-
-function isLowIntentVeyraPrompt(prompt: string): boolean {
-  const normalized = prompt
-    .trim()
-    .toLowerCase()
-    .replace(/^@veyra\b\s*/, '')
-    .replace(/[?!.\s]+$/g, '')
-    .replace(/\s+/g, ' ');
-  return LOW_INTENT_VEYRA_PROMPTS.has(normalized);
 }
 
 export function registerNativeChatParticipants(

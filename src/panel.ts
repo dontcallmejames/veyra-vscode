@@ -13,6 +13,7 @@ import type { AgentId, AgentStatus } from './types.js';
 import type { AgentRegistry } from './messageRouter.js';
 import type { FileBadgesController } from './fileBadges.js';
 import type { VeyraDispatchEvent } from './veyraService.js';
+import { localVeyraResponseForPrompt } from './localVeyraPrompt.js';
 
 export class ChatPanel {
   private static current: ChatPanel | undefined;
@@ -266,6 +267,16 @@ export class ChatPanel {
   }
 
   private async dispatchUserMessage(text: string): Promise<void> {
+    const localResponse = localVeyraResponseForPrompt(text);
+    if (localResponse) {
+      await this.service.respondLocally(
+        text,
+        localResponse,
+        (event) => this.handleDispatchEvent(event),
+      );
+      return;
+    }
+
     if (this.service.isFirstSession()) {
       this.startOnboardingPrompts();
     }

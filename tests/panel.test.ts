@@ -351,6 +351,35 @@ describe('ChatPanel', () => {
     await sendPromise;
   });
 
+  it('answers first-session panel heartbeats locally without dispatching or prompting onboarding', async () => {
+    const service = {
+      loadSession: vi.fn().mockResolvedValue({ messages: [] }),
+      onFloorChange: vi.fn(() => vi.fn()),
+      onStatusChange: vi.fn(() => vi.fn()),
+      onWriteError: vi.fn(() => vi.fn()),
+      isFirstSession: vi.fn(() => true),
+      respondLocally: vi.fn().mockResolvedValue(undefined),
+      dispatch: vi.fn().mockResolvedValue(undefined),
+      cancelAll: vi.fn().mockResolvedValue(undefined),
+      notifyStatusChange: vi.fn(),
+      flush: vi.fn().mockResolvedValue(undefined),
+    };
+
+    await ChatPanel.show(ctx, undefined, undefined, service as any);
+    const onDidReceive = (vscode as any).__test.onDidReceive.handler;
+    const promptCountBefore = vi.mocked((vscode as any).window.showInformationMessage).mock.calls.length;
+
+    await onDidReceive({ kind: 'send', text: '@veyra are you here?' });
+
+    expect(service.respondLocally).toHaveBeenCalledWith(
+      '@veyra are you here?',
+      'Yes, here.',
+      expect.any(Function),
+    );
+    expect(service.dispatch).not.toHaveBeenCalled();
+    expect((vscode as any).window.showInformationMessage).toHaveBeenCalledTimes(promptCountBefore);
+  });
+
   it('emits file-edited and calls badgeController.registerEdit when an agent successfully writes a file', async () => {
     (ChatPanel as any).current = undefined;
     (vscode as any).__test.messages.length = 0;

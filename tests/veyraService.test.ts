@@ -32,6 +32,50 @@ describe('toRoutedInput', () => {
 });
 
 describe('VeyraSessionService', () => {
+  it('persists local heartbeat responses without starting agents', async () => {
+    let agentStarted = false;
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));
+    const agent = (id: AgentId): Agent => ({
+      id,
+      status: async () => 'ready',
+      cancel: async () => {},
+      async *send() {
+        agentStarted = true;
+        yield { type: 'done' } as AgentChunk;
+      },
+    });
+    const service = new VeyraSessionService(
+      workspacePath,
+      {
+        claude: agent('claude'),
+        codex: agent('codex'),
+        gemini: agent('gemini'),
+      },
+      { hangSeconds: 0 },
+    );
+
+    const events: any[] = [];
+    await service.respondLocally('@veyra are you here?', 'Yes, here.', (event) => {
+      events.push(event);
+    });
+    await service.flush();
+
+    expect(agentStarted).toBe(false);
+    expect(events.map((event) => event.kind)).toEqual(['user-message', 'system-message']);
+    expect(events[0].message.text).toBe('@veyra are you here?');
+    expect(events[1].message).toMatchObject({
+      kind: 'local-response',
+      text: 'Yes, here.',
+    });
+
+    const persisted = JSON.parse(fs.readFileSync(path.join(workspacePath, '.vscode', 'veyra', 'sessions.json'), 'utf8'));
+    expect(persisted.messages.map((message: any) => message.role)).toEqual(['user', 'system']);
+    expect(persisted.messages[1]).toMatchObject({
+      kind: 'local-response',
+      text: 'Yes, here.',
+    });
+  });
+
   it('includes project command hints in dispatched prompts without running them', async () => {
     let codexPrompt = '';
     const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-service-'));

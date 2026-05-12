@@ -234,6 +234,14 @@ export class VeyraSessionService {
     }
   }
 
+  respondLocally(text: string, responseText: string, emit: VeyraDispatchEventSink): Promise<void> {
+    const queuedResponse = this.dispatchQueue
+      .catch(() => undefined)
+      .then(() => this.runLocalResponse(text, responseText, emit));
+    this.dispatchQueue = queuedResponse.then(() => undefined, () => undefined);
+    return queuedResponse;
+  }
+
   markCurrentDispatchCancelled(): void {
     if (!this.currentDispatchInProgress) return;
     for (const inProgress of this.currentDispatchInProgress.values()) {
@@ -257,6 +265,28 @@ export class VeyraSessionService {
       });
     this.dispatchQueue = queuedDispatch.then(() => undefined, () => undefined);
     return queuedDispatch;
+  }
+
+  private async runLocalResponse(text: string, responseText: string, emit: VeyraDispatchEventSink): Promise<void> {
+    await this.loadSession();
+    const userMsg: UserMessage = {
+      id: ulid(),
+      role: 'user',
+      text: text.trim(),
+      timestamp: Date.now(),
+    };
+    this.store.appendUser(userMsg);
+    await emit({ kind: 'user-message', message: userMsg });
+
+    const sys: SystemMessage = {
+      id: ulid(),
+      role: 'system',
+      kind: 'local-response',
+      text: responseText,
+      timestamp: Date.now(),
+    };
+    this.store.appendSystem(sys);
+    await emit({ kind: 'system-message', message: sys });
   }
 
   private async runDispatch(request: VeyraDispatchRequest, emit: VeyraDispatchEventSink): Promise<void> {
