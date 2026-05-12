@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.10
+
+- Moves the rich Veyra webview into the VS Code Secondary Side Bar alongside agent views such as Codex and Claude.
+- Preserves `Veyra: Open Panel` as the compatibility command while revealing the docked Veyra view.
+- Updates smoke validation and docs to verify Secondary Side Bar manifest evidence instead of bottom Panel or editor-tab placement.
+
 ## 0.0.9
 
 - Answers low-intent `@veyra` heartbeat prompts locally in both VS Code Chat and the Veyra panel.
