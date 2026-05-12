@@ -84,6 +84,7 @@ vi.mock('node:child_process', () => ({
 }));
 
 import { ChatPanel } from '../src/panel.js';
+import { VeyraWebviewController } from '../src/veyraWebviewController.js';
 import * as vscode from 'vscode';
 
 const ctx = {
@@ -95,9 +96,19 @@ const ctx = {
   },
 } as unknown as import('vscode').ExtensionContext;
 
+function createFakeHost() {
+  const panel = (vscode as any).__test.fakePanel;
+  return {
+    webview: panel.webview,
+    send: (message: any) => panel.webview.postMessage(message),
+    onDidDispose: vi.fn(() => ({ dispose: vi.fn() })),
+  };
+}
+
 describe('ChatPanel', () => {
   beforeEach(() => {
     (vscode as any).__test.messages.length = 0;
+    (vscode as any).__test.fakePanel.webview.html = '';
     vi.mocked((vscode as any).workspace.openTextDocument).mockClear();
     vi.mocked((vscode as any).window.showTextDocument).mockClear();
     vi.mocked((vscode as any).window.showWarningMessage).mockClear();
@@ -107,6 +118,96 @@ describe('ChatPanel', () => {
     (vscode as any).__test.onDidChangeConfiguration.handler = undefined;
     // Reset singleton so each test gets a fresh panel
     (ChatPanel as any).current = undefined;
+  });
+
+  it('VeyraWebviewController attach renders html and posts init', async () => {
+    const service = {
+      loadSession: vi.fn().mockResolvedValue({ messages: [] }),
+      onFloorChange: vi.fn(() => vi.fn()),
+      onStatusChange: vi.fn(() => vi.fn()),
+      onWriteError: vi.fn(() => vi.fn()),
+      notifyStatusChange: vi.fn(),
+      flush: vi.fn().mockResolvedValue(undefined),
+    };
+    const host = createFakeHost();
+    const controller = new VeyraWebviewController({
+      context: ctx,
+      workspacePath: '/fake/workspace',
+      extensionUri: ctx.extensionUri,
+      service: service as any,
+    });
+
+    await controller.attach(host);
+
+    expect(host.webview.html).toContain('<html>');
+    const firstMessage = (vscode as any).__test.messages[0];
+    expect(firstMessage.kind).toBe('init');
+    expect(firstMessage.session.messages).toEqual([]);
+    expect(firstMessage.status).toMatchObject({
+      claude: expect.any(String),
+      codex: expect.any(String),
+      gemini: expect.any(String),
+    });
+    expect(firstMessage.settings.toolCallRenderStyle).toBe('compact');
+  });
+
+  it('VeyraWebviewController cleans up late initialization disposables after host disposal', async () => {
+    let resolveLoadSession!: (session: { messages: never[] }) => void;
+    let hostDisposeListener!: () => void;
+    const floorDispose = vi.fn();
+    const statusDispose = vi.fn();
+    const writeErrorDispose = vi.fn();
+    const configDispose = vi.fn();
+    const watcherDispose = vi.fn();
+    const hostDispose = vi.fn();
+    const receiveDispose = vi.fn();
+    vi.mocked((vscode as any).workspace.onDidChangeConfiguration).mockReturnValueOnce({ dispose: configDispose });
+    vi.mocked((vscode as any).workspace.createFileSystemWatcher).mockReturnValueOnce({
+      onDidCreate: vi.fn(() => ({ dispose: vi.fn() })),
+      onDidDelete: vi.fn(() => ({ dispose: vi.fn() })),
+      dispose: watcherDispose,
+    });
+    const service = {
+      loadSession: vi.fn(() => new Promise<{ messages: never[] }>((resolve) => {
+        resolveLoadSession = resolve;
+      })),
+      onFloorChange: vi.fn(() => floorDispose),
+      onStatusChange: vi.fn(() => statusDispose),
+      onWriteError: vi.fn(() => writeErrorDispose),
+      notifyStatusChange: vi.fn(),
+      flush: vi.fn().mockResolvedValue(undefined),
+    };
+    const panel = (vscode as any).__test.fakePanel;
+    const host = {
+      webview: {
+        ...panel.webview,
+        onDidReceiveMessage: vi.fn(() => ({ dispose: receiveDispose })),
+      },
+      send: (message: any) => panel.webview.postMessage(message),
+      onDidDispose: vi.fn((listener: () => void) => {
+        hostDisposeListener = listener;
+        return { dispose: hostDispose };
+      }),
+    };
+    const controller = new VeyraWebviewController({
+      context: ctx,
+      workspacePath: '/fake/workspace',
+      extensionUri: ctx.extensionUri,
+      service: service as any,
+    });
+
+    const attachPromise = controller.attach(host);
+    hostDisposeListener();
+    resolveLoadSession({ messages: [] });
+    await attachPromise;
+
+    expect(hostDispose).toHaveBeenCalled();
+    expect(receiveDispose).toHaveBeenCalled();
+    expect(floorDispose).toHaveBeenCalled();
+    expect(statusDispose).toHaveBeenCalled();
+    expect(writeErrorDispose).toHaveBeenCalled();
+    expect(configDispose).toHaveBeenCalled();
+    expect(watcherDispose).toHaveBeenCalled();
   });
 
   it('show() creates the panel and posts an init message', async () => {
