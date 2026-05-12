@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'node:path';
 import { arch, platform, release } from 'node:os';
-import { ChatPanel } from './panel.js';
 import { FileBadgesController } from './fileBadges.js';
 import { installCommitHook, uninstallCommitHook, COMMIT_HOOK_SNIPPET } from './commitHook.js';
 import { createVeyraSessionService, createSmokeAgents, refreshVeyraSessionOptions, shouldUseSmokeAgents } from './veyraRuntime.js';
@@ -12,6 +11,7 @@ import { detectCliBundlePaths } from './cliPathDetection.js';
 import { cliPathMisconfiguration, normalizeCliPathOverride } from './cliPathValidation.js';
 import { registerDiffPreviewCommands } from './diffPreviewCommands.js';
 import { registerCheckpointCommands } from './checkpointCommands.js';
+import { revealVeyraView, VeyraViewProvider, VEYRA_VIEW_ID } from './veyraView.js';
 import {
   DIAGNOSTIC_COMMAND_IDS,
   formatDiagnosticReport,
@@ -170,6 +170,11 @@ export function activate(context: vscode.ExtensionContext): void {
   };
   let nativeChatRegistrations: string[] = [];
   const optionalSurfaceFailures: OptionalSurfaceFailure[] = [];
+  const viewProvider = new VeyraViewProvider({
+    context,
+    getRegistration: ensureNativeRegistration,
+    getBadgeController: ensureBadgeController,
+  });
 
   const contextWatcher = vscode.workspace.createFileSystemWatcher('**/*');
   const invalidateWorkspaceContext = (uri?: vscode.Uri): void => {
@@ -186,9 +191,17 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('veyra.openPanel', () => {
+    viewProvider,
+    vscode.window.registerWebviewViewProvider(VEYRA_VIEW_ID, viewProvider, {
+      webviewOptions: { retainContextWhenHidden: true },
+    }),
+    vscode.commands.registerCommand('veyra.openPanel', async () => {
       const registration = ensureNativeRegistration();
-      return ChatPanel.show(context, undefined, ensureBadgeController(), registration?.service, ensureBadgeController);
+      if (!registration) {
+        vscode.window.showErrorMessage('Veyra requires an open workspace folder.');
+        return;
+      }
+      await revealVeyraView();
     }),
     vscode.commands.registerCommand('veyra.checkStatus', async () => {
       clearStatusCache();
