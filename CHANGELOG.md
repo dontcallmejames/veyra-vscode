@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.8
+
+- Adds `Veyra: Copy Diagnostic Report` for external tester reports.
+- Includes command registration, extension version, workspace trust, backend status, and optional surface evidence in the copied report.
+- Extends VS Code smoke coverage and tester docs for diagnostic report collection.
+
 ## 0.0.7
 
 - Adds a tester quickstart and troubleshooting checklist to the Marketplace/GitHub README.

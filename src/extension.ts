@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'node:path';
+import { arch, platform, release } from 'node:os';
 import { ChatPanel } from './panel.js';
 import { FileBadgesController } from './fileBadges.js';
 import { installCommitHook, uninstallCommitHook, COMMIT_HOOK_SNIPPET } from './commitHook.js';
@@ -11,6 +12,12 @@ import { detectCliBundlePaths } from './cliPathDetection.js';
 import { cliPathMisconfiguration, normalizeCliPathOverride } from './cliPathValidation.js';
 import { registerDiffPreviewCommands } from './diffPreviewCommands.js';
 import { registerCheckpointCommands } from './checkpointCommands.js';
+import {
+  DIAGNOSTIC_COMMAND_IDS,
+  formatDiagnosticReport,
+  type DiagnosticAgentStatus,
+  type OptionalSurfaceFailure,
+} from './diagnosticReport.js';
 import type { NativeChatRegistration } from './nativeChat.js';
 import type { AgentStatus } from './types.js';
 import type { DetectedCliBundlePath } from './cliPathDetection.js';
@@ -161,6 +168,8 @@ export function activate(context: vscode.ExtensionContext): void {
     }
     return nativeRegistration;
   };
+  let nativeChatRegistrations: string[] = [];
+  const optionalSurfaceFailures: OptionalSurfaceFailure[] = [];
 
   const contextWatcher = vscode.workspace.createFileSystemWatcher('**/*');
   const invalidateWorkspaceContext = (uri?: vscode.Uri): void => {
@@ -206,6 +215,12 @@ export function activate(context: vscode.ExtensionContext): void {
           }
         });
       }
+    }),
+    vscode.commands.registerCommand('veyra.copyDiagnosticReport', async () => {
+      const report = await collectDiagnosticReport(context, nativeChatRegistrations, optionalSurfaceFailures);
+      await vscode.env.clipboard.writeText(report);
+      vscode.window.showInformationMessage('Copied Veyra diagnostic report to clipboard.');
+      return report;
     }),
     vscode.commands.registerCommand('veyra.showSetupGuide', async () => {
       const doc = await vscode.workspace.openTextDocument({
@@ -286,10 +301,9 @@ export function activate(context: vscode.ExtensionContext): void {
   registerDiffPreviewCommands(context, () => ensureNativeRegistration()?.service);
   registerCheckpointCommands(context, () => ensureNativeRegistration()?.service);
 
-  let nativeChatRegistrations: string[] = [];
   registerOptionalSurface('native chat', () => {
-    nativeChatRegistrations = registerNativeChatParticipants(context, ensureNativeRegistration);
-  });
+    nativeChatRegistrations = registerNativeChatParticipants(context, ensureNativeRegistration) ?? [];
+  }, optionalSurfaceFailures);
   if (process.env.VSCODE_VEYRA_SMOKE === '1') {
     context.subscriptions.push(
       vscode.commands.registerCommand('veyra.internalSmokeDiagnostics', async () => {
@@ -306,15 +320,75 @@ export function activate(context: vscode.ExtensionContext): void {
   }
   registerOptionalSurface('language model provider', () => {
     registerVeyraLanguageModelProvider(context, ensureNativeRegistration);
-  });
+  }, optionalSurfaceFailures);
 }
 
-function registerOptionalSurface(label: string, register: () => void): void {
+function registerOptionalSurface(
+  label: string,
+  register: () => void,
+  failures: OptionalSurfaceFailure[] = [],
+): void {
   try {
     register();
   } catch (err) {
-    vscode.window.showWarningMessage(`Veyra ${label} registration failed: ${errorMessage(err)}`);
+    const message = errorMessage(err);
+    failures.push({ label, message });
+    vscode.window.showWarningMessage(`Veyra ${label} registration failed: ${message}`);
   }
+}
+
+async function collectDiagnosticReport(
+  context: vscode.ExtensionContext,
+  nativeChatRegistrations: string[],
+  optionalSurfaceFailures: OptionalSurfaceFailure[],
+): Promise<string> {
+  clearStatusCache();
+  const [claude, codex, gemini, commands] = await Promise.all([
+    safeStatus(checkClaude),
+    safeStatus(checkCodex),
+    safeStatus(checkGemini),
+    Promise.resolve(vscode.commands.getCommands(true)).catch(() => [] as string[]),
+  ]);
+  const commandSet = new Set(commands);
+  const workspaceFolders = vscode.workspace.workspaceFolders ?? [];
+  const workspaceTrust = typeof vscode.workspace.isTrusted === 'boolean'
+    ? vscode.workspace.isTrusted
+    : 'unknown';
+
+  return formatDiagnosticReport({
+    generatedAt: new Date().toISOString(),
+    extensionId: context.extension?.id ?? 'dontcallmejames.veyra-vscode',
+    extensionVersion: extensionVersion(context),
+    vscodeVersion: vscode.version,
+    os: {
+      platform: platform(),
+      arch: arch(),
+      release: release(),
+    },
+    workspace: {
+      trusted: workspaceTrust,
+      folderCount: workspaceFolders.length,
+      folderNames: workspaceFolders.map((folder) => path.basename(folder.uri.fsPath || folder.uri.path || 'workspace')),
+      folderSchemes: [...new Set(workspaceFolders.map((folder) => folder.uri.scheme ?? 'unknown'))],
+    },
+    agents: { claude, codex, gemini },
+    commands: Object.fromEntries(DIAGNOSTIC_COMMAND_IDS.map((command) => [command, commandSet.has(command)])),
+    nativeChatRegistrations,
+    optionalSurfaceFailures,
+  });
+}
+
+async function safeStatus(check: () => Promise<AgentStatus>): Promise<DiagnosticAgentStatus> {
+  try {
+    return await check();
+  } catch (err) {
+    return `error: ${errorMessage(err)}`;
+  }
+}
+
+function extensionVersion(context: vscode.ExtensionContext): string {
+  const packageJson = context.extension?.packageJSON as { version?: unknown } | undefined;
+  return typeof packageJson?.version === 'string' ? packageJson.version : 'unknown';
 }
 
 function isVeyraInternalStatePath(workspacePath: string, fsPath: string): boolean {

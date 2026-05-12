@@ -286,6 +286,7 @@ export function validateSmokeResultContent(content) {
   const requiredCommands = [
     'veyra.checkStatus',
     'veyra.openPanel',
+    'veyra.copyDiagnosticReport',
     'veyra.showSetupGuide',
     'veyra.showLiveValidationGuide',
     'veyra.configureCliPaths',
@@ -440,6 +441,23 @@ export function validateSmokeResultContent(content) {
   }
   if (result.uiEvidence?.veyraPanelOpened !== true) {
     errors.push('Missing Veyra panel-open evidence.');
+  }
+  const diagnosticReport = result.diagnosticReport;
+  if (typeof diagnosticReport !== 'string' || diagnosticReport.trim().length === 0) {
+    errors.push('Missing Veyra diagnostic report smoke evidence.');
+  } else {
+    for (const marker of [
+      '# Veyra Diagnostic Report',
+      'veyra.openPanel: registered',
+      'veyra.copyDiagnosticReport: registered',
+      'Claude:',
+      'Codex:',
+      'Gemini:',
+    ]) {
+      if (!diagnosticReport.includes(marker)) {
+        errors.push(`Missing Veyra diagnostic report marker: ${marker}`);
+      }
+    }
   }
   validateEditConflictEvidence(result.editConflictEvidence, errors);
   validateSharedContextEvidence(result.sharedContextEvidence, errors);

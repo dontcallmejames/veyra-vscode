@@ -2,7 +2,7 @@
   "name": "veyra-vscode",
   "displayName": "Veyra",
   "description": "Veyra coordinates Claude, Codex, and Gemini through VS Code Chat and the Language Model provider.",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "publisher": "dontcallmejames",
   "preview": true,
   "license": "SEE LICENSE IN LICENSE.txt",
@@ -55,6 +55,7 @@
   "activationEvents": [
     "onCommand:veyra.openPanel",
     "onCommand:veyra.checkStatus",
+    "onCommand:veyra.copyDiagnosticReport",
     "onCommand:veyra.showSetupGuide",
     "onCommand:veyra.showLiveValidationGuide",
     "onCommand:veyra.configureCliPaths",
@@ -82,6 +83,10 @@
       {
         "command": "veyra.checkStatus",
         "title": "Veyra: Check agent status"
+      },
+      {
+        "command": "veyra.copyDiagnosticReport",
+        "title": "Veyra: Copy Diagnostic Report"
       },
       {
         "command": "veyra.showSetupGuide",

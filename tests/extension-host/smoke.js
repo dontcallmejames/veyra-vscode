@@ -9,6 +9,7 @@ const EXTENSION_ID = 'dontcallmejames.veyra-vscode';
 async function run() {
   const executedCommands = [];
   const uiEvidence = {};
+  let diagnosticReport = '';
   const extension = vscode.extensions.getExtension(EXTENSION_ID);
   assert.ok(extension, `Expected ${EXTENSION_ID} to be loaded as the development extension.`);
 
@@ -19,6 +20,7 @@ async function run() {
   for (const command of [
     'veyra.openPanel',
     'veyra.checkStatus',
+    'veyra.copyDiagnosticReport',
     'veyra.showSetupGuide',
     'veyra.showLiveValidationGuide',
     'veyra.configureCliPaths',
@@ -133,12 +135,13 @@ async function run() {
   for (const command of [
     'veyra.checkStatus',
     'veyra.openPanel',
+    'veyra.copyDiagnosticReport',
     'veyra.showSetupGuide',
     'veyra.showLiveValidationGuide',
     'veyra.configureCliPaths',
     'veyra.showCommitHookSnippet',
   ]) {
-    await withTimeout(
+    const commandResult = await withTimeout(
       vscode.commands.executeCommand(command),
       10_000,
       `Timed out executing ${command} in the Extension Development Host.`,
@@ -151,6 +154,12 @@ async function run() {
         'Timed out waiting for the Veyra webview tab to open.',
       );
       assert.equal(uiEvidence.veyraPanelOpened, true, 'Expected Veyra: Open Panel to create a Veyra webview tab.');
+    } else if (command === 'veyra.copyDiagnosticReport') {
+      assert.equal(typeof commandResult, 'string', 'Expected diagnostic command to return the copied report.');
+      assert.ok(commandResult.includes('# Veyra Diagnostic Report'), 'Expected diagnostic report heading.');
+      assert.ok(commandResult.includes('veyra.openPanel: registered'), 'Expected diagnostic report command evidence.');
+      diagnosticReport = commandResult;
+      uiEvidence.diagnosticReportCopied = true;
     }
   }
 
@@ -203,6 +212,7 @@ async function run() {
         languageModelTokenCounts,
         languageModelMetadata,
         languageModelResponses,
+        diagnosticReport,
         commitHookLifecycle: {
           installed,
           removed,

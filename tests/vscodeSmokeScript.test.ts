@@ -212,6 +212,7 @@ describe('VS Code smoke runner script', () => {
       executedCommands: [
         'veyra.checkStatus',
         'veyra.openPanel',
+        'veyra.copyDiagnosticReport',
         'veyra.showSetupGuide',
         'veyra.showLiveValidationGuide',
         'veyra.configureCliPaths',
@@ -436,6 +437,15 @@ describe('VS Code smoke runner script', () => {
       uiEvidence: {
         veyraPanelOpened: true,
       },
+      diagnosticReport: [
+        '# Veyra Diagnostic Report',
+        'Extension: dontcallmejames.veyra-vscode 0.0.8',
+        'veyra.openPanel: registered',
+        'veyra.copyDiagnosticReport: registered',
+        'Claude: ready',
+        'Codex: ready',
+        'Gemini: ready',
+      ].join('\n'),
     };
     expect(validateSmokeResultContent(JSON.stringify(completeSmokeResult))).toEqual([]);
     expect(validateSmokeResultContent(JSON.stringify({
@@ -531,6 +541,16 @@ describe('VS Code smoke runner script', () => {
         (command) => command !== 'veyra.showLiveValidationGuide',
       ),
     }))).toContain('Missing smoke command execution: veyra.showLiveValidationGuide');
+    expect(validateSmokeResultContent(JSON.stringify({
+      ...completeSmokeResult,
+      executedCommands: completeSmokeResult.executedCommands.filter(
+        (command) => command !== 'veyra.copyDiagnosticReport',
+      ),
+    }))).toContain('Missing smoke command execution: veyra.copyDiagnosticReport');
+    expect(validateSmokeResultContent(JSON.stringify({
+      ...completeSmokeResult,
+      diagnosticReport: '',
+    }))).toContain('Missing Veyra diagnostic report smoke evidence.');
 
     expect(validateSmokeResultContent(JSON.stringify({
       ok: true,

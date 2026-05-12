@@ -396,6 +396,7 @@ describe('extension manifest', () => {
     expect(manifest.contributes.commands.map((command) => command.command)).toEqual([
       'veyra.openPanel',
       'veyra.checkStatus',
+      'veyra.copyDiagnosticReport',
       'veyra.showSetupGuide',
       'veyra.showLiveValidationGuide',
       'veyra.configureCliPaths',
@@ -410,6 +411,7 @@ describe('extension manifest', () => {
       'veyra.rollbackLatestCheckpoint',
     ]);
     expect(manifest.activationEvents).toContain('onCommand:veyra.checkStatus');
+    expect(manifest.activationEvents).toContain('onCommand:veyra.copyDiagnosticReport');
     expect(manifest.activationEvents).toContain('onCommand:veyra.showSetupGuide');
     expect(manifest.activationEvents).toContain('onCommand:veyra.showLiveValidationGuide');
     expect(manifest.activationEvents).toContain('onCommand:veyra.configureCliPaths');

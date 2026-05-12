@@ -30,6 +30,12 @@ const mocks = vi.hoisted(() => {
       commandCallbacks.set(command, callback);
       return { dispose: vi.fn() };
     }),
+    getCommands: vi.fn().mockResolvedValue([
+      'veyra.openPanel',
+      'veyra.checkStatus',
+      'veyra.copyDiagnosticReport',
+    ]),
+    clipboardWriteText: vi.fn().mockResolvedValue(undefined),
     registerFileDecorationProvider: vi.fn(() => fileDecorationProviderDisposable),
     showInformationMessage: vi.fn(),
     showErrorMessage: vi.fn(),
@@ -73,6 +79,14 @@ const mocks = vi.hoisted(() => {
       this.configGet.mockReset();
       this.configGet.mockImplementation((_key: string, dflt: unknown) => dflt);
       this.registerCommand.mockClear();
+      this.getCommands.mockClear();
+      this.getCommands.mockResolvedValue([
+        'veyra.openPanel',
+        'veyra.checkStatus',
+        'veyra.copyDiagnosticReport',
+      ]);
+      this.clipboardWriteText.mockClear();
+      this.clipboardWriteText.mockResolvedValue(undefined);
       this.registerFileDecorationProvider.mockClear();
       this.fileDecorationProviderDisposable.dispose.mockClear();
       this.showInformationMessage.mockClear();
@@ -197,8 +211,15 @@ vi.mock('vscode', () => ({
   },
   commands: {
     registerCommand: mocks.registerCommand,
+    getCommands: mocks.getCommands,
     executeCommand: mocks.executeCommand,
   },
+  env: {
+    clipboard: {
+      writeText: mocks.clipboardWriteText,
+    },
+  },
+  version: '1.118.0',
   Uri: {
     file: (fsPath: string) => ({ fsPath }),
   },
@@ -249,7 +270,15 @@ vi.mock('../src/cliPathDetection.js', () => ({
 import { activate, deactivate } from '../src/extension.js';
 import { installCommitHook } from '../src/commitHook.js';
 
-const context = () => ({ subscriptions: [] as Array<{ dispose(): void }> });
+const context = () => ({
+  subscriptions: [] as Array<{ dispose(): void }>,
+  extension: {
+    id: 'dontcallmejames.veyra-vscode',
+    packageJSON: {
+      version: '0.0.8',
+    },
+  },
+});
 const mockedInstallCommitHook = installCommitHook as unknown as ReturnType<typeof vi.fn>;
 
 describe('activate', () => {
@@ -270,6 +299,7 @@ describe('activate', () => {
     expect(mocks.registerCommand.mock.calls.map(([command]) => command)).toEqual([
       'veyra.openPanel',
       'veyra.checkStatus',
+      'veyra.copyDiagnosticReport',
       'veyra.showSetupGuide',
       'veyra.showLiveValidationGuide',
       'veyra.configureCliPaths',
@@ -286,6 +316,26 @@ describe('activate', () => {
     expect(mocks.registerNativeChatParticipants).toHaveBeenCalledWith(ctx, expect.any(Function));
     expect(mocks.registerVeyraLanguageModelProvider).toHaveBeenCalledWith(ctx, expect.any(Function));
     expect(mocks.registerFileDecorationProvider).toHaveBeenCalledTimes(1);
+  });
+
+  it('copies a tester diagnostic report from the command palette', async () => {
+    activate(context() as any);
+
+    const copyDiagnosticReport = mocks.commandCallbacks.get('veyra.copyDiagnosticReport');
+    expect(copyDiagnosticReport).toBeTypeOf('function');
+    const report = await copyDiagnosticReport!();
+
+    expect(mocks.clearStatusCache).toHaveBeenCalledTimes(1);
+    expect(mocks.checkClaude).toHaveBeenCalledTimes(1);
+    expect(mocks.checkCodex).toHaveBeenCalledTimes(1);
+    expect(mocks.checkGemini).toHaveBeenCalledTimes(1);
+    expect(mocks.getCommands).toHaveBeenCalledWith(true);
+    expect(mocks.clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining('# Veyra Diagnostic Report'));
+    expect(mocks.clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining('Extension: dontcallmejames.veyra-vscode 0.0.8'));
+    expect(mocks.clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining('veyra.openPanel: registered'));
+    expect(mocks.clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining('Codex: unauthenticated'));
+    expect(mocks.showInformationMessage).toHaveBeenCalledWith('Copied Veyra diagnostic report to clipboard.');
+    expect(report).toContain('Veyra Diagnostic Report');
   });
 
   it('keeps the panel command usable when native chat registration fails', () => {

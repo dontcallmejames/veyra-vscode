@@ -20,7 +20,7 @@ For the automated activation/provider smoke test, run:
 npm run test:vscode-smoke
 ```
 
-That command builds the extension, launches VS Code with isolated `.vscode-test` user data, activates Veyra in an Extension Development Host, records native chat participant IDs plus slash workflow commands, records native chat registration evidence from activation, records native chat workflow diagnostics for `/review`, `/debate`, `/consensus`, and `/implement`, sends deterministic no-paid smoke requests through the native chat handler path for direct `@veyra`, `/review`, `/debate`, `/consensus`, `/implement`, `@claude`, `@codex`, and `@gemini`, verifies write-capable native chat smoke responses include visible file edit progress plus file references, verifies language model IDs, records language model metadata (`name, family, version, and maxInputTokens`), calls token counting on every Veyra language model, sends deterministic no-paid smoke requests through every Veyra language model, validates workflow-mode response markers for review, debate, consensus, implement, orchestrator, and direct models, verifies write-capable language model smoke responses include workspace file links for agent edits, verifies `.vscode/veyra/active-dispatch` appears during a smoke dispatch and clears afterward, executes core Veyra commands, verifies `Veyra: Open Panel` creates a `Veyra` webview tab, installs and removes the managed commit hook in the isolated smoke workspace, and verifies the hook adds a Veyra `Co-Authored-By` trailer to an actual smoke commit, then exits without sending paid model prompts.
+That command builds the extension, launches VS Code with isolated `.vscode-test` user data, activates Veyra in an Extension Development Host, records native chat participant IDs plus slash workflow commands, records native chat registration evidence from activation, records native chat workflow diagnostics for `/review`, `/debate`, `/consensus`, and `/implement`, sends deterministic no-paid smoke requests through the native chat handler path for direct `@veyra`, `/review`, `/debate`, `/consensus`, `/implement`, `@claude`, `@codex`, and `@gemini`, verifies write-capable native chat smoke responses include visible file edit progress plus file references, verifies language model IDs, records language model metadata (`name, family, version, and maxInputTokens`), calls token counting on every Veyra language model, sends deterministic no-paid smoke requests through every Veyra language model, validates workflow-mode response markers for review, debate, consensus, implement, orchestrator, and direct models, verifies write-capable language model smoke responses include workspace file links for agent edits, verifies `.vscode/veyra/active-dispatch` appears during a smoke dispatch and clears afterward, executes core Veyra commands, verifies `Veyra: Open Panel` creates a `Veyra` webview tab, verifies `Veyra: Copy Diagnostic Report` returns command and backend evidence, installs and removes the managed commit hook in the isolated smoke workspace, and verifies the hook adds a Veyra `Co-Authored-By` trailer to an actual smoke commit, then exits without sending paid model prompts.
 
 Terminal awareness stays contextual in the no-paid smoke path. Unit tests cover terminal selections and project command hints, while this smoke test continues to avoid hidden terminal command execution. Do not run suggested commands from command hints unless the user explicitly asks or approves.
 
@@ -34,18 +34,20 @@ For the interactive end-to-end checklist:
 
 Use this shorter checklist when validating the Marketplace extension outside the development host:
 
-1. Install or update Veyra from the VS Code Marketplace and confirm the version is `0.0.6` or newer.
+1. Install or update Veyra from the VS Code Marketplace and confirm the version is `0.0.8` or newer.
 2. Run `Developer: Reload Window` after installing or updating.
 3. Open a real project folder, not an empty window.
 4. Run `Veyra: Open Panel` and confirm the panel opens.
 5. Run `Veyra: Check agent status` and capture the reported Claude, Codex, and Gemini statuses.
-6. In VS Code Chat, send `@veyra are you here?` and confirm Veyra answers locally.
-7. Try one read-only workflow such as `@veyra /review inspect this workspace and report risks only`.
+6. Run `Veyra: Copy Diagnostic Report` and keep the copied report with the test notes.
+7. In VS Code Chat, send `@veyra are you here?` and confirm Veyra answers locally.
+8. Try one read-only workflow such as `@veyra /review inspect this workspace and report risks only`.
 
 If anything fails, collect:
 
 - OS, VS Code version, and Veyra version.
 - The exact command or prompt that failed.
+- The copied `Veyra: Copy Diagnostic Report` output, if available.
 - A screenshot if there is a VS Code error dialog.
 - `Developer: Show Logs...` -> `Extension Host` output around the failure.
 
@@ -53,9 +55,10 @@ If anything fails, collect:
 
 1. Run `Veyra: Check agent status`.
 2. Confirm it reports statuses for Claude, Codex, and Gemini.
-3. If Codex or Gemini reports inaccessible, misconfigured, or Node.js missing on Windows, run `Veyra: Configure Codex/Gemini CLI paths`. If detection cannot inspect the package tree, choose `Enter paths manually` and paste JS bundle paths, native executable paths, or npm shim paths such as `codex.cmd` and `gemini.ps1`. For Node.js missing, install Node.js or switch to native executable paths, then rerun `Veyra: Check agent status`.
-4. Run `Veyra: Open Panel`.
-5. Confirm the Veyra panel opens and shows the same three agent statuses.
+3. Run `Veyra: Copy Diagnostic Report` and confirm the clipboard text includes `veyra.openPanel: registered`.
+4. If Codex or Gemini reports inaccessible, misconfigured, or Node.js missing on Windows, run `Veyra: Configure Codex/Gemini CLI paths`. If detection cannot inspect the package tree, choose `Enter paths manually` and paste JS bundle paths, native executable paths, or npm shim paths such as `codex.cmd` and `gemini.ps1`. For Node.js missing, install Node.js or switch to native executable paths, then rerun `Veyra: Check agent status`.
+5. Run `Veyra: Open Panel`.
+6. Confirm the Veyra panel opens and shows the same three agent statuses.
 
 ## Native Chat
 
