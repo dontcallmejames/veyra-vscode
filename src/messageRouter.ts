@@ -93,7 +93,7 @@ export class MessageRouter {
     ]);
   }
 
-  /** Called externally (by ChatPanel after running statusChecks) to broadcast a change. */
+  /** Called externally after running statusChecks to broadcast a change. */
   notifyStatusChange(agentId: AgentId, status: AgentStatus): void {
     if (this.lastStatus[agentId] === status) return;
     this.lastStatus[agentId] = status;

@@ -7,29 +7,21 @@ const fsState = new Map<string, string>();
 const fsNorm = (p: string) => String(p).replace(/\\/g, '/');
 fsState.set('/fake/ext/dist/index.html', '<html><body><div id="root"></div><script src="{{WEBVIEW_JS_URI}}"></script></body></html>');
 
-// Hoist a fake vscode module before importing ChatPanel.
+// Hoist a fake vscode module before importing the controller.
 vi.mock('vscode', () => {
   const messages: any[] = [];
   const onDidReceive = { handler: undefined as any };
-  const onDidDispose = { handler: undefined as any };
   const onDidChangeConfiguration = { handler: undefined as any };
-  const fakePanel = {
-    webview: {
-      postMessage: vi.fn((m: any) => messages.push(m)),
-      onDidReceiveMessage: vi.fn((h: any) => { onDidReceive.handler = h; return { dispose: vi.fn() }; }),
-      asWebviewUri: vi.fn((u: any) => u),
-      cspSource: 'vscode-webview:',
-      html: '',
-    },
-    onDidDispose: vi.fn((h: any) => { onDidDispose.handler = h; return { dispose: vi.fn() }; }),
-    reveal: vi.fn(),
-    dispose: vi.fn(),
+  const fakeWebview = {
+    postMessage: vi.fn((m: any) => messages.push(m)),
+    onDidReceiveMessage: vi.fn((h: any) => { onDidReceive.handler = h; return { dispose: vi.fn() }; }),
+    asWebviewUri: vi.fn((u: any) => u),
+    cspSource: 'vscode-webview:',
+    html: '',
   };
   return {
     Uri: { joinPath: (...args: any[]) => args.join('/'), file: (p: string) => ({ fsPath: p }), parse: (s: string) => ({ toString: () => s }) },
-    ViewColumn: { One: 1 },
     window: {
-      createWebviewPanel: vi.fn(() => fakePanel),
       showErrorMessage: vi.fn(),
       showInformationMessage: vi.fn(),
       showWarningMessage: vi.fn(),
@@ -48,7 +40,7 @@ vi.mock('vscode', () => {
     },
     env: { openExternal: vi.fn() },
     commands: { executeCommand: vi.fn() },
-    __test: { messages, onDidReceive, onDidChangeConfiguration, fakePanel },
+    __test: { messages, onDidReceive, onDidChangeConfiguration, fakeWebview },
   };
 });
 
@@ -83,7 +75,11 @@ vi.mock('node:child_process', () => ({
   execSync: vi.fn(() => '/fake/npm/root\n'),
 }));
 
-import { ChatPanel } from '../src/panel.js';
+import { VeyraWebviewController } from '../src/veyraWebviewController.js';
+import { createVeyraSessionService } from '../src/veyraRuntime.js';
+import type { AgentRegistry } from '../src/messageRouter.js';
+import type { FileBadgesController } from '../src/fileBadges.js';
+import type { VeyraSessionService } from '../src/veyraService.js';
 import * as vscode from 'vscode';
 
 const ctx = {
@@ -95,9 +91,40 @@ const ctx = {
   },
 } as unknown as import('vscode').ExtensionContext;
 
-describe('ChatPanel', () => {
+function createFakeHost() {
+  const webview = (vscode as any).__test.fakeWebview;
+  return {
+    webview,
+    send: (message: any) => webview.postMessage(message),
+    onDidDispose: vi.fn(() => ({ dispose: vi.fn() })),
+  };
+}
+
+async function attachController(options: {
+  agents?: AgentRegistry;
+  badgeController?: FileBadgesController;
+  service?: VeyraSessionService;
+  badgeControllerProvider?: () => FileBadgesController | undefined;
+} = {}) {
+  const service = options.service
+    ?? createVeyraSessionService('/fake/workspace', options.badgeController, options.agents);
+  const controller = new VeyraWebviewController({
+    context: ctx,
+    workspacePath: '/fake/workspace',
+    extensionUri: ctx.extensionUri,
+    service,
+    badgeController: options.badgeController,
+    badgeControllerProvider: options.badgeControllerProvider,
+  });
+  const host = createFakeHost();
+  await controller.attach(host as any);
+  return { controller, host, service };
+}
+
+describe('VeyraWebviewController', () => {
   beforeEach(() => {
     (vscode as any).__test.messages.length = 0;
+    (vscode as any).__test.fakeWebview.html = '';
     vi.mocked((vscode as any).workspace.openTextDocument).mockClear();
     vi.mocked((vscode as any).window.showTextDocument).mockClear();
     vi.mocked((vscode as any).window.showWarningMessage).mockClear();
@@ -105,12 +132,100 @@ describe('ChatPanel', () => {
     vi.mocked((vscode as any).commands.executeCommand).mockClear();
     (vscode as any).workspace.getConfiguration = vi.fn(() => ({ get: (_k: string, dflt: any) => dflt }));
     (vscode as any).__test.onDidChangeConfiguration.handler = undefined;
-    // Reset singleton so each test gets a fresh panel
-    (ChatPanel as any).current = undefined;
   });
 
-  it('show() creates the panel and posts an init message', async () => {
-    await ChatPanel.show(ctx);
+  it('VeyraWebviewController attach renders html and posts init', async () => {
+    const service = {
+      loadSession: vi.fn().mockResolvedValue({ messages: [] }),
+      onFloorChange: vi.fn(() => vi.fn()),
+      onStatusChange: vi.fn(() => vi.fn()),
+      onWriteError: vi.fn(() => vi.fn()),
+      notifyStatusChange: vi.fn(),
+      flush: vi.fn().mockResolvedValue(undefined),
+    };
+    const host = createFakeHost();
+    const controller = new VeyraWebviewController({
+      context: ctx,
+      workspacePath: '/fake/workspace',
+      extensionUri: ctx.extensionUri,
+      service: service as any,
+    });
+
+    await controller.attach(host);
+
+    expect(host.webview.html).toContain('<html>');
+    const firstMessage = (vscode as any).__test.messages[0];
+    expect(firstMessage.kind).toBe('init');
+    expect(firstMessage.session.messages).toEqual([]);
+    expect(firstMessage.status).toMatchObject({
+      claude: expect.any(String),
+      codex: expect.any(String),
+      gemini: expect.any(String),
+    });
+    expect(firstMessage.settings.toolCallRenderStyle).toBe('compact');
+  });
+
+  it('VeyraWebviewController cleans up late initialization disposables after host disposal', async () => {
+    let resolveLoadSession!: (session: { messages: never[] }) => void;
+    let hostDisposeListener!: () => void;
+    const floorDispose = vi.fn();
+    const statusDispose = vi.fn();
+    const writeErrorDispose = vi.fn();
+    const configDispose = vi.fn();
+    const watcherDispose = vi.fn();
+    const hostDispose = vi.fn();
+    const receiveDispose = vi.fn();
+    vi.mocked((vscode as any).workspace.onDidChangeConfiguration).mockReturnValueOnce({ dispose: configDispose });
+    vi.mocked((vscode as any).workspace.createFileSystemWatcher).mockReturnValueOnce({
+      onDidCreate: vi.fn(() => ({ dispose: vi.fn() })),
+      onDidDelete: vi.fn(() => ({ dispose: vi.fn() })),
+      dispose: watcherDispose,
+    });
+    const service = {
+      loadSession: vi.fn(() => new Promise<{ messages: never[] }>((resolve) => {
+        resolveLoadSession = resolve;
+      })),
+      onFloorChange: vi.fn(() => floorDispose),
+      onStatusChange: vi.fn(() => statusDispose),
+      onWriteError: vi.fn(() => writeErrorDispose),
+      notifyStatusChange: vi.fn(),
+      flush: vi.fn().mockResolvedValue(undefined),
+    };
+    const webview = (vscode as any).__test.fakeWebview;
+    const host = {
+      webview: {
+        ...webview,
+        onDidReceiveMessage: vi.fn(() => ({ dispose: receiveDispose })),
+      },
+      send: (message: any) => webview.postMessage(message),
+      onDidDispose: vi.fn((listener: () => void) => {
+        hostDisposeListener = listener;
+        return { dispose: hostDispose };
+      }),
+    };
+    const controller = new VeyraWebviewController({
+      context: ctx,
+      workspacePath: '/fake/workspace',
+      extensionUri: ctx.extensionUri,
+      service: service as any,
+    });
+
+    const attachPromise = controller.attach(host);
+    hostDisposeListener();
+    resolveLoadSession({ messages: [] });
+    await attachPromise;
+
+    expect(hostDispose).toHaveBeenCalled();
+    expect(receiveDispose).toHaveBeenCalled();
+    expect(floorDispose).toHaveBeenCalled();
+    expect(statusDispose).toHaveBeenCalled();
+    expect(writeErrorDispose).toHaveBeenCalled();
+    expect(configDispose).toHaveBeenCalled();
+    expect(watcherDispose).toHaveBeenCalled();
+  });
+
+  it('attach posts an init message', async () => {
+    await attachController();
     const msgs = (vscode as any).__test.messages;
     expect(msgs[0].kind).toBe('init');
     expect(msgs[0].session.messages).toEqual([]);
@@ -119,7 +234,7 @@ describe('ChatPanel', () => {
   });
 
   it('reload-status from webview re-checks and posts status-changed events', async () => {
-    await ChatPanel.show(ctx);
+    await attachController();
     const before = (vscode as any).__test.messages.length;
     const onDidReceive = (vscode as any).__test.onDidReceive.handler;
     await onDidReceive({ kind: 'reload-status' });
@@ -129,7 +244,7 @@ describe('ChatPanel', () => {
   });
 
   it('show-live-validation-guide from webview opens the command-palette guide', async () => {
-    await ChatPanel.show(ctx);
+    await attachController();
     const onDidReceive = (vscode as any).__test.onDidReceive.handler;
 
     await onDidReceive({ kind: 'show-live-validation-guide' });
@@ -138,7 +253,7 @@ describe('ChatPanel', () => {
   });
 
   it('show-setup-guide from webview opens the setup guide command', async () => {
-    await ChatPanel.show(ctx);
+    await attachController();
     const onDidReceive = (vscode as any).__test.onDidReceive.handler;
 
     await onDidReceive({ kind: 'show-setup-guide' });
@@ -147,7 +262,7 @@ describe('ChatPanel', () => {
   });
 
   it('configure-cli-paths from webview opens the CLI path configuration command', async () => {
-    await ChatPanel.show(ctx);
+    await attachController();
     const onDidReceive = (vscode as any).__test.onDidReceive.handler;
 
     await onDidReceive({ kind: 'configure-cli-paths' });
@@ -156,7 +271,7 @@ describe('ChatPanel', () => {
   });
 
   it('change-set actions from webview invoke pending-change commands', async () => {
-    await ChatPanel.show(ctx);
+    await attachController();
     const onDidReceive = (vscode as any).__test.onDidReceive.handler;
 
     await onDidReceive({ kind: 'open-change-set-diff', changeSetId: 'change-set-1', filePath: 'src/a.ts' });
@@ -179,7 +294,7 @@ describe('ChatPanel', () => {
   });
 
   it('checkpoint actions from webview invoke checkpoint commands', async () => {
-    await ChatPanel.show(ctx);
+    await attachController();
     const onDidReceive = (vscode as any).__test.onDidReceive.handler;
 
     await onDidReceive({ kind: 'create-checkpoint', label: 'before experiment' });
@@ -193,7 +308,7 @@ describe('ChatPanel', () => {
   });
 
   it('open-external from webview opens https URLs', async () => {
-    await ChatPanel.show(ctx);
+    await attachController();
     const onDidReceive = (vscode as any).__test.onDidReceive.handler;
 
     await onDidReceive({ kind: 'open-external', url: 'https://example.com/setup' });
@@ -204,7 +319,7 @@ describe('ChatPanel', () => {
   });
 
   it('open-external from webview refuses non-http URLs', async () => {
-    await ChatPanel.show(ctx);
+    await attachController();
     const onDidReceive = (vscode as any).__test.onDidReceive.handler;
 
     await onDidReceive({ kind: 'open-external', url: 'javascript:alert(1)' });
@@ -225,7 +340,7 @@ describe('ChatPanel', () => {
       updateOptions: vi.fn(),
     };
 
-    await ChatPanel.show(ctx, undefined, badgeController as any, service as any);
+    await attachController({ badgeController: badgeController as any, service: service as any });
     const listener = (vscode as any).__test.onDidChangeConfiguration.handler;
     expect(listener).toBeTypeOf('function');
     listener({ affectsConfiguration: (key: string) => key === 'veyra' });
@@ -248,7 +363,10 @@ describe('ChatPanel', () => {
       updateOptions: vi.fn(),
     };
 
-    await (ChatPanel.show as any)(ctx, undefined, undefined, service, badgeControllerProvider);
+    await attachController({
+      service: service as any,
+      badgeControllerProvider: badgeControllerProvider as any,
+    });
     const listener = (vscode as any).__test.onDidChangeConfiguration.handler;
     expect(listener).toBeTypeOf('function');
     service.updateOptions.mockClear();
@@ -265,14 +383,12 @@ describe('ChatPanel', () => {
     const getMock = vi.fn((key: string, dflt: any) => key === 'hangDetectionSeconds' ? 30 : dflt);
     (vscode as any).workspace.getConfiguration = vi.fn(() => ({ get: getMock }));
 
-    (ChatPanel as any).current = undefined;
-    await ChatPanel.show(ctx);
+    await attachController();
 
     expect(getMock).toHaveBeenCalledWith('hangDetectionSeconds', expect.anything());
   });
 
   it('full round-trip: send → user-message-appended → message-started → chunks → message-finalized', async () => {
-    (ChatPanel as any).current = undefined;
     (vscode as any).__test.messages.length = 0;
 
     // Mock agents with canned chunks.
@@ -298,7 +414,7 @@ describe('ChatPanel', () => {
       send: vi.fn(() => (async function* () { yield { type: 'done' }; })()),
     };
 
-    await ChatPanel.show(ctx, { claude, codex, gemini } as any);
+    await attachController({ agents: { claude, codex, gemini } as any });
 
     const onDidReceive = (vscode as any).__test.onDidReceive.handler;
     await onDidReceive({ kind: 'send', text: '@claude hi' });
@@ -337,7 +453,7 @@ describe('ChatPanel', () => {
       flush: vi.fn().mockResolvedValue(undefined),
     };
 
-    await ChatPanel.show(ctx, undefined, undefined, service as any);
+    await attachController({ service: service as any });
     const onDidReceive = (vscode as any).__test.onDidReceive.handler;
     const sendPromise = onDidReceive({ kind: 'send', text: '@claude continue autonomously' });
     await Promise.resolve();
@@ -365,7 +481,7 @@ describe('ChatPanel', () => {
       flush: vi.fn().mockResolvedValue(undefined),
     };
 
-    await ChatPanel.show(ctx, undefined, undefined, service as any);
+    await attachController({ service: service as any });
     const onDidReceive = (vscode as any).__test.onDidReceive.handler;
     const promptCountBefore = vi.mocked((vscode as any).window.showInformationMessage).mock.calls.length;
 
@@ -381,7 +497,6 @@ describe('ChatPanel', () => {
   });
 
   it('emits file-edited and calls badgeController.registerEdit when an agent successfully writes a file', async () => {
-    (ChatPanel as any).current = undefined;
     (vscode as any).__test.messages.length = 0;
 
     const claude = {
@@ -410,7 +525,7 @@ describe('ChatPanel', () => {
 
     const badgeController = { registerEdit: vi.fn() };
 
-    await ChatPanel.show(ctx, { claude, codex, gemini } as any, badgeController as any);
+    await attachController({ agents: { claude, codex, gemini } as any, badgeController: badgeController as any });
 
     const onDidReceive = (vscode as any).__test.onDidReceive.handler;
     await onDidReceive({ kind: 'send', text: '@claude edit foo' });
@@ -429,9 +544,8 @@ describe('ChatPanel', () => {
   });
 
   it('opens absolute edited file paths inside the workspace without nesting them', async () => {
-    (ChatPanel as any).current = undefined;
 
-    await ChatPanel.show(ctx);
+    await attachController();
 
     const onDidReceive = (vscode as any).__test.onDidReceive.handler;
     await onDidReceive({ kind: 'open-workspace-file', relativePath: '/fake/workspace/src/foo.ts' });
@@ -441,9 +555,8 @@ describe('ChatPanel', () => {
   });
 
   it('refuses absolute file paths outside the workspace', async () => {
-    (ChatPanel as any).current = undefined;
 
-    await ChatPanel.show(ctx);
+    await attachController();
 
     const onDidReceive = (vscode as any).__test.onDidReceive.handler;
     await onDidReceive({ kind: 'open-workspace-file', relativePath: '/outside/foo.ts' });
@@ -453,9 +566,8 @@ describe('ChatPanel', () => {
   });
 
   it('refuses relative workspace file paths that escape the workspace', async () => {
-    (ChatPanel as any).current = undefined;
 
-    await ChatPanel.show(ctx);
+    await attachController();
 
     const onDidReceive = (vscode as any).__test.onDidReceive.handler;
     await onDidReceive({ kind: 'open-workspace-file', relativePath: '../outside.ts' });
@@ -465,7 +577,6 @@ describe('ChatPanel', () => {
   });
 
   it('persists attachedFiles + surfaces embed errors when @file used', async () => {
-    (ChatPanel as any).current = undefined;
     (vscode as any).__test.messages.length = 0;
 
     // Make /fake/workspace/foo.ts available in the fs mock.
@@ -490,7 +601,7 @@ describe('ChatPanel', () => {
       send: vi.fn(() => (async function* () { yield { type: 'done' }; })()),
     };
 
-    await ChatPanel.show(ctx, { claude, codex, gemini } as any);
+    await attachController({ agents: { claude, codex, gemini } as any });
 
     const onDidReceive = (vscode as any).__test.onDidReceive.handler;
     await onDidReceive({ kind: 'send', text: '@claude review @foo.ts and @missing.ts' });

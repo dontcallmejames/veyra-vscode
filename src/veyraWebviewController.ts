@@ -4,123 +4,112 @@ import * as path from 'node:path';
 import { ulid } from './ulid.js';
 import { cspNonce } from './cspNonce.js';
 import { checkClaude, checkCodex, checkGemini, clearStatusCache } from './statusChecks.js';
-import { VeyraSessionService } from './veyraService.js';
-import { createVeyraSessionService, refreshVeyraSessionOptions } from './veyraRuntime.js';
+import { refreshVeyraSessionOptions } from './veyraRuntime.js';
 import type {
   FromExtension, FromWebview, Settings, SystemMessage,
 } from './shared/protocol.js';
 import type { AgentId, AgentStatus } from './types.js';
-import type { AgentRegistry } from './messageRouter.js';
 import type { FileBadgesController } from './fileBadges.js';
-import type { VeyraDispatchEvent } from './veyraService.js';
+import type { VeyraDispatchEvent, VeyraSessionService } from './veyraService.js';
 import { localVeyraResponseForPrompt } from './localVeyraPrompt.js';
 
-export class ChatPanel {
-  private static current: ChatPanel | undefined;
-  private panel: vscode.WebviewPanel;
-  private disposables: vscode.Disposable[] = [];
-  private service: VeyraSessionService;
-  private extensionUri: vscode.Uri;
-  private onboardingPromptsStarted = false;
+export interface VeyraWebviewControllerOptions {
+  context: vscode.ExtensionContext;
+  workspacePath: string;
+  extensionUri: vscode.Uri;
+  service: VeyraSessionService;
+  badgeController?: FileBadgesController;
+  badgeControllerProvider?: () => FileBadgesController | undefined;
+}
 
-  static async show(
-    context: vscode.ExtensionContext,
-    agentsOverride?: AgentRegistry,
-    badgeController?: FileBadgesController,
-    serviceOverride?: VeyraSessionService,
-    badgeControllerProvider?: () => FileBadgesController | undefined,
-  ): Promise<void> {
-    if (ChatPanel.current) {
-      ChatPanel.current.panel.reveal();
-      return;
-    }
-    const folder = vscode.workspace.workspaceFolders?.[0];
-    if (!folder) {
-      vscode.window.showErrorMessage('Veyra requires an open workspace folder.');
-      return;
-    }
-    const panel = vscode.window.createWebviewPanel(
-      'veyra',
-      'Veyra',
-      vscode.ViewColumn.One,
-      {
-        enableScripts: true,
-        retainContextWhenHidden: true,
-        localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'dist')],
-      }
-    );
-    const activeBadgeController = badgeControllerProvider
-      ? badgeControllerProvider()
-      : fileBadgesEnabled() ? badgeController : undefined;
-    const service = serviceOverride ?? createVeyraSessionService(folder.uri.fsPath, activeBadgeController, agentsOverride);
-    ChatPanel.current = new ChatPanel(panel, context, folder.uri.fsPath, service, badgeController, badgeControllerProvider);
-    await ChatPanel.current.initialize();
+export interface VeyraWebviewHost {
+  webview: vscode.Webview;
+  send(message: FromExtension): Thenable<boolean> | boolean;
+  onDidDispose(listener: () => void): vscode.Disposable;
+}
+
+export class VeyraWebviewController {
+  private disposables: vscode.Disposable[] = [];
+  private onboardingPromptsStarted = false;
+  private host: VeyraWebviewHost | undefined;
+  private disposed = false;
+
+  constructor(private readonly options: VeyraWebviewControllerOptions) {}
+
+  async attach(host: VeyraWebviewHost): Promise<void> {
+    this.host = host;
+    host.webview.html = this.renderHtml(host.webview);
+    this.track(host.onDidDispose(() => this.dispose()));
+    this.track(host.webview.onDidReceiveMessage((message: FromWebview) => this.handleFromWebview(message)));
+    await this.initialize();
   }
 
-  private constructor(
-    panel: vscode.WebviewPanel,
-    private context: vscode.ExtensionContext,
-    private workspacePath: string,
-    service: VeyraSessionService,
-    private badgeController?: FileBadgesController,
-    private badgeControllerProvider?: () => FileBadgesController | undefined,
-  ) {
-    this.panel = panel;
-    this.extensionUri = context.extensionUri;
-    this.service = service;
+  dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.options.service.flush().catch(() => { /* best-effort */ });
+    for (const disposable of this.disposables.splice(0)) {
+      disposable.dispose();
+    }
+    this.host = undefined;
+  }
 
-    this.panel.webview.html = this.renderHtml();
-    this.disposables.push(
-      this.panel.onDidDispose(() => this.dispose()),
-      this.panel.webview.onDidReceiveMessage((m: FromWebview) => this.handleFromWebview(m)),
-    );
+  private track<T extends vscode.Disposable>(disposable: T): T {
+    if (this.disposed) {
+      disposable.dispose();
+    } else {
+      this.disposables.push(disposable);
+    }
+    return disposable;
   }
 
   private async initialize(): Promise<void> {
-    const session = await this.service.loadSession();
+    const session = await this.options.service.loadSession();
     const status: Record<AgentId, AgentStatus> = {
       claude: await checkClaude(),
       codex: await checkCodex(),
       gemini: await checkGemini(),
     };
     const settings = this.readSettings();
-    const veyraMdPresent = fs.existsSync(path.join(this.workspacePath, 'veyra.md'));
+    const veyraMdPresent = fs.existsSync(path.join(this.options.workspacePath, 'veyra.md'));
     this.send({ kind: 'init', session, status, settings, veyraMdPresent });
 
-    this.disposables.push(
-      { dispose: this.service.onFloorChange((holder) => this.send({ kind: 'floor-changed', holder })) },
-      { dispose: this.service.onStatusChange((agentId, s) => this.send({ kind: 'status-changed', agentId, status: s })) },
-      {
-        dispose: this.service.onWriteError((err) => {
-          const msg = err instanceof Error ? err.message : String(err);
-          const sys: SystemMessage = {
-            id: ulid(),
-            role: 'system',
-            kind: 'error',
-            text: `Couldn't save chat history: ${msg}`,
-            timestamp: Date.now(),
-          };
-          // Post to webview directly without using appendSystem (which would
-          // schedule another write and could loop on persistent failures).
-          this.send({ kind: 'system-message', message: sys });
-        }),
-      },
-      vscode.workspace.onDidChangeConfiguration((e) => {
-        if (e.affectsConfiguration('veyra')) {
-          refreshVeyraSessionOptions(this.service, this.workspacePath, this.currentBadgeController());
-          this.send({ kind: 'settings-changed', settings: this.readSettings() });
-        }
+    this.track({ dispose: this.options.service.onFloorChange((holder) => this.send({ kind: 'floor-changed', holder })) });
+    this.track({ dispose: this.options.service.onStatusChange((agentId, s) => this.send({ kind: 'status-changed', agentId, status: s })) });
+    this.track({
+      dispose: this.options.service.onWriteError((err) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        const sys: SystemMessage = {
+          id: ulid(),
+          role: 'system',
+          kind: 'error',
+          text: `Couldn't save chat history: ${msg}`,
+          timestamp: Date.now(),
+        };
+        // Post to webview directly without using appendSystem (which would
+        // schedule another write and could loop on persistent failures).
+        this.send({ kind: 'system-message', message: sys });
       }),
-    );
+    });
+    this.track(vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('veyra')) {
+        refreshVeyraSessionOptions(
+          this.options.service,
+          this.options.workspacePath,
+          this.currentBadgeController(),
+        );
+        this.send({ kind: 'settings-changed', settings: this.readSettings() });
+      }
+    }));
 
     const rulesWatcher = vscode.workspace.createFileSystemWatcher('**/veyra.md', false, true, false);
     const onRulesChange = () => {
-      const present = fs.existsSync(path.join(this.workspacePath, 'veyra.md'));
+      const present = fs.existsSync(path.join(this.options.workspacePath, 'veyra.md'));
       this.send({ kind: 'veyra-md-changed', present });
     };
     rulesWatcher.onDidCreate(onRulesChange);
     rulesWatcher.onDidDelete(onRulesChange);
-    this.disposables.push(rulesWatcher);
+    this.track(rulesWatcher);
 
     const recheckIntervalMs = 60_000;
     let recheckHandle: NodeJS.Timeout | null = null;
@@ -137,8 +126,8 @@ export class ChatPanel {
         if (recheckCancelled) return;
         for (const id of ['claude', 'codex', 'gemini'] as AgentId[]) {
           // notifyStatusChange dedupes; status-changed only fires when value differs.
-          // ChatPanel already subscribes to onStatusChange and forwards to webview.
-          this.service.notifyStatusChange(id, fresh[id]);
+          // The controller subscribes to onStatusChange and forwards to the webview.
+          this.options.service.notifyStatusChange(id, fresh[id]);
         }
       } catch {
         // ignore individual recheck failures
@@ -148,7 +137,7 @@ export class ChatPanel {
       }
     };
     recheckHandle = setTimeout(tick, recheckIntervalMs);
-    this.disposables.push({
+    this.track({
       dispose: () => {
         recheckCancelled = true;
         if (recheckHandle) clearTimeout(recheckHandle);
@@ -157,14 +146,14 @@ export class ChatPanel {
   }
 
   private send(msg: FromExtension): void {
-    this.panel.webview.postMessage(msg);
+    this.host?.send(msg);
   }
 
   private currentBadgeController(): FileBadgesController | undefined {
-    if (this.badgeControllerProvider) {
-      return this.badgeControllerProvider();
+    if (this.options.badgeControllerProvider) {
+      return this.options.badgeControllerProvider();
     }
-    return fileBadgesEnabled() ? this.badgeController : undefined;
+    return fileBadgesEnabled() ? this.options.badgeController : undefined;
   }
 
   private readSettings(): Settings {
@@ -180,7 +169,7 @@ export class ChatPanel {
         await this.dispatchUserMessage(msg.text);
         break;
       case 'cancel':
-        await this.service.cancelAll();
+        await this.options.service.cancelAll();
         break;
       case 'reload-status':
         clearStatusCache();
@@ -191,7 +180,7 @@ export class ChatPanel {
         };
         for (const id of ['claude', 'codex', 'gemini'] as AgentId[]) {
           this.send({ kind: 'status-changed', agentId: id, status: fresh[id] });
-          this.service.notifyStatusChange(id, fresh[id]);
+          this.options.service.notifyStatusChange(id, fresh[id]);
         }
         break;
       case 'show-live-validation-guide':
@@ -240,7 +229,7 @@ export class ChatPanel {
   }
 
   private resolveOpenWorkspaceFilePath(filePath: string): string | null {
-    const workspaceRoot = path.resolve(this.workspacePath);
+    const workspaceRoot = path.resolve(this.options.workspacePath);
     const resolved = path.isAbsolute(filePath)
       ? path.resolve(filePath)
       : path.resolve(workspaceRoot, filePath);
@@ -269,7 +258,7 @@ export class ChatPanel {
   private async dispatchUserMessage(text: string): Promise<void> {
     const localResponse = localVeyraResponseForPrompt(text);
     if (localResponse) {
-      await this.service.respondLocally(
+      await this.options.service.respondLocally(
         text,
         localResponse,
         (event) => this.handleDispatchEvent(event),
@@ -277,15 +266,15 @@ export class ChatPanel {
       return;
     }
 
-    if (this.service.isFirstSession()) {
+    if (this.options.service.isFirstSession()) {
       this.startOnboardingPrompts();
     }
 
-    await this.service.dispatch(
+    await this.options.service.dispatch(
       {
         text,
         source: 'panel',
-        cwd: this.workspacePath,
+        cwd: this.options.workspacePath,
       },
       (event) => this.handleDispatchEvent(event),
     );
@@ -295,7 +284,7 @@ export class ChatPanel {
     if (this.onboardingPromptsStarted) return;
     this.onboardingPromptsStarted = true;
     void (async () => {
-      await this.maybeShowGitignorePrompt(this.workspacePath);
+      await this.maybeShowGitignorePrompt(this.options.workspacePath);
       await this.maybeShowVeyraMdTip();
       await this.maybeShowCommitHookPrompt();
     })().catch((err) => {
@@ -337,10 +326,9 @@ export class ChatPanel {
     }
   }
 
-
   private async maybeShowGitignorePrompt(workspacePath: string): Promise<void> {
     const stateKey = 'veyra.gitignorePromptDismissed';
-    if (this.context.workspaceState.get(stateKey)) return;
+    if (this.options.context.workspaceState.get(stateKey)) return;
 
     const gitignorePath = path.join(workspacePath, '.gitignore');
     let gitignore = '';
@@ -367,14 +355,14 @@ export class ChatPanel {
         + '\n# Veyra session history\n.vscode/veyra/\n';
       fs.appendFileSync(gitignorePath, additionalLines, 'utf8');
     } else if (choice === "Don't ask again") {
-      await this.context.workspaceState.update(stateKey, true);
+      await this.options.context.workspaceState.update(stateKey, true);
     }
   }
 
   private async maybeShowVeyraMdTip(): Promise<void> {
     const stateKey = 'veyra.veyraMdTipShown';
-    if (this.context.workspaceState.get(stateKey)) return;
-    if (fs.existsSync(path.join(this.workspacePath, 'veyra.md'))) return;
+    if (this.options.context.workspaceState.get(stateKey)) return;
+    if (fs.existsSync(path.join(this.options.workspacePath, 'veyra.md'))) return;
 
     const choice = await vscode.window.showInformationMessage(
       'Tip: create veyra.md at the workspace root to pin per-project instructions for all agents.',
@@ -382,21 +370,21 @@ export class ChatPanel {
       "Don't show again",
     );
     if (choice === 'Create now') {
-      const filePath = path.join(this.workspacePath, 'veyra.md');
+      const filePath = path.join(this.options.workspacePath, 'veyra.md');
       const seed = '# veyra.md\n\nWorkspace rules pinned to all agent prompts. Free-form Markdown.\n';
       fs.writeFileSync(filePath, seed, 'utf8');
       const doc = await vscode.workspace.openTextDocument(filePath);
       await vscode.window.showTextDocument(doc);
-      await this.context.workspaceState.update(stateKey, true);
+      await this.options.context.workspaceState.update(stateKey, true);
     } else if (choice === "Don't show again") {
-      await this.context.workspaceState.update(stateKey, true);
+      await this.options.context.workspaceState.update(stateKey, true);
     }
   }
 
   private async maybeShowCommitHookPrompt(): Promise<void> {
     const stateKey = 'veyra.commitHookPromptDismissed';
-    if (this.context.workspaceState.get(stateKey)) return;
-    if (!fs.existsSync(path.join(this.workspacePath, '.git'))) return;
+    if (this.options.context.workspaceState.get(stateKey)) return;
+    if (!fs.existsSync(path.join(this.options.workspacePath, '.git'))) return;
 
     const choice = await vscode.window.showInformationMessage(
       'Install commit hook to tag commits made by agents? Adds .git/hooks/prepare-commit-msg. Removable via "Veyra: Uninstall commit hook".',
@@ -406,34 +394,27 @@ export class ChatPanel {
     );
     if (choice === 'Install') {
       await vscode.commands.executeCommand('veyra.installCommitHook');
-      await this.context.workspaceState.update(stateKey, true);
+      await this.options.context.workspaceState.update(stateKey, true);
     } else if (choice === "Don't ask again") {
-      await this.context.workspaceState.update(stateKey, true);
+      await this.options.context.workspaceState.update(stateKey, true);
     }
   }
 
-  private renderHtml(): string {
-    const htmlPath = path.join(this.extensionUri.fsPath, 'dist', 'index.html');
-    const jsUri = this.panel.webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, 'dist', 'webview.js')
+  private renderHtml(webview: vscode.Webview): string {
+    const htmlPath = path.join(this.options.extensionUri.fsPath, 'dist', 'index.html');
+    const jsUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.options.extensionUri, 'dist', 'webview.js'),
     );
     const nonce = cspNonce();
     let html = fs.readFileSync(htmlPath, 'utf8');
     html = html
       .replace(/{{NONCE}}/g, nonce)
-      .replace(/{{CSP_SOURCE}}/g, this.panel.webview.cspSource)
+      .replace(/{{CSP_SOURCE}}/g, webview.cspSource)
       .replace(/{{WEBVIEW_JS_URI}}/g, jsUri.toString());
     return html;
   }
-
-  dispose(): void {
-    this.service.flush().catch(() => { /* best-effort */ });
-    ChatPanel.current = undefined;
-    this.disposables.forEach((d) => d.dispose());
-    this.panel.dispose();
-  }
 }
 
-function fileBadgesEnabled(): boolean {
+export function fileBadgesEnabled(): boolean {
   return vscode.workspace.getConfiguration('veyra').get<boolean>('fileBadges.enabled', true);
 }

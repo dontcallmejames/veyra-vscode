@@ -192,6 +192,11 @@ describe('extension manifest', () => {
     expect(readme).toContain('.vscode/launch.json');
     expect(readme).toContain('Veyra: Show live validation guide');
     expect(readme).toContain('Veyra: Configure Codex/Gemini CLI paths');
+    expect(readme).toContain('Veyra view');
+    expect(readme).toContain('Veyra: Open Panel');
+    expect(readme).not.toContain('legacy Veyra panel');
+    expect(readme).not.toContain('Use version `0.0.8` or newer');
+    expect(readme).not.toContain('updated to `0.0.8` or newer');
     expect(readme).toContain('explicit JS bundle, native executable, or npm shim paths');
     expect(readme).toContain('stale PATH shims');
     expect(readme).toContain('falls back to `npm root -g`');
@@ -203,9 +208,17 @@ describe('extension manifest', () => {
     expect(audit).toContain('npm run verify:goal');
     expect(audit).toContain('Veyra: Show live validation guide');
     expect(audit).toContain('Veyra: Configure Codex/Gemini CLI paths');
+    expect(audit).not.toContain('verifies `Veyra: Open Panel` reveals and validates the docked Veyra view');
+    expect(audit).not.toContain('automated VS Code smoke test already validates docked Veyra view');
+    expect(audit).not.toContain('docked Veyra view reveal, active-dispatch');
     expect(smokeChecklist).toContain('paste JS bundle paths, native executable paths, or npm shim paths');
     expect(smokeChecklist).toContain('skips stale PATH shims');
     expect(smokeChecklist).toContain('Veyra: Show live validation guide');
+    expect(smokeChecklist).toContain('Veyra docked view');
+    expect(smokeChecklist).toContain('@veyra are you here?');
+    expect(smokeChecklist).not.toContain('webview tab');
+    expect(smokeChecklist).not.toContain('Use version `0.0.8` or newer');
+    expect(smokeChecklist).not.toContain('reveals and validates the docked Veyra view');
     expect(smokeChecklist).toContain('reports inaccessible, misconfigured, or Node.js missing');
     expect(smokeChecklist).toContain('install Node.js or switch to native executable paths');
     expect(smokeChecklist).toContain('Before sending prompts that can reach paid backends');
@@ -390,6 +403,30 @@ describe('extension manifest', () => {
     expect(readme).toContain('veyra.checkpoints.enabled');
     expect(readme).toContain('veyra.checkpoints.maxFileBytes');
     expect(readme).toContain('veyra.checkpoints.maxCount');
+  });
+
+  it('contributes the docked Veyra webview in the Secondary Side Bar', () => {
+    expect(manifest.activationEvents).toContain('onView:veyra.chatView');
+
+    expect(manifest.contributes.viewsContainers.secondarySidebar).toContainEqual({
+      id: 'veyra',
+      title: 'Veyra',
+      icon: 'resources/icon.png',
+    });
+    const contributedPanelViews = (manifest.contributes.viewsContainers as {
+      panel?: Array<{ id: string }>;
+    }).panel ?? [];
+    expect(contributedPanelViews).not.toContainEqual(expect.objectContaining({
+      id: 'veyra',
+    }));
+
+    expect(manifest.contributes.views.veyra).toContainEqual({
+      id: 'veyra.chatView',
+      name: 'Veyra',
+      type: 'webview',
+      visibility: 'visible',
+      contextualTitle: 'Veyra',
+    });
   });
 
   it('contributes command-palette entries for panel, status, and commit-hook operations', () => {

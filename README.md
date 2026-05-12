@@ -17,8 +17,8 @@ The working rule is: agents can work together without losing context, stomping e
   - `/consensus` asks all three agents to resolve options into one read-only recommendation.
   - `/implement` runs a serial all-agent implementation pass: Claude frames approach/risk, Codex changes code/tests, then Gemini reviews.
 - A VS Code Language Model provider named `Veyra`, with local models for the orchestrator and each direct agent.
-- A legacy Veyra panel for the same shared session pipeline.
-- Shared context and file mention support across panel, native chat, and language model requests.
+- A docked Veyra view for the full orchestration UI with statuses, checkpoints, and pending changes.
+- Shared context and file mention support across the Veyra view, native chat, and language model requests.
 - File edit visibility through streamed edit events, file decoration badges, session summaries, and commit attribution.
 - Workspace change detection for files modified during an agent turn even when the underlying CLI does not report a write tool.
 - Cross-agent edit conflict notices when a later agent touches a file already edited by another agent in the session.
@@ -37,10 +37,10 @@ Use the account, API key, or subscription setup required by each vendor's CLI. V
 
 ## Tester Quickstart
 
-1. Install or update Veyra from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=dontcallmejames.veyra-vscode). Use version `0.0.8` or newer.
+1. Install or update to the latest Veyra release that includes the docked view.
 2. Run `Developer: Reload Window` after installing or updating the extension.
 3. Open a real project folder in VS Code. Veyra needs an open workspace before it can route agent work.
-4. Run `Veyra: Open Panel` from the Command Palette and confirm the Veyra panel opens.
+4. Run `Veyra: Open Panel` from the Command Palette and confirm it reveals the docked Veyra view. The command name is kept for compatibility; it reveals the Veyra view instead of opening a separate editor panel.
 5. Run `Veyra: Check agent status` and confirm Claude, Codex, and Gemini are installed and authenticated for the workflows you want to test.
 6. Run `Veyra: Copy Diagnostic Report` once and keep the copied report handy if anything looks off.
 7. If Codex or Gemini needs path recovery on Windows, run `Veyra: Configure Codex/Gemini CLI paths`.
@@ -50,9 +50,11 @@ Use the account, API key, or subscription setup required by each vendor's CLI. V
 
 For a repeatable walkthrough covering setup, read-only workflows, implementation, diff preview, checkpoints, and verification, see `docs/preview-demo-script.md`.
 
+Use @veyra in VS Code Chat for lightweight native-chat workflows, or use the docked Veyra view for the full orchestration UI with statuses, checkpoints, and pending changes.
+
 ## Tester Troubleshooting
 
-If `Veyra: Open Panel` reports `command 'veyra.openPanel' not found`, first confirm Veyra is updated to `0.0.8` or newer, then run `Developer: Reload Window`. If the command still fails, disable and re-enable Veyra from the Extensions view and retry in a normal workspace folder.
+If `Veyra: Open Panel` reports `command 'veyra.openPanel' not found`, first confirm Veyra is installed and up to date, then run `Developer: Reload Window`. If the command still fails, disable and re-enable Veyra from the Extensions view and retry in a normal workspace folder. A successful run reveals the Veyra view in the VS Code Secondary Side Bar with other agent views such as Codex and Claude.
 
 For any tester report, please include:
 
@@ -112,7 +114,7 @@ The extension contributes a `veyra` language model provider with these local mod
 - `veyra-codex`
 - `veyra-gemini`
 
-Other extensions can request these models through VS Code's Language Model Chat API. The workflow models run the same all-agent review, debate, consensus, and implementation prompt shapes exposed in native chat. Responses stream back through the same Veyra session service used by native chat and the panel.
+Other extensions can request these models through VS Code's Language Model Chat API. The workflow models run the same all-agent review, debate, consensus, and implementation prompt shapes exposed in native chat. Responses stream back through the same Veyra session service used by native chat and the Veyra view.
 
 ## Edit Coordination
 
@@ -141,7 +143,7 @@ Rollback refuses when automatic checkpoint files changed after the agent dispatc
 
 ## Settings
 
-- `veyra.toolCallRenderStyle`: `verbose`, `compact`, or `hidden` for raw tool call/result details in the panel, native chat, and Language Model provider. File edit references still stay visible.
+- `veyra.toolCallRenderStyle`: `verbose`, `compact`, or `hidden` for raw tool call/result details in the Veyra view, native chat, and Language Model provider. File edit references still stay visible.
 - `veyra.hangDetectionSeconds`: seconds without output before a waiting notice appears.
 - `veyra.watchdogMinutes`: maximum time an agent may hold the dispatch floor.
 - `veyra.fileEmbedMaxLines`: max lines embedded for `@file` mentions.

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => {
   const commandCallbacks = new Map<string, (...args: unknown[]) => unknown>();
+  const webviewViewProviders = new Map<string, { provider: unknown; options: unknown }>();
   let configListener: ((event: { affectsConfiguration(key: string): boolean }) => void) | undefined;
   const defaultWorkspaceFolders = [{ uri: { fsPath: '/workspace' } }];
   const service = {
@@ -19,11 +20,13 @@ const mocks = vi.hoisted(() => {
   };
   const smokeAgents = { id: 'smoke-agents' };
   const fileDecorationProviderDisposable = { dispose: vi.fn() };
+  const webviewControllerInstances: Array<{ attach: ReturnType<typeof vi.fn>; dispose: ReturnType<typeof vi.fn> }> = [];
   return {
     commandCallbacks,
     workspaceFolders: [...defaultWorkspaceFolders] as typeof defaultWorkspaceFolders | undefined,
     service,
     smokeAgents,
+    webviewControllerInstances,
     fileDecorationProviderDisposable,
     configGet: vi.fn((_key: string, dflt: unknown) => dflt),
     registerCommand: vi.fn((command: string, callback: (...args: unknown[]) => unknown) => {
@@ -36,6 +39,11 @@ const mocks = vi.hoisted(() => {
       'veyra.copyDiagnosticReport',
     ]),
     clipboardWriteText: vi.fn().mockResolvedValue(undefined),
+    webviewViewProviders,
+    registerWebviewViewProvider: vi.fn((viewId: string, provider: unknown, options: unknown) => {
+      webviewViewProviders.set(viewId, { provider, options });
+      return { dispose: vi.fn() };
+    }),
     registerFileDecorationProvider: vi.fn(() => fileDecorationProviderDisposable),
     showInformationMessage: vi.fn(),
     showErrorMessage: vi.fn(),
@@ -46,7 +54,6 @@ const mocks = vi.hoisted(() => {
     configUpdate: vi.fn().mockResolvedValue(undefined),
     openTextDocument: vi.fn().mockResolvedValue({ uri: { fsPath: '/snippet' } }),
     showTextDocument: vi.fn().mockResolvedValue(undefined),
-    chatPanelShow: vi.fn(),
     createVeyraSessionService: vi.fn(() => service),
     createSmokeAgents: vi.fn(() => smokeAgents),
     shouldUseSmokeAgents: vi.fn(() => false),
@@ -74,6 +81,7 @@ const mocks = vi.hoisted(() => {
     getConfigListener: () => configListener,
     reset() {
       commandCallbacks.clear();
+      webviewViewProviders.clear();
       configListener = undefined;
       this.workspaceFolders = [...defaultWorkspaceFolders];
       this.configGet.mockReset();
@@ -87,8 +95,10 @@ const mocks = vi.hoisted(() => {
       ]);
       this.clipboardWriteText.mockClear();
       this.clipboardWriteText.mockResolvedValue(undefined);
+      this.registerWebviewViewProvider.mockClear();
       this.registerFileDecorationProvider.mockClear();
       this.fileDecorationProviderDisposable.dispose.mockClear();
+      this.webviewControllerInstances.length = 0;
       this.showInformationMessage.mockClear();
       this.showErrorMessage.mockClear();
       this.showWarningMessage.mockClear();
@@ -100,7 +110,6 @@ const mocks = vi.hoisted(() => {
       this.configUpdate.mockClear();
       this.openTextDocument.mockClear();
       this.showTextDocument.mockClear();
-      this.chatPanelShow.mockClear();
       this.service.flush.mockClear();
       this.service.flush.mockResolvedValue(undefined);
       this.service.invalidateWorkspaceContext.mockClear();
@@ -201,6 +210,7 @@ vi.mock('vscode', () => ({
     Workspace: 'Workspace',
   },
   window: {
+    registerWebviewViewProvider: mocks.registerWebviewViewProvider,
     registerFileDecorationProvider: mocks.registerFileDecorationProvider,
     showInformationMessage: mocks.showInformationMessage,
     showErrorMessage: mocks.showErrorMessage,
@@ -222,13 +232,21 @@ vi.mock('vscode', () => ({
   version: '1.118.0',
   Uri: {
     file: (fsPath: string) => ({ fsPath }),
+    joinPath: (uri: { fsPath?: string }, ...paths: string[]) => ({
+      fsPath: [uri.fsPath, ...paths].filter(Boolean).join('/'),
+    }),
   },
 }));
 
-vi.mock('../src/panel.js', () => ({
-  ChatPanel: {
-    show: mocks.chatPanelShow,
-  },
+vi.mock('../src/veyraWebviewController.js', () => ({
+  VeyraWebviewController: vi.fn(function VeyraWebviewController() {
+    const instance = {
+      attach: vi.fn().mockResolvedValue(undefined),
+      dispose: vi.fn(),
+    };
+    mocks.webviewControllerInstances.push(instance);
+    return instance;
+  }),
 }));
 
 vi.mock('../src/fileBadges.js', () => ({
@@ -269,9 +287,11 @@ vi.mock('../src/cliPathDetection.js', () => ({
 
 import { activate, deactivate } from '../src/extension.js';
 import { installCommitHook } from '../src/commitHook.js';
+import { VeyraViewProvider } from '../src/veyraView.js';
 
 const context = () => ({
   subscriptions: [] as Array<{ dispose(): void }>,
+  extensionUri: { fsPath: '/extension' },
   extension: {
     id: 'dontcallmejames.veyra-vscode',
     packageJSON: {
@@ -280,6 +300,17 @@ const context = () => ({
   },
 });
 const mockedInstallCommitHook = installCommitHook as unknown as ReturnType<typeof vi.fn>;
+
+function fakeWebviewView() {
+  return {
+    webview: {
+      options: undefined as unknown,
+      html: '',
+      postMessage: vi.fn(),
+    },
+    onDidDispose: vi.fn(() => ({ dispose: vi.fn() })),
+  };
+}
 
 describe('activate', () => {
   beforeEach(() => {
@@ -318,6 +349,64 @@ describe('activate', () => {
     expect(mocks.registerFileDecorationProvider).toHaveBeenCalledTimes(1);
   });
 
+  it('registers the docked Veyra chat view provider', () => {
+    const ctx = context();
+
+    activate(ctx as any);
+
+    expect(mocks.registerWebviewViewProvider).toHaveBeenCalledWith(
+      'veyra.chatView',
+      expect.objectContaining({
+        resolveWebviewView: expect.any(Function),
+        dispose: expect.any(Function),
+      }),
+      { webviewOptions: { retainContextWhenHidden: true } },
+    );
+    expect(mocks.webviewViewProviders.get('veyra.chatView')?.provider).toBe(
+      mocks.registerWebviewViewProvider.mock.calls[0]?.[1],
+    );
+  });
+
+  it('reveals the docked Veyra view from the open command', async () => {
+    activate(context() as any);
+    const openPanel = mocks.commandCallbacks.get('veyra.openPanel');
+    expect(openPanel).toBeTypeOf('function');
+
+    await openPanel!();
+
+    expect(mocks.executeCommand).toHaveBeenCalledWith('workbench.view.extension.veyra');
+  });
+
+  it('resets the docked view host when resolved without a workspace', async () => {
+    const ctx = context();
+    let registration: { workspacePath: string; service: any } | undefined = {
+      workspacePath: '/workspace',
+      service: mocks.service,
+    };
+    const provider = new VeyraViewProvider({
+      context: ctx as any,
+      getRegistration: () => registration,
+      getBadgeController: () => undefined,
+    });
+    const activeView = fakeWebviewView();
+    await provider.resolveWebviewView(activeView as any);
+    const activeController = mocks.webviewControllerInstances[0];
+    expect(activeController.attach).toHaveBeenCalledTimes(1);
+
+    registration = undefined;
+    const noWorkspaceView = fakeWebviewView();
+    await provider.resolveWebviewView(noWorkspaceView as any);
+    provider.dispose();
+
+    expect(noWorkspaceView.webview.options).toEqual({
+      enableScripts: true,
+      localResourceRoots: [{ fsPath: '/extension/dist' }],
+    });
+    expect(noWorkspaceView.webview.html).toContain('Open a workspace folder');
+    expect(activeController.dispose).toHaveBeenCalledTimes(1);
+    expect(mocks.webviewControllerInstances).toHaveLength(1);
+  });
+
   it('copies a tester diagnostic report from the command palette', async () => {
     activate(context() as any);
 
@@ -338,7 +427,7 @@ describe('activate', () => {
     expect(report).toContain('Veyra Diagnostic Report');
   });
 
-  it('keeps the panel command usable when native chat registration fails', () => {
+  it('keeps the panel command usable when native chat registration fails', async () => {
     mocks.registerNativeChatParticipants.mockImplementationOnce(() => {
       throw new Error('chat API unavailable');
     });
@@ -348,15 +437,15 @@ describe('activate', () => {
     expect(() => activate(ctx as any)).not.toThrow();
     const openPanel = mocks.commandCallbacks.get('veyra.openPanel');
     expect(openPanel).toBeTypeOf('function');
-    openPanel!();
+    await openPanel!();
 
-    expect(mocks.chatPanelShow).toHaveBeenCalled();
+    expect(mocks.executeCommand).toHaveBeenCalledWith('workbench.view.extension.veyra');
     expect(mocks.showWarningMessage).toHaveBeenCalledWith(
       'Veyra native chat registration failed: chat API unavailable',
     );
   });
 
-  it('keeps the panel command usable when language model provider registration fails', () => {
+  it('keeps the panel command usable when language model provider registration fails', async () => {
     mocks.registerVeyraLanguageModelProvider.mockImplementationOnce(() => {
       throw new Error('language model API unavailable');
     });
@@ -366,9 +455,9 @@ describe('activate', () => {
     expect(() => activate(ctx as any)).not.toThrow();
     const openPanel = mocks.commandCallbacks.get('veyra.openPanel');
     expect(openPanel).toBeTypeOf('function');
-    openPanel!();
+    await openPanel!();
 
-    expect(mocks.chatPanelShow).toHaveBeenCalled();
+    expect(mocks.executeCommand).toHaveBeenCalledWith('workbench.view.extension.veyra');
     expect(mocks.showWarningMessage).toHaveBeenCalledWith(
       'Veyra language model provider registration failed: language model API unavailable',
     );
@@ -922,7 +1011,7 @@ describe('activate', () => {
     expect(mocks.showTextDocument).toHaveBeenCalledWith(doc);
   });
 
-  it('creates file badges when a workspace folder appears after activation', () => {
+  it('creates file badges when a workspace folder appears after activation', async () => {
     mocks.workspaceFolders = undefined;
     const ctx = context();
 
@@ -933,17 +1022,11 @@ describe('activate', () => {
     mocks.workspaceFolders = [{ uri: { fsPath: '/late-workspace' } }];
     const openPanel = mocks.commandCallbacks.get('veyra.openPanel');
     expect(openPanel).toBeTypeOf('function');
-    openPanel!();
+    await openPanel!();
 
     expect(mocks.registerFileDecorationProvider).toHaveBeenCalledTimes(1);
     expect(mocks.createVeyraSessionService).toHaveBeenCalledWith('/late-workspace', expect.anything());
-    expect(mocks.chatPanelShow).toHaveBeenCalledWith(
-      ctx,
-      undefined,
-      expect.anything(),
-      mocks.service,
-      expect.any(Function),
-    );
+    expect(mocks.executeCommand).toHaveBeenCalledWith('workbench.view.extension.veyra');
   });
 
   it('turns off file badge registration and session badge updates when file badges are disabled at runtime', () => {

@@ -54,6 +54,7 @@
   ],
   "activationEvents": [
     "onCommand:veyra.openPanel",
+    "onView:veyra.chatView",
     "onCommand:veyra.checkStatus",
     "onCommand:veyra.copyDiagnosticReport",
     "onCommand:veyra.showSetupGuide",
@@ -75,6 +76,26 @@
     "onLanguageModelChatProvider:veyra"
   ],
   "contributes": {
+    "viewsContainers": {
+      "secondarySidebar": [
+        {
+          "id": "veyra",
+          "title": "Veyra",
+          "icon": "resources/icon.png"
+        }
+      ]
+    },
+    "views": {
+      "veyra": [
+        {
+          "id": "veyra.chatView",
+          "name": "Veyra",
+          "type": "webview",
+          "visibility": "visible",
+          "contextualTitle": "Veyra"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "veyra.openPanel",

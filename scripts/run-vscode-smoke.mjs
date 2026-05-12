@@ -439,8 +439,15 @@ export function validateSmokeResultContent(content) {
   if (result.commitHookLifecycle?.commitMessageAttributed !== true) {
     errors.push('Missing commit hook commit-message attribution evidence.');
   }
-  if (result.uiEvidence?.veyraPanelOpened !== true) {
-    errors.push('Missing Veyra panel-open evidence.');
+  if (result.uiEvidence?.veyraDockedViewRevealed !== true) {
+    errors.push('Missing Veyra docked view reveal evidence.');
+  }
+  const dockedViewManifest = result.uiEvidence?.veyraDockedViewManifest;
+  if (dockedViewManifest?.viewsContainerSecondarySidebar !== true) {
+    errors.push('Missing Veyra docked secondary side bar manifest evidence.');
+  }
+  if (dockedViewManifest?.chatViewContribution !== true) {
+    errors.push('Missing Veyra docked webview manifest evidence.');
   }
   const diagnosticReport = result.diagnosticReport;
   if (typeof diagnosticReport !== 'string' || diagnosticReport.trim().length === 0) {
@@ -602,45 +609,52 @@ function errorMessage(err) {
   return err instanceof Error ? err.message : String(err);
 }
 
-function main() {
-  const paths = smokePaths(process.cwd());
+export function runSmokeWithCode(paths, {
+  codeCommand = process.env.VSCODE_SMOKE_CODE_COMMAND || 'code',
+  spawn = spawnSync,
+  timeoutMs = Number(process.env.VSCODE_SMOKE_TIMEOUT_MS || 120000),
+} = {}) {
   const missing = findMissingSmokePrerequisites(paths);
   if (missing.length > 0) {
     process.stderr.write(`VS Code smoke test is missing required files:\n${missing.map((file) => `- ${file}`).join('\n')}\n`);
     process.stderr.write('Run `npm run build` before `npm run test:vscode-smoke`.\n');
-    process.exit(1);
+    return 1;
   }
 
   prepareSmokeDirectories(paths);
   rmSync(paths.smokeResultPath, { force: true });
-  const codeCommand = resolveCodeCommand(process.env.VSCODE_SMOKE_CODE_COMMAND || 'code');
-  const invocation = buildCodeSpawnInvocation(codeCommand, buildCodeSmokeArgs(paths));
-  const result = spawnSync(invocation.command, invocation.args, {
+  const resolvedCodeCommand = resolveCodeCommand(codeCommand);
+  const invocation = buildCodeSpawnInvocation(resolvedCodeCommand, buildCodeSmokeArgs(paths));
+  const result = spawn(invocation.command, invocation.args, {
     cwd: paths.rootDir,
     env: buildCodeSmokeEnv(paths),
     shell: invocation.shell,
     stdio: 'inherit',
-    timeout: Number(process.env.VSCODE_SMOKE_TIMEOUT_MS || 120000),
+    timeout: timeoutMs,
     windowsHide: true,
   });
 
   if (result.error) {
     process.stderr.write(`${result.error}\n`);
-    process.exit(1);
+    return 1;
   }
   if (result.status !== 0) {
-    process.exit(result.status ?? 1);
+    return result.status ?? 1;
   }
   if (!existsSync(paths.smokeResultPath)) {
     process.stderr.write(`VS Code smoke test did not write ${paths.smokeResultPath}; the Extension Host test module may not have run.\n`);
-    process.exit(1);
+    return 1;
   }
   const resultErrors = validateSmokeResultContent(readFileSync(paths.smokeResultPath, 'utf8'));
   if (resultErrors.length > 0) {
     process.stderr.write(`VS Code smoke test result failed validation:\n${resultErrors.map((error) => `- ${error}`).join('\n')}\n`);
-    process.exit(1);
+    return 1;
   }
-  process.exit(0);
+  return 0;
+}
+
+function main() {
+  process.exit(runSmokeWithCode(smokePaths(process.cwd())));
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
