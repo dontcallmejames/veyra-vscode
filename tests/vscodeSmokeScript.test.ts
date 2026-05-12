@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
@@ -61,6 +61,25 @@ async function smokeScriptModule() {
       maxInputTokens: number;
     }>;
     validateSmokeResultContent(content: string): string[];
+    runSmokeWithCode(paths: SmokePaths, options: {
+      spawn: (
+        command: string,
+        args: string[],
+        options: {
+          cwd: string;
+          env: NodeJS.ProcessEnv;
+          shell: boolean;
+          stdio: 'inherit';
+          timeout: number;
+          windowsHide: boolean;
+        },
+      ) => {
+        status: number | null;
+        error?: Error;
+      };
+      codeCommand?: string;
+      timeoutMs?: number;
+    }): number;
   };
 }
 
@@ -175,6 +194,37 @@ describe('VS Code smoke runner script', () => {
     }
   });
 
+  it('removes a stale smoke result before launching VS Code', async () => {
+    const { prepareSmokeDirectories, runSmokeWithCode, smokePaths } = await smokeScriptModule();
+    const root = mkdtempSync(join(tmpdir(), 'veyra-smoke-runner-'));
+    const paths = smokePaths(root);
+    const stderrWrite = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+
+    try {
+      mkdirSync(join(root, 'dist'), { recursive: true });
+      writeFileSync(paths.extensionEntryPath, 'module.exports = {};\n', 'utf8');
+      mkdirSync(join(root, 'tests', 'extension-host'), { recursive: true });
+      writeFileSync(paths.extensionTestsPath, 'module.exports = { run() {} };\n', 'utf8');
+      prepareSmokeDirectories(paths);
+      writeFileSync(paths.smokeResultPath, '{"ok":true,"stale":true}', 'utf8');
+
+      const exitCode = runSmokeWithCode(paths, {
+        codeCommand: 'code',
+        spawn: () => {
+          expect(existsSync(paths.smokeResultPath)).toBe(false);
+          return { status: 0 };
+        },
+        timeoutMs: 1,
+      });
+
+      expect(exitCode).toBe(1);
+      expect(existsSync(paths.smokeResultPath)).toBe(false);
+    } finally {
+      stderrWrite.mockRestore();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('reports a clear error when git is unavailable for smoke workspace setup', async () => {
     const { initializeSmokeGitRepository } = await smokeScriptModule();
 
@@ -201,6 +251,15 @@ describe('VS Code smoke runner script', () => {
         },
       ]),
     ));
+  });
+
+  it('uses docked view smoke evidence instead of editor webview tab polling', () => {
+    const smokeSource = readFileSync(join(process.cwd(), 'tests', 'extension-host', 'smoke.js'), 'utf8');
+
+    expect(smokeSource).toContain('veyraDockedViewRevealed');
+    expect(smokeSource).toContain('veyraDockedViewManifest');
+    expect(smokeSource).not.toContain('hasOpenTabLabel');
+    expect(smokeSource).not.toContain('Veyra webview tab');
   });
 
   it('requires the Extension Host smoke result to include executed command evidence', async () => {
@@ -435,7 +494,11 @@ describe('VS Code smoke runner script', () => {
         commitMessageAttributed: true,
       },
       uiEvidence: {
-        veyraPanelOpened: true,
+        veyraDockedViewManifest: {
+          viewsContainerPanel: true,
+          chatViewContribution: true,
+        },
+        veyraDockedViewRevealed: true,
       },
       diagnosticReport: [
         '# Veyra Diagnostic Report',
@@ -722,7 +785,11 @@ describe('VS Code smoke runner script', () => {
         removed: true,
       },
       uiEvidence: {
-        veyraPanelOpened: true,
+        veyraDockedViewManifest: {
+          viewsContainerPanel: true,
+          chatViewContribution: true,
+        },
+        veyraDockedViewRevealed: true,
       },
     }))).toContain('Missing native chat participant evidence: veyra.veyra');
 
@@ -826,7 +893,11 @@ describe('VS Code smoke runner script', () => {
         removed: true,
       },
       uiEvidence: {
-        veyraPanelOpened: true,
+        veyraDockedViewManifest: {
+          viewsContainerPanel: true,
+          chatViewContribution: true,
+        },
+        veyraDockedViewRevealed: true,
       },
     }))).toContain('Missing language model response evidence: veyra-orchestrator');
 
@@ -931,7 +1002,11 @@ describe('VS Code smoke runner script', () => {
         removed: true,
       },
       uiEvidence: {
-        veyraPanelOpened: true,
+        veyraDockedViewManifest: {
+          viewsContainerPanel: true,
+          chatViewContribution: true,
+        },
+        veyraDockedViewRevealed: true,
       },
     }))).toContain('Missing active dispatch sentinel lifecycle evidence.');
 
@@ -1038,9 +1113,33 @@ describe('VS Code smoke runner script', () => {
         dispatchSentinelCleared: true,
       },
       uiEvidence: {
-        veyraPanelOpened: true,
+        veyraDockedViewManifest: {
+          viewsContainerPanel: true,
+          chatViewContribution: true,
+        },
+        veyraDockedViewRevealed: true,
       },
     }))).toContain('Unexpected language model response evidence: veyra-review missing [smoke:claude] read-only request reached Veyra provider.');
+
+    expect(validateSmokeResultContent(JSON.stringify({
+      ...completeSmokeResult,
+      uiEvidence: {
+        ...completeSmokeResult.uiEvidence,
+        veyraDockedViewManifest: {
+          chatViewContribution: true,
+        },
+      },
+    }))).toContain('Missing Veyra docked panel container manifest evidence.');
+
+    expect(validateSmokeResultContent(JSON.stringify({
+      ...completeSmokeResult,
+      uiEvidence: {
+        ...completeSmokeResult.uiEvidence,
+        veyraDockedViewManifest: {
+          viewsContainerPanel: true,
+        },
+      },
+    }))).toContain('Missing Veyra docked webview manifest evidence.');
 
     expect(validateSmokeResultContent(JSON.stringify({
       ok: true,
@@ -1111,7 +1210,7 @@ describe('VS Code smoke runner script', () => {
         installed: true,
         removed: true,
       },
-    }))).toContain('Missing Veyra panel-open evidence.');
+    }))).toContain('Missing Veyra docked view reveal evidence.');
   });
 });
 

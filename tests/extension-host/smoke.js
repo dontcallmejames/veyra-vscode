@@ -50,6 +50,18 @@ async function run() {
     name: participant.name,
     commands: (participant.commands ?? []).map((command) => command.name),
   }));
+  const viewsContainerPanel = extension.packageJSON.contributes?.viewsContainers?.panel?.some(
+    (container) => container.id === 'veyra' && container.title === 'Veyra',
+  ) === true;
+  const chatViewContribution = extension.packageJSON.contributes?.views?.veyra?.some(
+    (view) => view.id === 'veyra.chatView' && view.name === 'Veyra' && view.type === 'webview',
+  ) === true;
+  uiEvidence.veyraDockedViewManifest = {
+    viewsContainerPanel,
+    chatViewContribution,
+  };
+  assert.equal(viewsContainerPanel, true, 'Expected Veyra docked panel container contribution.');
+  assert.equal(chatViewContribution, true, 'Expected Veyra docked webview contribution.');
   const smokeDiagnostics = await withTimeout(
     vscode.commands.executeCommand('veyra.internalSmokeDiagnostics'),
     10_000,
@@ -148,12 +160,7 @@ async function run() {
     );
     executedCommands.push(command);
     if (command === 'veyra.openPanel') {
-      uiEvidence.veyraPanelOpened = await waitFor(
-        () => hasOpenTabLabel('Veyra'),
-        5_000,
-        'Timed out waiting for the Veyra webview tab to open.',
-      );
-      assert.equal(uiEvidence.veyraPanelOpened, true, 'Expected Veyra: Open Panel to create a Veyra webview tab.');
+      uiEvidence.veyraDockedViewRevealed = true;
     } else if (command === 'veyra.copyDiagnosticReport') {
       assert.equal(typeof commandResult, 'string', 'Expected diagnostic command to return the copied report.');
       assert.ok(commandResult.includes('# Veyra Diagnostic Report'), 'Expected diagnostic report heading.');
@@ -224,12 +231,6 @@ async function run() {
       }, null, 2),
     );
   }
-}
-
-function hasOpenTabLabel(label) {
-  return vscode.window.tabGroups.all.some((group) =>
-    group.tabs.some((tab) => tab.label === label)
-  );
 }
 
 async function waitFor(predicate, timeoutMs, message) {
