@@ -45,7 +45,6 @@ const mocks = vi.hoisted(() => {
       return { dispose: vi.fn() };
     }),
     registerFileDecorationProvider: vi.fn(() => fileDecorationProviderDisposable),
-    createWebviewPanel: vi.fn(),
     showInformationMessage: vi.fn(),
     showErrorMessage: vi.fn(),
     showWarningMessage: vi.fn(),
@@ -55,7 +54,6 @@ const mocks = vi.hoisted(() => {
     configUpdate: vi.fn().mockResolvedValue(undefined),
     openTextDocument: vi.fn().mockResolvedValue({ uri: { fsPath: '/snippet' } }),
     showTextDocument: vi.fn().mockResolvedValue(undefined),
-    chatPanelShow: vi.fn(),
     createVeyraSessionService: vi.fn(() => service),
     createSmokeAgents: vi.fn(() => smokeAgents),
     shouldUseSmokeAgents: vi.fn(() => false),
@@ -98,7 +96,6 @@ const mocks = vi.hoisted(() => {
       this.clipboardWriteText.mockClear();
       this.clipboardWriteText.mockResolvedValue(undefined);
       this.registerWebviewViewProvider.mockClear();
-      this.createWebviewPanel.mockClear();
       this.registerFileDecorationProvider.mockClear();
       this.fileDecorationProviderDisposable.dispose.mockClear();
       this.webviewControllerInstances.length = 0;
@@ -113,7 +110,6 @@ const mocks = vi.hoisted(() => {
       this.configUpdate.mockClear();
       this.openTextDocument.mockClear();
       this.showTextDocument.mockClear();
-      this.chatPanelShow.mockClear();
       this.service.flush.mockClear();
       this.service.flush.mockResolvedValue(undefined);
       this.service.invalidateWorkspaceContext.mockClear();
@@ -216,7 +212,6 @@ vi.mock('vscode', () => ({
   window: {
     registerWebviewViewProvider: mocks.registerWebviewViewProvider,
     registerFileDecorationProvider: mocks.registerFileDecorationProvider,
-    createWebviewPanel: mocks.createWebviewPanel,
     showInformationMessage: mocks.showInformationMessage,
     showErrorMessage: mocks.showErrorMessage,
     showWarningMessage: mocks.showWarningMessage,
@@ -252,12 +247,6 @@ vi.mock('../src/veyraWebviewController.js', () => ({
     mocks.webviewControllerInstances.push(instance);
     return instance;
   }),
-}));
-
-vi.mock('../src/panel.js', () => ({
-  ChatPanel: {
-    show: mocks.chatPanelShow,
-  },
 }));
 
 vi.mock('../src/fileBadges.js', () => ({
@@ -386,8 +375,6 @@ describe('activate', () => {
     await openPanel!();
 
     expect(mocks.executeCommand).toHaveBeenCalledWith('workbench.view.extension.veyra');
-    expect(mocks.createWebviewPanel).not.toHaveBeenCalled();
-    expect(mocks.chatPanelShow).not.toHaveBeenCalled();
   });
 
   it('resets the docked view host when resolved without a workspace', async () => {
@@ -453,7 +440,6 @@ describe('activate', () => {
     await openPanel!();
 
     expect(mocks.executeCommand).toHaveBeenCalledWith('workbench.view.extension.veyra');
-    expect(mocks.chatPanelShow).not.toHaveBeenCalled();
     expect(mocks.showWarningMessage).toHaveBeenCalledWith(
       'Veyra native chat registration failed: chat API unavailable',
     );
@@ -472,7 +458,6 @@ describe('activate', () => {
     await openPanel!();
 
     expect(mocks.executeCommand).toHaveBeenCalledWith('workbench.view.extension.veyra');
-    expect(mocks.chatPanelShow).not.toHaveBeenCalled();
     expect(mocks.showWarningMessage).toHaveBeenCalledWith(
       'Veyra language model provider registration failed: language model API unavailable',
     );
@@ -1042,7 +1027,6 @@ describe('activate', () => {
     expect(mocks.registerFileDecorationProvider).toHaveBeenCalledTimes(1);
     expect(mocks.createVeyraSessionService).toHaveBeenCalledWith('/late-workspace', expect.anything());
     expect(mocks.executeCommand).toHaveBeenCalledWith('workbench.view.extension.veyra');
-    expect(mocks.chatPanelShow).not.toHaveBeenCalled();
   });
 
   it('turns off file badge registration and session badge updates when file badges are disabled at runtime', () => {
