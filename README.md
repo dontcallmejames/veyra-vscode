@@ -54,7 +54,7 @@ Use @veyra in VS Code Chat for lightweight native-chat workflows, or use the doc
 
 ## Tester Troubleshooting
 
-If `Veyra: Open Panel` reports `command 'veyra.openPanel' not found`, first confirm Veyra is installed and up to date, then run `Developer: Reload Window`. If the command still fails, disable and re-enable Veyra from the Extensions view and retry in a normal workspace folder. A successful run reveals the Veyra view in the VS Code panel area.
+If `Veyra: Open Panel` reports `command 'veyra.openPanel' not found`, first confirm Veyra is installed and up to date, then run `Developer: Reload Window`. If the command still fails, disable and re-enable Veyra from the Extensions view and retry in a normal workspace folder. A successful run reveals the Veyra view in the VS Code Secondary Side Bar with other agent views such as Codex and Claude.
 
 For any tester report, please include:
 

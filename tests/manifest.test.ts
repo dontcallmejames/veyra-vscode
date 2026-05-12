@@ -405,14 +405,20 @@ describe('extension manifest', () => {
     expect(readme).toContain('veyra.checkpoints.maxCount');
   });
 
-  it('contributes the docked Veyra webview in the Panel area', () => {
+  it('contributes the docked Veyra webview in the Secondary Side Bar', () => {
     expect(manifest.activationEvents).toContain('onView:veyra.chatView');
 
-    expect(manifest.contributes.viewsContainers.panel).toContainEqual({
+    expect(manifest.contributes.viewsContainers.secondarySidebar).toContainEqual({
       id: 'veyra',
       title: 'Veyra',
       icon: 'resources/icon.png',
     });
+    const contributedPanelViews = (manifest.contributes.viewsContainers as {
+      panel?: Array<{ id: string }>;
+    }).panel ?? [];
+    expect(contributedPanelViews).not.toContainEqual(expect.objectContaining({
+      id: 'veyra',
+    }));
 
     expect(manifest.contributes.views.veyra).toContainEqual({
       id: 'veyra.chatView',

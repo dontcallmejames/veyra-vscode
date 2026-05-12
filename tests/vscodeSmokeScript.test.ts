@@ -495,7 +495,7 @@ describe('VS Code smoke runner script', () => {
       },
       uiEvidence: {
         veyraDockedViewManifest: {
-          viewsContainerPanel: true,
+          viewsContainerSecondarySidebar: true,
           chatViewContribution: true,
         },
         veyraDockedViewRevealed: true,
@@ -786,7 +786,7 @@ describe('VS Code smoke runner script', () => {
       },
       uiEvidence: {
         veyraDockedViewManifest: {
-          viewsContainerPanel: true,
+          viewsContainerSecondarySidebar: true,
           chatViewContribution: true,
         },
         veyraDockedViewRevealed: true,
@@ -894,7 +894,7 @@ describe('VS Code smoke runner script', () => {
       },
       uiEvidence: {
         veyraDockedViewManifest: {
-          viewsContainerPanel: true,
+          viewsContainerSecondarySidebar: true,
           chatViewContribution: true,
         },
         veyraDockedViewRevealed: true,
@@ -1003,7 +1003,7 @@ describe('VS Code smoke runner script', () => {
       },
       uiEvidence: {
         veyraDockedViewManifest: {
-          viewsContainerPanel: true,
+          viewsContainerSecondarySidebar: true,
           chatViewContribution: true,
         },
         veyraDockedViewRevealed: true,
@@ -1114,7 +1114,7 @@ describe('VS Code smoke runner script', () => {
       },
       uiEvidence: {
         veyraDockedViewManifest: {
-          viewsContainerPanel: true,
+          viewsContainerSecondarySidebar: true,
           chatViewContribution: true,
         },
         veyraDockedViewRevealed: true,
@@ -1129,14 +1129,14 @@ describe('VS Code smoke runner script', () => {
           chatViewContribution: true,
         },
       },
-    }))).toContain('Missing Veyra docked panel container manifest evidence.');
+    }))).toContain('Missing Veyra docked secondary side bar manifest evidence.');
 
     expect(validateSmokeResultContent(JSON.stringify({
       ...completeSmokeResult,
       uiEvidence: {
         ...completeSmokeResult.uiEvidence,
         veyraDockedViewManifest: {
-          viewsContainerPanel: true,
+          viewsContainerSecondarySidebar: true,
         },
       },
     }))).toContain('Missing Veyra docked webview manifest evidence.');

@@ -443,8 +443,8 @@ export function validateSmokeResultContent(content) {
     errors.push('Missing Veyra docked view reveal evidence.');
   }
   const dockedViewManifest = result.uiEvidence?.veyraDockedViewManifest;
-  if (dockedViewManifest?.viewsContainerPanel !== true) {
-    errors.push('Missing Veyra docked panel container manifest evidence.');
+  if (dockedViewManifest?.viewsContainerSecondarySidebar !== true) {
+    errors.push('Missing Veyra docked secondary side bar manifest evidence.');
   }
   if (dockedViewManifest?.chatViewContribution !== true) {
     errors.push('Missing Veyra docked webview manifest evidence.');

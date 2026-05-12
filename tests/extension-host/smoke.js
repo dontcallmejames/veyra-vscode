@@ -50,17 +50,17 @@ async function run() {
     name: participant.name,
     commands: (participant.commands ?? []).map((command) => command.name),
   }));
-  const viewsContainerPanel = extension.packageJSON.contributes?.viewsContainers?.panel?.some(
+  const viewsContainerSecondarySidebar = extension.packageJSON.contributes?.viewsContainers?.secondarySidebar?.some(
     (container) => container.id === 'veyra' && container.title === 'Veyra',
   ) === true;
   const chatViewContribution = extension.packageJSON.contributes?.views?.veyra?.some(
     (view) => view.id === 'veyra.chatView' && view.name === 'Veyra' && view.type === 'webview',
   ) === true;
   uiEvidence.veyraDockedViewManifest = {
-    viewsContainerPanel,
+    viewsContainerSecondarySidebar,
     chatViewContribution,
   };
-  assert.equal(viewsContainerPanel, true, 'Expected Veyra docked panel container contribution.');
+  assert.equal(viewsContainerSecondarySidebar, true, 'Expected Veyra docked secondary side bar contribution.');
   assert.equal(chatViewContribution, true, 'Expected Veyra docked webview contribution.');
   const smokeDiagnostics = await withTimeout(
     vscode.commands.executeCommand('veyra.internalSmokeDiagnostics'),

@@ -75,9 +75,9 @@ The command title can remain `Veyra: Open Panel` for one release if desired, but
 
 ## 5. Manifest Contributions
 
-Add a contributed Veyra view container in the Panel area:
+Add a contributed Veyra view container in the Secondary Side Bar, matching the placement pattern used by Codex and Claude extension views:
 
-- `contributes.viewsContainers.panel`
+- `contributes.viewsContainers.secondarySidebar`
   - `id`: `veyra`
   - `title`: `Veyra`
   - `icon`: reuse `resources/icon.png` or add a simple monochrome SVG if VS Code renders PNG poorly in the panel tab.
@@ -95,7 +95,7 @@ Add activation:
 
 - `onView:veyra.chatView`
 
-This follows VS Code's documented view model: views can appear in Sidebar or Panel containers, custom view containers can be contributed to `panel`, and webview views are registered with `registerWebviewViewProvider`.
+This follows VS Code's documented view model: views can appear in Sidebar, Secondary Side Bar, or Panel containers, custom view containers can be contributed to `secondarySidebar`, and webview views are registered with `registerWebviewViewProvider`.
 
 References:
 
@@ -153,7 +153,7 @@ The first implementation can keep the existing command name and UI text if renam
 
 Coverage should include:
 
-- Manifest has a `viewsContainers.panel` contribution for Veyra.
+- Manifest has a `viewsContainers.secondarySidebar` contribution for Veyra.
 - Manifest has a `views.veyra` webview contribution with id `veyra.chatView`.
 - Manifest activates on `onView:veyra.chatView`.
 - Extension registers a `WebviewViewProvider`.

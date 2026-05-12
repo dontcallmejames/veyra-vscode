@@ -29,7 +29,7 @@
   - No protocol changes expected. Keep as-is unless TypeScript extraction needs a shared host type.
 - Modify: `package.json`
   - Add `onView:veyra.chatView`.
-  - Add `contributes.viewsContainers.panel`.
+  - Add `contributes.viewsContainers.secondarySidebar`.
   - Add `contributes.views.veyra` webview view.
   - Keep `onCommand:veyra.openPanel`.
 - Modify: `tests/panel.test.ts`
@@ -55,10 +55,10 @@
 Add a new test near the other manifest contribution tests in `tests/manifest.test.ts`:
 
 ```ts
-  it('contributes the docked Veyra webview in the Panel area', () => {
+  it('contributes the docked Veyra webview in the Secondary Side Bar', () => {
     expect(manifest.activationEvents).toContain('onView:veyra.chatView');
 
-    expect(manifest.contributes.viewsContainers.panel).toContainEqual({
+    expect(manifest.contributes.viewsContainers.secondarySidebar).toContainEqual({
       id: 'veyra',
       title: 'Veyra',
       icon: 'resources/icon.png',
@@ -82,7 +82,7 @@ Run:
 npx vitest run --environment node tests/manifest.test.ts
 ```
 
-Expected: FAIL because `viewsContainers.panel`, `views.veyra`, and `onView:veyra.chatView` are not present.
+Expected: FAIL because `viewsContainers.secondarySidebar`, `views.veyra`, and `onView:veyra.chatView` are not present.
 
 - [ ] **Step 3: Add manifest contributions**
 

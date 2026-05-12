@@ -77,7 +77,7 @@
   ],
   "contributes": {
     "viewsContainers": {
-      "panel": [
+      "secondarySidebar": [
         {
           "id": "veyra",
           "title": "Veyra",
