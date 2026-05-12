@@ -392,6 +392,24 @@ describe('extension manifest', () => {
     expect(readme).toContain('veyra.checkpoints.maxCount');
   });
 
+  it('contributes the docked Veyra webview in the Panel area', () => {
+    expect(manifest.activationEvents).toContain('onView:veyra.chatView');
+
+    expect(manifest.contributes.viewsContainers.panel).toContainEqual({
+      id: 'veyra',
+      title: 'Veyra',
+      icon: 'resources/icon.png',
+    });
+
+    expect(manifest.contributes.views.veyra).toContainEqual({
+      id: 'veyra.chatView',
+      name: 'Veyra',
+      type: 'webview',
+      visibility: 'visible',
+      contextualTitle: 'Veyra',
+    });
+  });
+
   it('contributes command-palette entries for panel, status, and commit-hook operations', () => {
     expect(manifest.contributes.commands.map((command) => command.command)).toEqual([
       'veyra.openPanel',
