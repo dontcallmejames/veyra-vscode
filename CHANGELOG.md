@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.9
+
+- Answers low-intent `@veyra` heartbeat prompts locally in both VS Code Chat and the Veyra panel.
+- Prevents fresh-session panel heartbeats from dispatching a write-capable fallback agent or triggering onboarding file prompts.
+- Adds regression coverage for panel heartbeat handling and local response persistence.
+
 ## 0.0.8
 
 - Adds `Veyra: Copy Diagnostic Report` for external tester reports.
